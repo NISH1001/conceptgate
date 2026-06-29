@@ -6,9 +6,42 @@ projections across depth, blends it with a learned **bandpass filter**, and gate
 distribution. When it fires it either **aborts** generation (emit `[GUARDRAILED]`) or **reroutes**
 the representation (add a steering vector) so M refuses on its own.
 
-> The core idea, math, and prior-art are in `../../.claude/plans/i-have-this-vague-encapsulated-reef.md`.
-> Mental model: microphones bolted down a hallway, each tuned to a concept's "signature", blended by
-> a bandpass filter that trusts the clearest layers.
+It's **concept-agnostic** — give it ~10 examples of *any* concept and it can detect it and steer
+toward/away from it. Guardrailing is just the first use.
+
+## The idea in one picture
+
+Picture M as a **hallway** a "thought" travels down. We bolt **microphones** (probes) at several
+layers; each is tuned to a concept's **signature** and reports a **loudness**. The loudness across
+depth is a **spectrogram**; a tiny learned **bandpass filter** blends the layers (trusting the clear
+ones), and a **bell-curve gate** decides fire / pass. On fire: **abort** (stop / emit a token) or
+**reroute** (steer the stream so M derails).
+
+```
+            ┌──────────────── M (frozen) ────────────────┐
+input text →│ … → block ℓ → … → final → logits           │→ token
+            └──────┬─────────────────────────────────────┘
+                   ▼  tap residual stream at layers ℓ1…ℓm
+  per concept:  sℓ = wₖ,ℓ · standardize(aℓ)     loudness per layer  (spectrogram s ∈ ℝᵐ)
+                S  = fₖ · s                       bandpass blend → one score
+                fire if LLRₖ(S) > τₖ              calibrated Gaussian gate
+                   │
+                   ├─ ABORT   → stop / emit EOS or [GUARDRAILED]
+                   └─ REROUTE → add −α·wₖ to the stream  → M refuses on its own
+```
+
+The whole novelty in one line: **don't pick one layer — read the concept's loudness across depth and
+blend it with a learned bandpass filter.** On synthetic data this cuts error ~16% → ~9% vs the best
+single layer (discriminabilities add in quadrature: `d' = √Σ d'ℓ²`).
+
+## Docs
+- [`docs/concepts.md`](docs/concepts.md) — full conceptual write-up: intuition, prior art & honest
+  novelty, the concept-agnostic generality (detect + steer), modes, the `G(M)→Tg` attach vision,
+  caveats, roadmap.
+- [`docs/math.md`](docs/math.md) — the rigorous mathematics: standardization, diff-of-means (LDA
+  optimality), spectrogram, the three bandpass filters, the depth-fusion / quadrature result, the
+  calibrated LLR gate, reroute steering, few-shot justification, parameter count, and a code map.
+- Design doc / plan: `../../.claude/plans/i-have-this-vague-encapsulated-reef.md`.
 
 ## Layout
 ```
