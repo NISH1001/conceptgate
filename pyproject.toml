@@ -1,0 +1,18 @@
+[project]
+name = "conceptgate"
+version = "0.1.0"
+description = "Concept Spectrogram Gate (CSG): a lightweight, few-shot internal guardrail adapter"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "torch>=2.2",
+    "transformers>=4.44",
+    "numpy>=1.26",
+    "matplotlib>=3.8",
+]
+
+# Treat this as an environment-only project: uv manages the .venv from the
+# dependencies above but does NOT try to build/install `conceptgate`
+# itself. Run from the repo root so `import conceptgate` resolves.
+[tool.uv]
+package = false
