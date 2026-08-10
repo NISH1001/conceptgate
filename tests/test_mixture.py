@@ -1,6 +1,6 @@
 import numpy as np
 
-from conceptgate.mixture import GMM, fit_gmm
+from conceptgate.mixture import GMM, bic, fit_gmm, select_gmm
 
 
 def _single_gauss_logpdf(x, mu, cov):
@@ -85,6 +85,32 @@ def test_fit_gmm_tiny_sample_does_not_crash():
     X = rng.standard_normal((8, 3))          # N < what J=3 wants
     g = fit_gmm(X, J=3, seed=0)
     assert np.all(np.isfinite(g.logpdf(X)))
+
+
+def test_select_gmm_picks_one_component_on_unimodal_data():
+    rng = np.random.default_rng(0)
+    X = rng.standard_normal((500, 2))
+    assert select_gmm(X, seed=0).n_components == 1
+
+
+def test_select_gmm_picks_two_components_on_bimodal_data():
+    X = _two_blob_data(n=500)
+    assert select_gmm(X, seed=0).n_components == 2
+
+
+def test_select_gmm_collapses_to_one_on_scarce_samples():
+    # few-shot guard (spec 3.2): ~10 samples must NOT support a multi-component fit
+    rng = np.random.default_rng(1)
+    X = rng.standard_normal((10, 3))
+    assert select_gmm(X, seed=0).n_components == 1
+
+
+def test_bic_penalizes_parameters():
+    rng = np.random.default_rng(0)
+    X = rng.standard_normal((300, 2))
+    g1 = fit_gmm(X, J=1, seed=0)
+    g3 = fit_gmm(X, J=3, seed=0)
+    assert bic(g1, X) < bic(g3, X)
 
 
 def test_gmm_logpdf_matches_sklearn_score_samples():

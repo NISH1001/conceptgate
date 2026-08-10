@@ -112,3 +112,16 @@ def fit_gmm(
     else:
         covs = sk.covariances_
     return GMM(sk.weights_, sk.means_, covs, covariance)
+
+
+def bic(gmm: GMM, X: np.ndarray) -> float:
+    """Bayesian information criterion (lower is better)."""
+    N = X.shape[0]
+    return -2.0 * float(gmm.logpdf(X).sum()) + gmm.n_params() * float(np.log(N))
+
+
+def select_gmm(X: np.ndarray, Js: Iterable[int] = (1, 2, 3), **fit_kwargs) -> GMM:
+    """Fit each J and return the BIC-best mixture (scarce data -> J=1 by design)."""
+    fits = [fit_gmm(X, J=int(J), **fit_kwargs) for J in Js]
+    scores = [bic(g, X) for g in fits]
+    return fits[int(np.argmin(scores))]
