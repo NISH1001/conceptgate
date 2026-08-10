@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Pure numpy in `conceptgate/` — no scipy, no sklearn (spec §4: "pure numpy, mirrors concept_bank.py style").
+- AMENDED 2026-08-10: GMM *fitting* uses sklearn's `GaussianMixture` (reference EM); the numpy `GMM` dataclass remains the storage/evaluation layer, and `gate.py`/`concept_bank.py` stay sklearn-free.
 - `ConceptGate` results must remain unchanged; `scripts/toy_csg.py` must still print `VALIDATION PASS` after every task (spec §7).
 - The repo is `package = false` (pyproject): scripts use the `sys.path.insert(0, ...)` pattern; tests need `tests/conftest.py` doing the same.
 - Everything seeded/deterministic: EM/k-means take explicit `seed`; toy scenarios report mean±std over >= 5 seeds (spec §5).

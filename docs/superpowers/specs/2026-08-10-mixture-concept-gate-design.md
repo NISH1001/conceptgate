@@ -100,7 +100,13 @@ within that mode.
 
 ## 4. Code plan
 
-New module `conceptgate/mixture.py` (pure numpy, mirrors `concept_bank.py` style):
+New module `conceptgate/mixture.py`. Division of labor (decided during implementation,
+2026-08-10): **fitting delegates to sklearn's `GaussianMixture`** (reference EM —
+hand-rolled EM risks silently-wrong fits corrupting research conclusions; the repo
+already carries far heavier deps), while **storage + evaluation stay in a tiny numpy
+`GMM` dataclass** so the rest of conceptgate is sklearn-free; a unit test pins our
+`logpdf` to sklearn's `score_samples`. Spec §3.2's shrinkage maps to sklearn's
+`reg_covar` scaled by the data's mean per-dim variance:
 
 - `GMM` dataclass: `weights [J]`, `means [J, m]`, `covs [J, m, m]`;
   `logpdf(X) -> [N]` via logsumexp; `sample(n, seed)`.

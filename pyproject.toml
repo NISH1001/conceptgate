@@ -9,6 +9,7 @@ dependencies = [
     "transformers>=4.44",
     "numpy>=1.26",
     "matplotlib>=3.8",
+    "scikit-learn>=1.7.2",
 ]
 
 # Treat this as an environment-only project: uv manages the .venv from the
