@@ -64,6 +64,7 @@ scripts/
 uv sync                              # build .venv from pyproject (torch, transformers, numpy, sklearn)
 uv run python scripts/toy_csg.py     # offline math check  -> VALIDATION PASS (err 16% -> 9%)
 uv run python scripts/toy_csg_mixture.py  # mixture upgrade -> MIXTURE VALIDATION PASS
+uv run python scripts/mixture_gpt2_check.py  # mixture on real GPT-2 acts -> PASS
 uv run python scripts/p0_smoke.py    # GPT-2 end-to-end     -> P0 SMOKE: PASS
 uv run pytest tests/ -q              # unit tests
 ```
