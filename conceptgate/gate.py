@@ -23,6 +23,23 @@ def _gauss_logpdf(x: np.ndarray, mu: float, sigma: float) -> np.ndarray:
     return -0.5 * ((x - mu) / sigma) ** 2 - np.log(sigma) - 0.5 * _LOG2PI
 
 
+def _fit_directions(A_pos: np.ndarray, A_neg: np.ndarray):
+    """Shared few-shot front-end: standardization stats, directions, spectrograms.
+
+    A_pos, A_neg: [N, m, d] -> (mu0, sd0, W, W_raw, S_pos, S_neg).
+    """
+    A_all = np.concatenate([A_pos, A_neg], axis=0)
+    mu0 = A_all.mean(axis=0)                    # [m, d]
+    sd0 = A_all.std(axis=0) + 1e-6              # [m, d]
+    Zp = (A_pos - mu0) / sd0
+    Zn = (A_neg - mu0) / sd0
+    W = cb.fit_directions(Zp, Zn)
+    W_raw = cb._normalize(A_pos.mean(0) - A_neg.mean(0), axis=-1)
+    S_pos = cb.spectrogram(Zp, W)
+    S_neg = cb.spectrogram(Zn, W)
+    return mu0, sd0, W, W_raw, S_pos, S_neg
+
+
 @dataclass
 class ConceptGate:
     """One concept's full detector: directions + bandpass filter + calibrated Gaussian gate."""
@@ -50,15 +67,7 @@ class ConceptGate:
         the diff-of-means direction — this tames GPT-2's massive-activation dimensions. A separate
         raw-space direction (W_raw) is kept for reroute steering (which perturbs the raw stream).
         """
-        A_all = np.concatenate([A_pos, A_neg], axis=0)
-        self.mu0 = A_all.mean(axis=0)               # [m, d]
-        self.sd0 = A_all.std(axis=0) + 1e-6         # [m, d]
-        Zp = (A_pos - self.mu0) / self.sd0
-        Zn = (A_neg - self.mu0) / self.sd0
-        self.W = cb.fit_directions(Zp, Zn)
-        self.W_raw = cb._normalize(A_pos.mean(0) - A_neg.mean(0), axis=-1)
-        S_pos = cb.spectrogram(Zp, self.W)
-        S_neg = cb.spectrogram(Zn, self.W)
+        self.mu0, self.sd0, self.W, self.W_raw, S_pos, S_neg = _fit_directions(A_pos, A_neg)
         self.f = cb.fit_bandpass(S_pos, S_neg, method=self.filter_method)
         self.train_dprime = cb.dprime_per_layer(S_pos, S_neg)
         sp = cb.filtered_score(S_pos, self.f)
