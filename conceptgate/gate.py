@@ -8,12 +8,14 @@ A GateBank runs K concepts in parallel and fires if any concept fires.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import numpy as np
 
 from . import concept_bank as cb
+from . import mixture as mx
 
 _LOG2PI = float(np.log(2.0 * np.pi))
 
@@ -119,6 +121,88 @@ class ConceptGate:
             _gauss_logpdf(s_star, self.mu_pos, self.sigma_pos)[0]
             - _gauss_logpdf(s_star, self.mu_neg, self.sigma_neg)[0]
         )
+        return self.tau
+
+
+def _phi(x: float) -> float:
+    """Standard normal CDF."""
+    return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
+
+
+@dataclass
+class MixtureConceptGate:
+    """One concept as a SET of (mu, Sigma) components per class on the joint spectrogram.
+
+    Density upgrade of ConceptGate: class-conditional GMMs fitted directly in
+    spectrogram space R^m (J chosen by BIC; J=1 with shared covariance recovers the
+    fisher-bandpass gate). Directions, standardization, and steering (W_raw) are
+    identical to ConceptGate, so GateBank / Guard work unchanged.
+    """
+
+    name: str = "concept"
+    Js: Tuple[int, ...] = (1, 2, 3)
+    covariance: str = "full"
+    shrinkage: float = 0.1
+    seed: int = 0
+    tau: float = 0.0                 # LLR fire threshold (>tau -> fire)
+    abstain_margin: float = 0.0      # if >0, |LLR - tau| < margin -> abstain
+    # learned params (set by fit)
+    W: Optional[np.ndarray] = None
+    W_raw: Optional[np.ndarray] = None
+    mu0: Optional[np.ndarray] = None
+    sd0: Optional[np.ndarray] = None
+    gmm_pos: Optional[mx.GMM] = None
+    gmm_neg: Optional[mx.GMM] = None
+    train_dprime: Optional[np.ndarray] = None
+
+    def fit(self, A_pos: np.ndarray, A_neg: np.ndarray) -> "MixtureConceptGate":
+        """A_pos, A_neg: [N, m, d] activation samples (last-token rep per prompt)."""
+        self.mu0, self.sd0, self.W, self.W_raw, S_pos, S_neg = _fit_directions(A_pos, A_neg)
+        self.train_dprime = cb.dprime_per_layer(S_pos, S_neg)
+        kw = dict(covariance=self.covariance, shrinkage=self.shrinkage, seed=self.seed)
+        self.gmm_pos = mx.select_gmm(S_pos, Js=self.Js, **kw)
+        self.gmm_neg = mx.select_gmm(S_neg, Js=self.Js, **kw)
+        return self
+
+    # --- scoring ---
+    def spectro(self, A: np.ndarray) -> np.ndarray:
+        """Standardized spectrogram. A: [N, m, d] -> [N, m]."""
+        Z = (A - self.mu0) / self.sd0
+        return cb.spectrogram(Z, self.W)
+
+    def llr(self, A: np.ndarray) -> np.ndarray:
+        S = self.spectro(A)
+        return self.gmm_pos.logpdf(S) - self.gmm_neg.logpdf(S)
+
+    def fire(self, A: np.ndarray) -> np.ndarray:
+        """Boolean fire decision per sample (abstain counts as no-fire)."""
+        return self.decide(A) > 0
+
+    def decide(self, A: np.ndarray) -> np.ndarray:
+        """+1 fire, 0 abstain, -1 pass."""
+        l = self.llr(A)
+        out = np.where(l > self.tau, 1, -1)
+        if self.abstain_margin > 0:
+            out = np.where(np.abs(l - self.tau) < self.abstain_margin, 0, out)
+        return out
+
+    # --- calibration ---
+    def calibrate_threshold(self, A_neg_cal: np.ndarray, target_fpr: float = 0.05) -> float:
+        """Set tau so the false-positive rate on calibration negatives ~= target_fpr."""
+        l = np.sort(self.llr(A_neg_cal))
+        q = float(np.clip(1.0 - target_fpr, 0.0, 1.0))
+        self.tau = float(np.quantile(l, q))
+        return self.tau
+
+    def calibrate_z(self, z: float = 3.0, n_samples: int = 10_000) -> float:
+        """Benign-mixture quantile operating point (the mixture analogue of 'mean + z*sd').
+
+        Draw samples from the fitted benign GMM (no model calls), evaluate their LLRs,
+        and put tau at the 1 - Phi(-z) quantile: z=3 -> ~0.1% benign-tail FPR.
+        """
+        S = self.gmm_neg.sample(n_samples, seed=self.seed)
+        l = self.gmm_pos.logpdf(S) - self.gmm_neg.logpdf(S)
+        self.tau = float(np.quantile(l, 1.0 - _phi(-z)))
         return self.tau
 
 
