@@ -16,3 +16,8 @@ dependencies = [
 # itself. Run from the repo root so `import conceptgate` resolves.
 [tool.uv]
 package = false
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
