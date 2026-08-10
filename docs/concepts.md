@@ -120,6 +120,19 @@ very different:
 A single linear direction can't match LoRA for complex *skills* (e.g. "be good at SQL"). Its sweet
 spot is **concept-level** nudges.
 
+### 5b. A concept class is a set of modes
+
+One Gaussian per class says "benign sounds like *one* hum". Really each class is a
+**set of sound profiles** — benign chit-chat, benign homework, benign code — so the
+gate now models each class as a *set of (μ, Σ) components* over the depth profile
+(a Gaussian mixture on the spectrogram; the set size is picked by the data via BIC,
+and ~10-shot data collapses to one component — the original gate). Two payoffs:
+sharper thresholds when a class is multi-modal, and an *input-dependent* bandpass —
+each mode contributes its own filter, weighted by how well it explains the sample.
+The kill-shot case: if benign modes *flank* harmful on the filter axis, **no** single
+linear filter separates them, but the mixture LLR does (`scripts/toy_csg_mixture.py`:
+fisher 38.8% error / AUC 0.60 vs mixture 7.1% / AUC 0.98, Bayes floor 5.8%).
+
 ---
 
 ## 6. The two action modes — and the `G(M) → Tg` attach vision
@@ -160,6 +173,9 @@ which standard `generate()` then samples and stops on.)
 
 - **P0 (done):** mechanism wired + validated. Offline: depth filter cuts error ~16% → ~9%. GPT-2:
   held-out recall 1.00 / FPR 0.00; abort emits `[GUARDRAILED]`; reroute steers.
+- **P0.5 (done):** density upgrade — class-conditional Gaussian *mixtures* on the joint
+  spectrogram (BIC-selected, J=1 collapse on 10-shot). Toy: regression preserved;
+  bimodal-benign and no-linear-filter scenarios recovered near the Bayes floor.
 - **P1:** small instruct model (Gemma-2-2B-it / Qwen2.5). Single-best-layer baseline; few-shot
   recall/FPR/PR curves; output-side gating that's actually meaningful.
 - **P2:** CSG depth filter vs single-layer (A) vs MLP (B); abort-vs-reroute comparison; `attach_guard`

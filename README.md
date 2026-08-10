@@ -47,21 +47,25 @@ single layer (discriminabilities add in quadrature: `d' = √Σ d'ℓ²`).
 ```
 conceptgate/
   concept_bank.py   # diff-of-means directions, spectrogram, closed-form bandpass filter (pure numpy)
-  gate.py           # standardized fit, Gaussian LLR gate, abstain band, K-concept GateBank, metrics
+  mixture.py        # Set((mu,Sigma)) per class: GMM (sklearn EM + BIC) on the spectrogram
+  gate.py           # Gaussian LLR gate + MixtureConceptGate, abstain band, K-concept GateBank
   hooks.py          # model-agnostic block access + steering (reroute) forward hooks
   data.py           # load concept prompt sets + extract per-token / last-token activations
   guard.py          # Guard: generation loop with input/output-side gating, abort + reroute modes
 data/concepts/      # tiny labeled prompt sets (~10/class)
 scripts/
   toy_csg.py        # OFFLINE validation of the math (no model): depth filter beats single layer
+  toy_csg_mixture.py # mixture validation: regression / bimodal benign / kill-shot scenarios
   p0_smoke.py       # end-to-end on GPT-2: detection + abort + reroute
 ```
 
 ## Run (always via `uv run`)
 ```bash
-uv sync                              # build .venv from pyproject (torch, transformers, numpy, matplotlib)
+uv sync                              # build .venv from pyproject (torch, transformers, numpy, sklearn)
 uv run python scripts/toy_csg.py     # offline math check  -> VALIDATION PASS (err 16% -> 9%)
+uv run python scripts/toy_csg_mixture.py  # mixture upgrade -> MIXTURE VALIDATION PASS
 uv run python scripts/p0_smoke.py    # GPT-2 end-to-end     -> P0 SMOKE: PASS
+uv run pytest tests/ -q              # unit tests
 ```
 
 ## Status
@@ -69,6 +73,11 @@ uv run python scripts/p0_smoke.py    # GPT-2 end-to-end     -> P0 SMOKE: PASS
   ~16% → ~9%. On GPT-2: held-out detection recall 1.00 / FPR 0.00; abort emits `[GUARDRAILED]`;
   reroute changes the continuation. (GPT-2 can't generate coherent harmful text, so it only
   demonstrates input-side cleanly — the science is P1.)
+- **P0.5 (done):** mixture upgrade — a concept class is a `Set((mu, Sigma))` (GMM on the
+  joint spectrogram, BIC-selected J, 10-shot collapses to J=1). Regression toy preserved;
+  where no linear filter separates (flanking benign modes: fisher 38.8% err / AUC 0.60),
+  the mixture LLR recovers the Bayes floor (7.1% / AUC 0.98). Next: sequential gate over
+  depth (early short-circuit; see docs/superpowers/specs/).
 - **P1 (next):** Gemma-2-2B-it. Single-best-layer baseline (A); measure few-shot recall/FPR/PR.
 - **P2:** CSG depth filter vs A vs MLP (B) ablation; abort vs reroute comparison.
 - **P3:** jailbreak robustness vs a text-classifier guard; multi-concept K.

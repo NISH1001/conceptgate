@@ -106,6 +106,52 @@ answers "does using depth help?".
 
 ---
 
+## 5b. The mixture upgrade: a concept class as a set of (μ, Σ)
+
+A single Gaussian per class (§7) assumes each class is one blob. Realistically a class
+is a **set of modes** ("benign" = chit-chat, homework, code, …). We therefore model each
+class directly on the joint spectrogram $\mathbf{s}\in\mathbb{R}^m$ as a Gaussian mixture:
+
+$$
+p(\mathbf{s}\mid c)=\sum_{j=1}^{J_c}\pi_{cj}\,\mathcal{N}(\mathbf{s};\mu_{cj},\Sigma_{cj}),
+\qquad c\in\{+,-\},
+$$
+
+and gate on $\mathrm{LLR}(\mathbf{s})=\log p(\mathbf{s}\mid +)-\log p(\mathbf{s}\mid -)>\tau$.
+
+**Why joint, not per-layer:** each $\mu_{cj}$ is a *profile across depth*; the joint
+mixture's marginal at any layer is automatically a mixture at that layer, while
+cross-layer correlations are kept (a per-layer-then-combine scheme loses them, and a
+"mixture of per-layer mixtures" is not a coherent density).
+
+**Continuity (nothing is lost):** with $J=1$ per class and shared covariance
+$\Sigma_\mathbf{s}$, the LLR is affine in $\mathbf{s}$ with normal vector
+$\Sigma_\mathbf{s}^{-1}(\bar{\mathbf{s}}^+-\bar{\mathbf{s}}^-)$ — exactly the `fisher`
+bandpass of §5. With $J>1$ the effective filter becomes **input-dependent**: locally a
+responsibility-weighted blend of per-component matched filters.
+
+**Fitting:** sklearn's reference EM (seeded restarts; hand-rolled EM risks silently-wrong
+fits), with the small-sample shrinkage mapped to `reg_covar` scaled by the data's mean
+per-dim variance. $J_c$ chosen by **BIC** over $\{1,2,3\}$ — scarce (10-shot) data
+collapses to $J=1$, i.e. the §7 gate, by design. Storage/evaluation (logpdf, sampling)
+is a tiny numpy `GMM` dataclass pinned to sklearn's `score_samples` by a unit test.
+
+**Calibration:** the FPR-quantile rule (§7) is unchanged. The $z$-based rule becomes a
+benign-mixture quantile: draw ~10k samples from $p(\mathbf{s}\mid-)$, set $\tau$ at the
+$1-\Phi(-z)$ quantile of their LLRs (z=3 → ~0.1% benign-tail FPR).
+
+**Validation** (`scripts/toy_csg_mixture.py`, 5 seeds): (S1) on unimodal data BIC picks
+$J=1$ and the mixture reproduces `fisher` exactly (9.2%, Bayes 9.1%); (S2) bimodal
+benign: mixture sits on the Bayes floor; (S3) benign modes *flanking* harmful on the
+discriminative axis — **no linear filter can separate** (`fisher` 38.8%, AUC 0.60) while
+the mixture LLR recovers it (7.1%, AUC 0.98, Bayes floor 5.8%).
+
+**Cost:** $J\,(m + \tfrac{m(m+1)}{2} + 1)$ numbers per class per concept — for $m=5$,
+$J\le3$: ≤ 63 extra numbers. Code: `conceptgate/mixture.py` (GMM/EM/BIC),
+`MixtureConceptGate` in `conceptgate/gate.py`.
+
+---
+
 ## 6. Why depth fusion wins (the key result)
 
 Model the per-layer score as signal + independent noise:
@@ -234,6 +280,9 @@ vs one transformer forward. Abort *saves* compute (skips remaining decoding).
 | input/output-side gating loop, abort + reroute | `conceptgate/guard.py` |
 | §6 worked example (offline) | `scripts/toy_csg.py` |
 | GPT-2 end-to-end | `scripts/p0_smoke.py` |
+| GMM density, EM fit, BIC selection (§5b) | `conceptgate/mixture.py` |
+| `MixtureConceptGate` (§5b gate) | `conceptgate/gate.py` |
+| §5b validation (regression / bimodal / kill-shot) | `scripts/toy_csg_mixture.py` |
 
 ---
 
