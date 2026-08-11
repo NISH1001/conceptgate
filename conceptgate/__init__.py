@@ -1,14 +1,38 @@
-"""Concept Spectrogram Gate (CSG): a lightweight, few-shot internal guardrail adapter.
+"""ConceptGate: a few-shot concept sidekick for frozen transformers.
 
-Core idea: tap a frozen model M's residual stream at several layers, build a per-concept
-"spectrogram" of diff-of-means projections across depth, blend it with a tiny learned bandpass
-filter, and gate on a calibrated 1-D distribution. Firing either ABORTS generation (emit a fixed
-token) or REROUTES the representation (add a steering vector) so M refuses on its own.
+Attach to any frozen model, learn concepts from ~10 examples, measure cheaply (a truncated
+forward that runs only the tapped layers), and act via injected strategies:
 
-This package is pure-numpy for the math (concept_bank, gate) and torch/transformers only at the
-model boundary (hooks, data, guard).
+    from conceptgate import ConceptGate
+    from conceptgate.actions import Abort
+
+    cg = ConceptGate.from_pretrained("gpt2", layers=[4, 6, 8])
+    cg.learn("weapons", positives=[...], negatives=[...])
+    cg.calibrate(z=3.0)
+    cg.check(prompt)                    # Verdict — truncated forward
+    cg.run(prompt, action=Abort())      # strategy decides; the gate drives + executes
+
+Layers: `concept`/`concept_bank`/`mixture` are the numpy math core; `taps`/`hooks`/`data`
+the torch boundary; `actions` the strategy layer; `gate` the facade. Only `ConceptGate` and
+the actions are the surface you normally touch.
 """
+# numpy-only, torch-free — safe to import for the math/toy path
+from . import actions, concept, concept_bank  # noqa: F401
+from .actions import Abort, ConceptAction, FireContext, Verdict  # noqa: F401
+from .concept import BandpassConcept, Concept, ConceptBank  # noqa: F401
 
-from . import concept, concept_bank  # noqa: F401
+__all__ = [
+    "ConceptGate", "RunResult",                       # lazy (torch) — see __getattr__
+    "Verdict", "Abort", "ConceptAction", "FireContext",
+    "Concept", "BandpassConcept", "ConceptBank",
+    "actions", "concept", "concept_bank",
+]
 
-__all__ = ["concept", "concept_bank"]
+
+def __getattr__(name):
+    """Lazily expose the torch-backed facade so the numpy math path stays torch-free."""
+    if name in ("ConceptGate", "RunResult"):
+        from . import gate
+
+        return getattr(gate, name)
+    raise AttributeError(f"module 'conceptgate' has no attribute {name!r}")
