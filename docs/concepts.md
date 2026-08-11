@@ -65,8 +65,8 @@ depth (a *matched filter*), "bell-curve gate" = a calibrated Gaussian likelihood
 
 G's entire state per concept is: `m` direction vectors `w` (size `d` each), an `m`-vector filter `f`,
 standardization stats, and four Gaussian scalars. For GPT-2 (m=5, d=768) that's ~8k numbers.
-(The mixture upgrade, §5b, swaps the four scalars for a small *set* of (μ, Σ) profiles per class —
-tens of extra numbers — and the single filter `f` gets absorbed into the mixture's decision rule.)
+(With mixture densities, §5b, the four scalars become a small *set* of (μ, Σ) profiles per class —
+tens of numbers — and the single filter `f` is absorbed into the mixture's decision rule.)
 
 ---
 
@@ -122,16 +122,16 @@ very different:
 A single linear direction can't match LoRA for complex *skills* (e.g. "be good at SQL"). Its sweet
 spot is **concept-level** nudges.
 
-### 5b. A concept class is a set of modes (the mixture upgrade)
+### 5b. A concept class is a set of modes
 
-**Back to the hallway.** The original gate assumed each class makes *one* hum: "benign
+**Back to the hallway.** The simplest gate assumes each class makes *one* hum: "benign
 sounds like this, harmful sounds like that" — one Gaussian per class. But listen to real
 benign traffic in the hallway: chit-chat, chemistry homework, code questions — each a
 *different voice* with its own loudness profile across the microphones. Squeezing many
 voices into one hum smears the class into a fat, vague blob: thresholds get pushed out
 (missed detections) and the space *between* the voices gets mislabeled (false alarms).
 
-So each class now keeps a small **library of sound profiles** — your `Set((μ, Σ))`.
+So each class keeps a small **library of sound profiles** — a `Set((μ, Σ))`.
 Each profile is one voice: its expected loudness at every microphone (μ, a profile
 *across depth*) and how those loudnesses co-vary (Σ). Formally the library is a
 **Gaussian mixture model (GMM)** on the spectrogram, one mixture per class:
@@ -151,8 +151,9 @@ each candidate as `BIC = −2·log-likelihood + k·ln(N)` (k = parameter count, 
 count; lower wins): every parameter pays **rent**, and an extra profile is admitted only
 if the fit it buys exceeds the rent it costs. Consequences you can see in our runs:
 - **Few-shot (N≈12, GPT-2):** a second full-covariance profile over 5 mics costs ~21
-  parameters → rent ≈ 21·ln 12 ≈ 52; twelve samples never earn that → **J=1**, and the
-  mixture gate *collapses into exactly the original P0 gate*. Nothing is lost.
+  parameters → rent ≈ 21·ln 12 ≈ 52; twelve samples never earn that → **J=1**: the
+  library holds a single profile per class, which *is* the single-Gaussian gate — the
+  J=1 special case.
 - **Data-rich with real clusters (toy, N=8000):** the second benign profile pays for
   itself instantly → **J=2**, and the gate exploits it.
 
@@ -167,8 +168,8 @@ AUC 0.98** (true optimum 5.8%). Run it: `uv run python scripts/toy_csg_mixture.p
 **And on the real hallway (GPT-2, weapons concept).** Fit on 12 harmful + 12 benign
 prompts, tested on held-out prompts: BIC keeps **J=1 per class** (twelve samples can't
 pay for more — correct behavior, not failure), held-out **recall 1.00 / FPR 0.00**, and
-the mixture gate's rankings agree with the original gate at **0.986** — a verified
-drop-in. Run it: `uv run python scripts/mixture_gpt2_check.py`. Honest caveat:
+the mixture gate's rankings agree with the single-Gaussian gate at **0.986** — the two
+gates are interchangeable in this regime, as the math says they must be. Run it: `uv run python scripts/mixture_gpt2_check.py`. Honest caveat:
 bombs-vs-cookies is an *easy* concept; whether real concept classes are genuinely
 multi-modal (so J>1 wins on real data) is exactly the P1 question, to be tested with
 near-boundary benign prompts (chemistry homework, military history) on a larger model.
@@ -219,8 +220,8 @@ which standard `generate()` then samples and stops on.)
 
 - **P0 (done):** mechanism wired + validated. Offline: depth filter cuts error ~16% → ~9%. GPT-2:
   held-out recall 1.00 / FPR 0.00; abort emits `[GUARDRAILED]`; reroute steers.
-- **P0.5 (done):** density upgrade — class-conditional Gaussian *mixtures* on the joint
-  spectrogram (BIC-selected, J=1 collapse on 10-shot). Toy: regression preserved;
+- **P0.5 (done):** mixture densities — class-conditional Gaussian *mixtures* on the joint
+  spectrogram (BIC-selected, J=1 on 10-shot). Toy: single-Gaussian results reproduced;
   bimodal-benign and no-linear-filter scenarios recovered near the Bayes floor.
 - **P1:** small instruct model (Gemma-2-2B-it / Qwen2.5). Single-best-layer baseline; few-shot
   recall/FPR/PR curves; output-side gating that's actually meaningful.

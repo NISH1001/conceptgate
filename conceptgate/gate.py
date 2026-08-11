@@ -133,10 +133,10 @@ def _phi(x: float) -> float:
 class MixtureConceptGate:
     """One concept as a SET of (mu, Sigma) components per class on the joint spectrogram.
 
-    Density upgrade of ConceptGate: class-conditional GMMs fitted directly in
-    spectrogram space R^m (J chosen by BIC; J=1 with shared covariance recovers the
-    fisher-bandpass gate). Directions, standardization, and steering (W_raw) are
-    identical to ConceptGate, so GateBank / Guard work unchanged.
+    Class-conditional GMMs fitted directly in spectrogram space R^m (J chosen by
+    BIC; J=1 with shared covariance recovers the fisher-bandpass gate, so ConceptGate
+    is the nested special case). Directions, standardization, and steering (W_raw)
+    are identical to ConceptGate, so GateBank / Guard work unchanged.
     """
 
     name: str = "concept"

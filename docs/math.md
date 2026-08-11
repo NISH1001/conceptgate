@@ -106,7 +106,7 @@ answers "does using depth help?".
 
 ---
 
-## 5b. The mixture upgrade: a concept class as a set of (μ, Σ)
+## 5b. Mixture densities: a concept class as a set of (μ, Σ)
 
 A single Gaussian per class (§7) assumes each class is one blob. Realistically a class
 is a **set of modes** ("benign" = chit-chat, homework, code, …). We therefore model each
@@ -124,7 +124,7 @@ mixture's marginal at any layer is automatically a mixture at that layer, while
 cross-layer correlations are kept (a per-layer-then-combine scheme loses them, and a
 "mixture of per-layer mixtures" is not a coherent density).
 
-**Continuity (nothing is lost):** with $J=1$ per class and shared covariance
+**Relation to §5/§7 (nesting):** with $J=1$ per class and shared covariance
 $\Sigma_\mathbf{s}$, the LLR is affine in $\mathbf{s}$ with normal vector
 $\Sigma_\mathbf{s}^{-1}(\bar{\mathbf{s}}^+-\bar{\mathbf{s}}^-)$ — exactly the `fisher`
 bandpass of §5. With $J>1$ the effective filter becomes **input-dependent**: locally a
@@ -165,8 +165,9 @@ discriminative axis — **no linear filter can separate** (`fisher` 38.8%, AUC 0
 the mixture LLR recovers it (7.1%, AUC 0.98, Bayes floor 5.8%). On real GPT-2
 activations (`scripts/mixture_gpt2_check.py`, weapons concept, 12+12 prompts): BIC
 collapses to $J=(1,1)$, held-out recall 1.00 / FPR 0.00, LLR rank agreement 0.986 with
-the single-Gaussian gate — a verified drop-in; no multimodality detectable on this
-(deliberately easy) concept, which is the honest few-shot expectation.
+the single-Gaussian gate (the two coincide at $J=1$, as §5b's nesting requires); no
+multimodality detectable on this (deliberately easy) concept, which is the honest
+few-shot expectation.
 
 **Cost:** $J\,(m + \tfrac{m(m+1)}{2} + 1)$ numbers per class per concept — for $m=5$,
 $J\le3$: ≤ 63 extra numbers. Code: `conceptgate/mixture.py` (GMM/EM/BIC),

@@ -1,4 +1,4 @@
-"""Offline validation of the mixture upgrade on synthetic activations (no model).
+"""Offline validation of the mixture densities on synthetic activations (no model).
 
 Three scenarios, each over >=5 seeds (spec 2026-08-10, section 5). Classes are
 mixtures of isotropic Gaussians in activation space; the mode is sampled PER SAMPLE
