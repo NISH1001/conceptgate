@@ -22,7 +22,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from conceptgate import concept_bank as cb
-from conceptgate.gate import BandpassConceptGate, ConceptGate, error_at_zero
+from conceptgate.concept import BandpassConcept, Concept, error_at_zero
 
 SEEDS = [0, 1, 2, 3, 4]
 N_TRAIN = 8000   # per class (S3's near-cancelling class means need this for clean directions)
@@ -108,14 +108,14 @@ def run_scenario(name, cfg):
         tr, te = slice(0, N_TRAIN), slice(N_TRAIN, N_TRAIN + N_TEST)
 
         for method in ["best", "fisher"]:
-            g = BandpassConceptGate(name=name, filter_method=method).fit(Ap[tr], An[tr])
+            g = BandpassConcept(name=name, filter_method=method).fit(Ap[tr], An[tr])
             sp = g.score(Ap[te]) - 0.5 * (g.mu_pos + g.mu_neg)
             sn = g.score(An[te]) - 0.5 * (g.mu_pos + g.mu_neg)
             errs[method].append(error_at_zero(sp, sn))
             if method == "fisher":
                 aucs["fisher"].append(auc(sp, sn))
 
-        mg = ConceptGate(name=name).fit(Ap[tr], An[tr])
+        mg = Concept(name=name).fit(Ap[tr], An[tr])
         lp, ln = mg.llr(Ap[te]), mg.llr(An[te])
         errs["mixture"].append(error_at_zero(lp, ln))
         aucs["mixture"].append(auc(lp, ln))

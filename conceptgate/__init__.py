@@ -9,6 +9,6 @@ This package is pure-numpy for the math (concept_bank, gate) and torch/transform
 model boundary (hooks, data, guard).
 """
 
-from . import concept_bank, gate  # noqa: F401
+from . import concept, concept_bank  # noqa: F401
 
-__all__ = ["concept_bank", "gate"]
+__all__ = ["concept", "concept_bank"]

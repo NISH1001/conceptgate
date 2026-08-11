@@ -16,7 +16,7 @@ from typing import Dict, List, Optional
 import numpy as np
 import torch
 
-from .gate import GateBank
+from .concept import ConceptBank
 from .hooks import SteeringHooks
 
 GUARDRAILED = "[GUARDRAILED]"
@@ -33,7 +33,7 @@ class GenResult:
 
 
 class Guard:
-    def __init__(self, model, tok, gate_bank: GateBank, layers: List[int], device: str = "cpu"):
+    def __init__(self, model, tok, gate_bank: ConceptBank, layers: List[int], device: str = "cpu"):
         self.model = model
         self.tok = tok
         self.gb = gate_bank

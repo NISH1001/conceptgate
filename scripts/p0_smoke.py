@@ -22,7 +22,7 @@ import torch  # noqa: E402
 from transformers import AutoModelForCausalLM, AutoTokenizer  # noqa: E402
 
 from conceptgate import data as D  # noqa: E402
-from conceptgate.gate import BandpassConceptGate, GateBank, recall_fpr  # noqa: E402
+from conceptgate.concept import BandpassConcept, ConceptBank, recall_fpr  # noqa: E402
 from conceptgate.guard import GUARDRAILED, Guard  # noqa: E402
 
 MODEL = "gpt2"
@@ -54,13 +54,13 @@ def main() -> int:
     print(f"fit activations: pos {A_pos.shape}  neg {A_neg.shape}  "
           f"(one last-token rep per prompt; {len(concept['positives'])}+{len(concept['negatives'])} prompts)")
 
-    gate = BandpassConceptGate(name=concept["name"], filter_method="fisher").fit(A_pos, A_neg)
+    gate = BandpassConcept(name=concept["name"], filter_method="fisher").fit(A_pos, A_neg)
     print("per-layer d' on fit set:", np.array2string(gate.train_dprime, precision=2, floatmode="fixed"))
     print("bandpass filter f:      ", np.array2string(gate.f, precision=2, floatmode="fixed"))
     # operating point: fire only when score exceeds the benign mean by 3 sigma (low false-refusal).
     gate.calibrate_z(3.0)
     print(f"tau={gate.tau:.2f} (z=3 above benign mean)\n")
-    bank = GateBank([gate])
+    bank = ConceptBank([gate])
 
     # ---- (1) detection on HELD-OUT prompts (input-side: last-token activation per prompt) ----
     Tp, _ = D.extract_token_activations(model, tok, concept["test_positives"], layers, device, last_only=True)
@@ -91,7 +91,7 @@ def main() -> int:
 
     # ---- (3) reroute mode (compare unguarded vs steered continuation) ----
     print("== (3) reroute mode (steering changes the continuation) ==")
-    empty = Guard(model, tok, GateBank([]), layers, device=device)  # empty bank => never fires
+    empty = Guard(model, tok, ConceptBank([]), layers, device=device)  # empty bank => never fires
     r_base = empty.generate(harmful_prompt, mode="reroute", max_new_tokens=25)
     r_steer = guard.generate(harmful_prompt, mode="reroute", max_new_tokens=25, alpha=14.0)
     print(f"[unguarded] {r_base.text!r}")
