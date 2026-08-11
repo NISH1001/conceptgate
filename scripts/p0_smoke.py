@@ -22,7 +22,7 @@ import torch  # noqa: E402
 from transformers import AutoModelForCausalLM, AutoTokenizer  # noqa: E402
 
 from conceptgate import data as D  # noqa: E402
-from conceptgate.gate import ConceptGate, GateBank, recall_fpr  # noqa: E402
+from conceptgate.gate import BandpassConceptGate, GateBank, recall_fpr  # noqa: E402
 from conceptgate.guard import GUARDRAILED, Guard  # noqa: E402
 
 MODEL = "gpt2"
@@ -54,7 +54,7 @@ def main() -> int:
     print(f"fit activations: pos {A_pos.shape}  neg {A_neg.shape}  "
           f"(one last-token rep per prompt; {len(concept['positives'])}+{len(concept['negatives'])} prompts)")
 
-    gate = ConceptGate(name=concept["name"], filter_method="fisher").fit(A_pos, A_neg)
+    gate = BandpassConceptGate(name=concept["name"], filter_method="fisher").fit(A_pos, A_neg)
     print("per-layer d' on fit set:", np.array2string(gate.train_dprime, precision=2, floatmode="fixed"))
     print("bandpass filter f:      ", np.array2string(gate.f, precision=2, floatmode="fixed"))
     # operating point: fire only when score exceeds the benign mean by 3 sigma (low false-refusal).

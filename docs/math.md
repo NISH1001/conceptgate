@@ -171,7 +171,8 @@ few-shot expectation.
 
 **Cost:** $J\,(m + \tfrac{m(m+1)}{2} + 1)$ numbers per class per concept — for $m=5$,
 $J\le3$: ≤ 63 extra numbers. Code: `conceptgate/mixture.py` (GMM/EM/BIC),
-`MixtureConceptGate` in `conceptgate/gate.py`.
+`ConceptGate` in `conceptgate/gate.py` (the scalar special case is
+`BandpassConceptGate`).
 
 ---
 
@@ -297,14 +298,14 @@ vs one transformer forward. Abort *saves* compute (skips remaining decoding).
 | Math | Code |
 |---|---|
 | standardization, $w_\ell$, spectrogram, $f$ (best/diag/fisher), $d'$ | `conceptgate/concept_bank.py` |
-| `ConceptGate.fit` (std + $w$ + $w^{\text{raw}}$ + $f$ + Gaussians), `score`, `llr`, `fire`, `calibrate_z`/`calibrate_threshold`, `GateBank` (§8), metrics | `conceptgate/gate.py` |
+| `BandpassConceptGate` (std + $w$ + $w^{\text{raw}}$ + $f$ + 1-D Gaussians; §5/§7), `GateBank` (§8), metrics | `conceptgate/gate.py` |
 | reroute steering hooks, model-agnostic block access | `conceptgate/hooks.py` |
 | activation extraction (last-token / per-token) | `conceptgate/data.py` |
 | input/output-side gating loop, abort + reroute | `conceptgate/guard.py` |
 | §6 worked example (offline) | `scripts/toy_csg.py` |
 | GPT-2 end-to-end | `scripts/p0_smoke.py` |
 | GMM density, EM fit, BIC selection (§5b) | `conceptgate/mixture.py` |
-| `MixtureConceptGate` (§5b gate) | `conceptgate/gate.py` |
+| `ConceptGate` (§5b mixture gate, canonical) | `conceptgate/gate.py` |
 | §5b validation (regression / bimodal / kill-shot) | `scripts/toy_csg_mixture.py` |
 
 ---

@@ -1,10 +1,10 @@
-"""Real-data check: MixtureConceptGate on GPT-2 activations (weapons concept).
+"""Real-data check: the mixture ConceptGate on GPT-2 activations (weapons concept).
 
 Two regimes on data/concepts/weapons.json:
 
   A. strict few-shot (last-token rep, ~12 prompts/class) — expects the BIC few-shot
-     collapse to J=1 per class, held-out detection matching the single-Gaussian
-     ConceptGate (it IS that gate at J=1), and high LLR rank agreement.
+     collapse to J=1 per class, held-out detection matching the scalar
+     BandpassConceptGate (it IS that gate at J=1), and high LLR rank agreement.
   B. per-token fit (hundreds of samples) — informational: reports whether GPT-2's
      token activations for this concept are multimodal (J>1). NOTE: per-token
      fitting dilutes d' (math.md section 10), so held-out detection in this regime
@@ -26,7 +26,7 @@ import torch  # noqa: E402
 from transformers import AutoModelForCausalLM, AutoTokenizer  # noqa: E402
 
 from conceptgate import data as D  # noqa: E402
-from conceptgate.gate import ConceptGate, MixtureConceptGate, recall_fpr  # noqa: E402
+from conceptgate.gate import BandpassConceptGate, ConceptGate, recall_fpr  # noqa: E402
 
 MODEL = "gpt2"
 CONCEPT_PATH = "data/concepts/weapons.json"
@@ -57,14 +57,14 @@ def main() -> int:
 
     # ---- Regime A: strict few-shot (last-token) ----
     print(f"\n== Regime A: few-shot last-token (pos {A_pos.shape[0]}, neg {A_neg.shape[0]} samples) ==")
-    mg = MixtureConceptGate(name=concept["name"]).fit(A_pos, A_neg)
+    mg = ConceptGate(name=concept["name"]).fit(A_pos, A_neg)
     mg.calibrate_z(3.0)
     J = (mg.gmm_pos.n_components, mg.gmm_neg.n_components)
     print(f"selected J (pos, neg): {J}   (expect (1, 1): BIC few-shot collapse)")
     recall, fpr = recall_fpr(mg.fire(Tp), mg.fire(Tn))
     print(f"mixture gate held-out: recall={recall:.2f} FPR={fpr:.2f}")
 
-    cg = ConceptGate(name=concept["name"], filter_method="fisher").fit(A_pos, A_neg)
+    cg = BandpassConceptGate(name=concept["name"], filter_method="fisher").fit(A_pos, A_neg)
     cg.calibrate_z(3.0)
     r0, f0 = recall_fpr(cg.fire(Tp), cg.fire(Tn))
     print(f"single-Gaussian gate  : recall={r0:.2f} FPR={f0:.2f}")
@@ -78,7 +78,7 @@ def main() -> int:
     P_pos, _ = D.extract_token_activations(model, tok, concept["positives"], layers, device, last_only=False)
     P_neg, _ = D.extract_token_activations(model, tok, concept["negatives"], layers, device, last_only=False)
     print(f"\n== Regime B: per-token fit ({P_pos.shape[0]} pos / {P_neg.shape[0]} neg samples) — informational ==")
-    mg2 = MixtureConceptGate(name=concept["name"]).fit(P_pos, P_neg)
+    mg2 = ConceptGate(name=concept["name"]).fit(P_pos, P_neg)
     J2 = (mg2.gmm_pos.n_components, mg2.gmm_neg.n_components)
     print(f"selected J (pos, neg): {J2}   (J>1 would mean multimodal token activations)")
     mg2.calibrate_z(3.0)

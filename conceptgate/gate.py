@@ -1,8 +1,12 @@
-"""The calibrated gate: turn a concept's filtered score into a fire / abstain / pass decision.
+"""The calibrated gate: turn a concept's spectrogram into a fire / abstain / pass decision.
 
-Each concept fits two 1-D Gaussians on the filtered score (harmful vs benign) and decides with a
-log-likelihood ratio (LLR). A threshold `tau` slides the operating point (tune to a target FPR); an
-optional abstain band suppresses decisions in the uncertain middle to control false refusals.
+Two gate families share one decision contract (llr -> fire/abstain/pass via `tau` and an
+optional abstain band):
+
+  - ConceptGate (canonical): each class is a SET of (mu, Sigma) components — class-conditional
+    GMMs on the joint spectrogram, J per class chosen by BIC (J=1 on scarce data).
+  - BandpassConceptGate (nested baseline): scalar bandpass-filtered score + two 1-D Gaussians;
+    carries the best / diag / fisher filter variants the depth-fusion experiments compare.
 
 A GateBank runs K concepts in parallel and fires if any concept fires.
 """
@@ -42,9 +46,36 @@ def _fit_directions(A_pos: np.ndarray, A_neg: np.ndarray):
     return mu0, sd0, W, W_raw, S_pos, S_neg
 
 
+class _GateCommon:
+    """Shared decision/calibration machinery. Subclasses provide llr(), tau, abstain_margin."""
+
+    def fire(self, A: np.ndarray) -> np.ndarray:
+        """Boolean fire decision per sample (abstain counts as no-fire)."""
+        return self.decide(A) > 0
+
+    def decide(self, A: np.ndarray) -> np.ndarray:
+        """+1 fire, 0 abstain, -1 pass."""
+        l = self.llr(A)
+        out = np.where(l > self.tau, 1, -1)
+        if self.abstain_margin > 0:
+            out = np.where(np.abs(l - self.tau) < self.abstain_margin, 0, out)
+        return out
+
+    def calibrate_threshold(self, A_neg_cal: np.ndarray, target_fpr: float = 0.05) -> float:
+        """Set tau so the false-positive rate on calibration negatives ~= target_fpr."""
+        l = np.sort(self.llr(A_neg_cal))
+        q = float(np.clip(1.0 - target_fpr, 0.0, 1.0))
+        self.tau = float(np.quantile(l, q))
+        return self.tau
+
+
 @dataclass
-class ConceptGate:
-    """One concept's full detector: directions + bandpass filter + calibrated Gaussian gate."""
+class BandpassConceptGate(_GateCommon):
+    """Scalar-filter detector: directions + bandpass filter + two 1-D Gaussians.
+
+    The nested baseline family (filter_method: best / diag / fisher) that the
+    depth-fusion experiments compare against. The canonical gate is ConceptGate
+    (class-conditional mixtures); this class is its exact scalar special case."""
 
     name: str = "concept"
     filter_method: str = "fisher"
@@ -62,7 +93,7 @@ class ConceptGate:
     sigma_neg: float = 1.0
     train_dprime: Optional[np.ndarray] = None  # per-layer d' on the fit set (for inspection)
 
-    def fit(self, A_pos: np.ndarray, A_neg: np.ndarray) -> "ConceptGate":
+    def fit(self, A_pos: np.ndarray, A_neg: np.ndarray) -> "BandpassConceptGate":
         """A_pos, A_neg: [N, m, d] activation samples (use the prompt's last-token rep per prompt).
 
         Features are standardized per (layer, dim) using pooled fit statistics before computing
@@ -90,26 +121,7 @@ class ConceptGate:
             s, self.mu_neg, self.sigma_neg
         )
 
-    def fire(self, A: np.ndarray) -> np.ndarray:
-        """Boolean fire decision per sample (abstain counts as no-fire)."""
-        return self.decide(A) > 0
-
-    def decide(self, A: np.ndarray) -> np.ndarray:
-        """+1 fire, 0 abstain, -1 pass."""
-        l = self.llr(A)
-        out = np.where(l > self.tau, 1, -1)
-        if self.abstain_margin > 0:
-            out = np.where(np.abs(l - self.tau) < self.abstain_margin, 0, out)
-        return out
-
     # --- calibration ---
-    def calibrate_threshold(self, A_neg_cal: np.ndarray, target_fpr: float = 0.05) -> float:
-        """Set tau so the false-positive rate on calibration negatives ~= target_fpr."""
-        l = np.sort(self.llr(A_neg_cal))
-        q = float(np.clip(1.0 - target_fpr, 0.0, 1.0))
-        self.tau = float(np.quantile(l, q))
-        return self.tau
-
     def calibrate_z(self, z: float = 3.0) -> float:
         """Operating point: fire only when the filtered score exceeds the benign mean by z*sigma.
 
@@ -130,14 +142,14 @@ def _phi(x: float) -> float:
 
 
 @dataclass
-class MixtureConceptGate:
-    """One concept as a SET of (mu, Sigma) components per class on the joint spectrogram.
+class ConceptGate(_GateCommon):
+    """The canonical gate: a concept class is a SET of (mu, Sigma) components on the
+    joint spectrogram.
 
-    Class-conditional GMMs fitted directly in spectrogram space R^m (J chosen by
-    BIC; J=1 with shared covariance recovers the fisher-bandpass gate, so ConceptGate
-    is the nested special case). Directions, standardization, and steering (W_raw)
-    are identical to ConceptGate, so GateBank / Guard work unchanged.
-    """
+    Class-conditional GMMs fitted directly in spectrogram space R^m (J per class
+    chosen by BIC; J=1 with shared covariance recovers the fisher bandpass, so
+    BandpassConceptGate is the nested special case kept as the experimental
+    baseline). Directions, standardization, and steering (W_raw) are shared."""
 
     name: str = "concept"
     Js: Tuple[int, ...] = (1, 2, 3)
@@ -155,7 +167,7 @@ class MixtureConceptGate:
     gmm_neg: Optional[mx.GMM] = None
     train_dprime: Optional[np.ndarray] = None
 
-    def fit(self, A_pos: np.ndarray, A_neg: np.ndarray) -> "MixtureConceptGate":
+    def fit(self, A_pos: np.ndarray, A_neg: np.ndarray) -> "ConceptGate":
         """A_pos, A_neg: [N, m, d] activation samples (last-token rep per prompt)."""
         self.mu0, self.sd0, self.W, self.W_raw, S_pos, S_neg = _fit_directions(A_pos, A_neg)
         self.train_dprime = cb.dprime_per_layer(S_pos, S_neg)
@@ -174,26 +186,7 @@ class MixtureConceptGate:
         S = self.spectro(A)
         return self.gmm_pos.logpdf(S) - self.gmm_neg.logpdf(S)
 
-    def fire(self, A: np.ndarray) -> np.ndarray:
-        """Boolean fire decision per sample (abstain counts as no-fire)."""
-        return self.decide(A) > 0
-
-    def decide(self, A: np.ndarray) -> np.ndarray:
-        """+1 fire, 0 abstain, -1 pass."""
-        l = self.llr(A)
-        out = np.where(l > self.tau, 1, -1)
-        if self.abstain_margin > 0:
-            out = np.where(np.abs(l - self.tau) < self.abstain_margin, 0, out)
-        return out
-
     # --- calibration ---
-    def calibrate_threshold(self, A_neg_cal: np.ndarray, target_fpr: float = 0.05) -> float:
-        """Set tau so the false-positive rate on calibration negatives ~= target_fpr."""
-        l = np.sort(self.llr(A_neg_cal))
-        q = float(np.clip(1.0 - target_fpr, 0.0, 1.0))
-        self.tau = float(np.quantile(l, q))
-        return self.tau
-
     def calibrate_z(self, z: float = 3.0, n_samples: int = 10_000) -> float:
         """Benign-mixture quantile operating point (the mixture analogue of 'mean + z*sd').
 
@@ -210,9 +203,9 @@ class MixtureConceptGate:
 class GateBank:
     """K concepts; fires if ANY concept fires (max-LLR combination)."""
 
-    gates: List[ConceptGate] = field(default_factory=list)
+    gates: List[_GateCommon] = field(default_factory=list)
 
-    def add(self, g: ConceptGate) -> "GateBank":
+    def add(self, g: _GateCommon) -> "GateBank":
         self.gates.append(g)
         return self
 

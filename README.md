@@ -48,7 +48,7 @@ single layer (discriminabilities add in quadrature: `d' = √Σ d'ℓ²`).
 conceptgate/
   concept_bank.py   # diff-of-means directions, spectrogram, closed-form bandpass filter (pure numpy)
   mixture.py        # Set((mu,Sigma)) per class: GMM (sklearn EM + BIC) on the spectrogram
-  gate.py           # Gaussian LLR gate + MixtureConceptGate, abstain band, K-concept GateBank
+  gate.py           # ConceptGate (mixture LLR gate) + BandpassConceptGate baseline, GateBank
   hooks.py          # model-agnostic block access + steering (reroute) forward hooks
   data.py           # load concept prompt sets + extract per-token / last-token activations
   guard.py          # Guard: generation loop with input/output-side gating, abort + reroute modes
