@@ -65,6 +65,8 @@ depth (a *matched filter*), "bell-curve gate" = a calibrated Gaussian likelihood
 
 G's entire state per concept is: `m` direction vectors `w` (size `d` each), an `m`-vector filter `f`,
 standardization stats, and four Gaussian scalars. For GPT-2 (m=5, d=768) that's ~8k numbers.
+(The mixture upgrade, §5b, swaps the four scalars for a small *set* of (μ, Σ) profiles per class —
+tens of extra numbers — and the single filter `f` gets absorbed into the mixture's decision rule.)
 
 ---
 
@@ -120,18 +122,62 @@ very different:
 A single linear direction can't match LoRA for complex *skills* (e.g. "be good at SQL"). Its sweet
 spot is **concept-level** nudges.
 
-### 5b. A concept class is a set of modes
+### 5b. A concept class is a set of modes (the mixture upgrade)
 
-One Gaussian per class says "benign sounds like *one* hum". Really each class is a
-**set of sound profiles** — benign chit-chat, benign homework, benign code — so the
-gate now models each class as a *set of (μ, Σ) components* over the depth profile
-(a Gaussian mixture on the spectrogram; the set size is picked by the data via BIC,
-and ~10-shot data collapses to one component — the original gate). Two payoffs:
-sharper thresholds when a class is multi-modal, and an *input-dependent* bandpass —
-each mode contributes its own filter, weighted by how well it explains the sample.
-The kill-shot case: if benign modes *flank* harmful on the filter axis, **no** single
-linear filter separates them, but the mixture LLR does (`scripts/toy_csg_mixture.py`:
-fisher 38.8% error / AUC 0.60 vs mixture 7.1% / AUC 0.98, Bayes floor 5.8%).
+**Back to the hallway.** The original gate assumed each class makes *one* hum: "benign
+sounds like this, harmful sounds like that" — one Gaussian per class. But listen to real
+benign traffic in the hallway: chit-chat, chemistry homework, code questions — each a
+*different voice* with its own loudness profile across the microphones. Squeezing many
+voices into one hum smears the class into a fat, vague blob: thresholds get pushed out
+(missed detections) and the space *between* the voices gets mislabeled (false alarms).
+
+So each class now keeps a small **library of sound profiles** — your `Set((μ, Σ))`.
+Each profile is one voice: its expected loudness at every microphone (μ, a profile
+*across depth*) and how those loudnesses co-vary (Σ). Formally the library is a
+**Gaussian mixture model (GMM)** on the spectrogram, one mixture per class:
+
+```
+taps → loudness per mic:  s = (s₁ … s_m)          ← the spectrogram (unchanged)
+     → which class's profile LIBRARY explains s better?
+         p(s | harmful) = π₁·N(μ₁,Σ₁) + π₂·N(μ₂,Σ₂) + …   ← GMM, J_pos profiles
+         p(s | benign ) = π₁·N(μ₁,Σ₁) + π₂·N(μ₂,Σ₂) + …   ← GMM, J_neg profiles
+     → fire if  log p(s|harmful) − log p(s|benign) > τ     ← same LLR gate as before
+```
+
+**Who decides how many profiles (this is BIC).** A bigger library *always* fits the
+training data at least as well — extra Gaussians will happily memorize noise. So the
+set size J can't be chosen by fit alone. The **Bayesian Information Criterion** scores
+each candidate as `BIC = −2·log-likelihood + k·ln(N)` (k = parameter count, N = sample
+count; lower wins): every parameter pays **rent**, and an extra profile is admitted only
+if the fit it buys exceeds the rent it costs. Consequences you can see in our runs:
+- **Few-shot (N≈12, GPT-2):** a second full-covariance profile over 5 mics costs ~21
+  parameters → rent ≈ 21·ln 12 ≈ 52; twelve samples never earn that → **J=1**, and the
+  mixture gate *collapses into exactly the original P0 gate*. Nothing is lost.
+- **Data-rich with real clusters (toy, N=8000):** the second benign profile pays for
+  itself instantly → **J=2**, and the gate exploits it.
+
+**Why it matters — the kill-shot example.** Put two benign voices *on either side* of
+harmful along the filter axis (benign at −2 and +2, harmful at 0). A bandpass filter
+score is one number with one threshold — no threshold separates "middle" from "both
+sides", so the P0 gate is stuck near chance: **38.8% error, AUC 0.60**. The profile
+library isn't confused at all — s is near a benign profile on the left, near a benign
+profile on the right, and near the harmful profile in the middle: **7.1% error,
+AUC 0.98** (true optimum 5.8%). Run it: `uv run python scripts/toy_csg_mixture.py`.
+
+**And on the real hallway (GPT-2, weapons concept).** Fit on 12 harmful + 12 benign
+prompts, tested on held-out prompts: BIC keeps **J=1 per class** (twelve samples can't
+pay for more — correct behavior, not failure), held-out **recall 1.00 / FPR 0.00**, and
+the mixture gate's rankings agree with the original gate at **0.986** — a verified
+drop-in. Run it: `uv run python scripts/mixture_gpt2_check.py`. Honest caveat:
+bombs-vs-cookies is an *easy* concept; whether real concept classes are genuinely
+multi-modal (so J>1 wins on real data) is exactly the P1 question, to be tested with
+near-boundary benign prompts (chemistry homework, military history) on a larger model.
+
+**Where the GMM lives in the code:** `conceptgate/mixture.py` fits the library
+(sklearn's reference EM + BIC selection; a tiny numpy `GMM` dataclass stores and
+evaluates it), and `MixtureConceptGate` in `conceptgate/gate.py` is the drop-in gate —
+same directions, same standardization, same steering (`W_raw`), same `GateBank`/`Guard`
+compatibility as `ConceptGate`. Math details: [`math.md` §5b](./math.md).
 
 ---
 

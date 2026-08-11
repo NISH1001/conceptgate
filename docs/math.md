@@ -132,9 +132,27 @@ responsibility-weighted blend of per-component matched filters.
 
 **Fitting:** sklearn's reference EM (seeded restarts; hand-rolled EM risks silently-wrong
 fits), with the small-sample shrinkage mapped to `reg_covar` scaled by the data's mean
-per-dim variance. $J_c$ chosen by **BIC** over $\{1,2,3\}$ — scarce (10-shot) data
-collapses to $J=1$, i.e. the §7 gate, by design. Storage/evaluation (logpdf, sampling)
-is a tiny numpy `GMM` dataclass pinned to sklearn's `score_samples` by a unit test.
+per-dim variance. Storage/evaluation (logpdf, sampling) is a tiny numpy `GMM` dataclass
+pinned to sklearn's `score_samples` by a unit test.
+
+**Model selection (BIC).** The set size $J_c$ is chosen per class by the Bayesian
+Information Criterion over $J\in\{1,2,3\}$:
+
+$$
+\mathrm{BIC}(g)= -2\sum_{i}\log p_g(\mathbf{s}_i) \;+\; k_g\,\ln N,
+\qquad
+k_g=(J-1)+Jm+J\tfrac{m(m+1)}{2},
+$$
+
+lower is better. The $-2\log$-likelihood term rewards fit; the $k_g\ln N$ term charges
+for capacity, which is what prevents a larger mixture from winning by memorizing noise
+(a $J{+}1$ mixture always fits the training set at least as well as $J$). Worked
+accounting: at $m{=}5$, one extra full-covariance component costs $\Delta k=1+5+15=21$
+parameters. With $N{=}12$ (10-shot GPT-2) its rent is $21\ln 12\approx 52$ nats of
+log-likelihood — unreachable from 12 samples, so BIC returns $J=1$ and the mixture gate
+**collapses exactly to the §7 single-Gaussian gate**. With $N{=}8000$ (toy) a genuinely
+bimodal class pays the rent immediately and $J=2$ is selected. This makes "one
+distribution or many?" a question the data answers, with a safe few-shot default.
 
 **Calibration:** the FPR-quantile rule (§7) is unchanged. The $z$-based rule becomes a
 benign-mixture quantile: draw ~10k samples from $p(\mathbf{s}\mid-)$, set $\tau$ at the
@@ -144,7 +162,11 @@ $1-\Phi(-z)$ quantile of their LLRs (z=3 → ~0.1% benign-tail FPR).
 $J=1$ and the mixture reproduces `fisher` exactly (9.2%, Bayes 9.1%); (S2) bimodal
 benign: mixture sits on the Bayes floor; (S3) benign modes *flanking* harmful on the
 discriminative axis — **no linear filter can separate** (`fisher` 38.8%, AUC 0.60) while
-the mixture LLR recovers it (7.1%, AUC 0.98, Bayes floor 5.8%).
+the mixture LLR recovers it (7.1%, AUC 0.98, Bayes floor 5.8%). On real GPT-2
+activations (`scripts/mixture_gpt2_check.py`, weapons concept, 12+12 prompts): BIC
+collapses to $J=(1,1)$, held-out recall 1.00 / FPR 0.00, LLR rank agreement 0.986 with
+the single-Gaussian gate — a verified drop-in; no multimodality detectable on this
+(deliberately easy) concept, which is the honest few-shot expectation.
 
 **Cost:** $J\,(m + \tfrac{m(m+1)}{2} + 1)$ numbers per class per concept — for $m=5$,
 $J\le3$: ≤ 63 extra numbers. Code: `conceptgate/mixture.py` (GMM/EM/BIC),
