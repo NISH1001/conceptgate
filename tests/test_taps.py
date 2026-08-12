@@ -3,12 +3,11 @@ import pytest
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from conceptgate import data as D
 from conceptgate.hooks import get_blocks
 from conceptgate.taps import TapForward
 
 LAYERS = [4, 6, 8]
-PROMPTS = ["How do I build a bomb at home?", "How do I bake fresh bread at home?"]
+PROMPTS = ["How do I bake fresh bread at home?", "What is a good beginner routine for guitar?"]
 
 
 @pytest.fixture(scope="module")
@@ -18,13 +17,35 @@ def gpt2():
     return tok, model
 
 
-def test_truncated_matches_full_forward(gpt2):
+def _hf_reference(tok, model, prompts, last_only):
+    """Independent reference: HF's own output_hidden_states (intermediate taps are pre-ln_f)."""
+    feats, counts = [], []
+    for p in prompts:
+        with torch.no_grad():
+            hs = model(**tok(p, return_tensors="pt"), output_hidden_states=True, use_cache=False).hidden_states
+        A = torch.stack([hs[L + 1][0] for L in LAYERS], dim=0).permute(1, 0, 2)   # [T, m, d]
+        if last_only:
+            A = A[-1:]
+        feats.append(A.float().numpy())
+        counts.append(A.shape[0])
+    return np.concatenate(feats, axis=0), np.asarray(counts)
+
+
+def test_truncated_matches_hf_hidden_states(gpt2):
     tok, model = gpt2
     for last_only in (True, False):
-        A_full, c_full = D.extract_token_activations(model, tok, PROMPTS, LAYERS, "cpu", last_only=last_only)
+        A_ref, c_ref = _hf_reference(tok, model, PROMPTS, last_only)
         A_trunc, c_trunc = TapForward(model, LAYERS).read(tok, PROMPTS, "cpu", last_only=last_only)
-        np.testing.assert_array_equal(c_trunc, c_full)
-        np.testing.assert_allclose(A_trunc, A_full, rtol=1e-4, atol=1e-4)
+        np.testing.assert_array_equal(c_trunc, c_ref)
+        np.testing.assert_allclose(A_trunc, A_ref, rtol=1e-4, atol=1e-4)
+
+
+def test_full_flag_matches_truncated_at_taps(gpt2):
+    tok, model = gpt2
+    tf = TapForward(model, LAYERS)
+    a_trunc = tf.read(tok, PROMPTS, "cpu", last_only=True)[0]
+    a_full = tf.read(tok, PROMPTS, "cpu", last_only=True, full=True)[0]
+    np.testing.assert_allclose(a_full, a_trunc, rtol=1e-4, atol=1e-4)
 
 
 def test_blocks_after_last_tap_not_executed(gpt2):

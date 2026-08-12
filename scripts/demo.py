@@ -70,8 +70,8 @@ def main() -> int:
     prompts = concept["test_positives"] + concept["test_negatives"]
     tf = TapForward(cg.model, layers)
     dev = cg.device   # inputs must live on the same device as the (auto-placed) model
-    full = lambda: D.extract_token_activations(cg.model, cg.tok, prompts, layers, dev, last_only=True)  # noqa: E731
-    trunc = lambda: tf.read(cg.tok, prompts, dev, last_only=True)  # noqa: E731
+    full = lambda: tf.read(cg.tok, prompts, dev, last_only=True, full=True)   # noqa: E731  runs all blocks
+    trunc = lambda: tf.read(cg.tok, prompts, dev, last_only=True)             # noqa: E731  stops at max tap
     full()  # warm up
     trunc()
     t_full, t_trunc = _median_ms(full), _median_ms(trunc)

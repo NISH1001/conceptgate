@@ -27,6 +27,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer  # noqa: E402
 
 from conceptgate import data as D  # noqa: E402
 from conceptgate.concept import BandpassConcept, Concept, recall_fpr  # noqa: E402
+from conceptgate.taps import TapForward  # noqa: E402
 
 MODEL = "gpt2"
 CONCEPT_PATH = "data/concepts/weapons.json"
@@ -49,11 +50,12 @@ def main() -> int:
 
     concept = D.load_concept(CONCEPT_PATH)
     layers = concept["layers_gpt2"]
+    tf = TapForward(model, layers)
 
-    A_pos, _ = D.extract_token_activations(model, tok, concept["positives"], layers, device, last_only=True)
-    A_neg, _ = D.extract_token_activations(model, tok, concept["negatives"], layers, device, last_only=True)
-    Tp, _ = D.extract_token_activations(model, tok, concept["test_positives"], layers, device, last_only=True)
-    Tn, _ = D.extract_token_activations(model, tok, concept["test_negatives"], layers, device, last_only=True)
+    A_pos, _ = tf.read(tok, concept["positives"], device, last_only=True)
+    A_neg, _ = tf.read(tok, concept["negatives"], device, last_only=True)
+    Tp, _ = tf.read(tok, concept["test_positives"], device, last_only=True)
+    Tn, _ = tf.read(tok, concept["test_negatives"], device, last_only=True)
 
     # ---- Regime A: strict few-shot (last-token) ----
     print(f"\n== Regime A: few-shot last-token (pos {A_pos.shape[0]}, neg {A_neg.shape[0]} samples) ==")
@@ -75,8 +77,8 @@ def main() -> int:
     print(f"LLR rank agreement mixture-vs-single: {agree:.3f}")
 
     # ---- Regime B: per-token (informational) ----
-    P_pos, _ = D.extract_token_activations(model, tok, concept["positives"], layers, device, last_only=False)
-    P_neg, _ = D.extract_token_activations(model, tok, concept["negatives"], layers, device, last_only=False)
+    P_pos, _ = tf.read(tok, concept["positives"], device, last_only=False)
+    P_neg, _ = tf.read(tok, concept["negatives"], device, last_only=False)
     print(f"\n== Regime B: per-token fit ({P_pos.shape[0]} pos / {P_neg.shape[0]} neg samples) — informational ==")
     mg2 = Concept(name=concept["name"]).fit(P_pos, P_neg)
     J2 = (mg2.gmm_pos.n_components, mg2.gmm_neg.n_components)

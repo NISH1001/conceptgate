@@ -1,13 +1,14 @@
 # Concept Spectrogram Gate (CSG)
 
-A lightweight, few-shot **internal guardrail adapter**. Given a frozen model **M**, a tiny sidekick
+A lightweight, few-shot **internal concept adapter**. Given a frozen model **M**, a tiny sidekick
 **G** taps M's residual stream at several layers, builds a per-concept *spectrogram* of diff-of-means
 projections across depth, blends it with a learned **bandpass filter**, and gates on a calibrated
-distribution. When it fires it either **aborts** generation (emit `[GUARDRAILED]`) or **reroutes**
-the representation (add a steering vector) so M refuses on its own.
+distribution. When a concept fires, G can **act** — emit a score, **abort** generation, or **reroute**
+the representation (add a steering vector).
 
-It's **concept-agnostic** — give it ~10 examples of *any* concept and it can detect it and steer
-toward/away from it. Guardrailing is just the first use.
+It's **concept-agnostic** — give it ~10 examples of *any* concept (a topic, a tone, an intent) and it
+detects it and can steer toward/away from it. Guardrailing (catch a policy-violating prompt, refuse)
+is just one application.
 
 ## The idea in one picture
 
@@ -44,30 +45,51 @@ single layer (discriminabilities add in quadrature: `d' = √Σ d'ℓ²`).
 - Design doc / plan: `../../.claude/plans/i-have-this-vague-encapsulated-reef.md`.
 
 ## Use
+
+It's **concept-agnostic** — teach it *any* concept from ~10 examples per side. A guardrail is
+just one application (make the concept the thing to catch).
+
 ```python
 from conceptgate import ConceptGate, LoadMode
 from conceptgate.actions import Abort
 
 cg = ConceptGate.from_pretrained("gpt2", layers=[4, 6, 8])   # attach to any frozen HF model
-cg.learn("weapons", positives=[...], negatives=[...])         # few-shot (~10/class)
-cg.calibrate(z=3.0)                                           # sets tau (operating point)
 
-cg.check(prompt)                    # -> Verdict(fired, concept, score) — TRUNCATED forward
-cg.run(prompt, action=Abort())      # strategy decides; the gate drives + executes
+cg.learn("cooking",
+         positives=["How long do I boil pasta?", "What temperature to bake bread?", "How do I dice an onion?"],
+         negatives=["What's the capital of France?", "How do I center a div in CSS?", "Who won the game?"])
+cg.calibrate(z=3.0)                                  # sets tau (operating point)
+
+cg.check("What's the best way to sear a steak?")     # Verdict(fired=True, concept="cooking", score=...)
 ```
-`ConceptGate` measures + orchestrates; actions are injected strategies (`Abort`, and your
-own via the `ConceptAction` protocol). `check`/input-side `run` use a **truncated forward**
-(only blocks `0..max(layers)` run), so a harmful prompt is caught having run a fraction of M.
+
+**Several concepts at once** — fires if any fires, and tells you which:
+```python
+cg.learn("cooking", positives=[...], negatives=[...])
+cg.learn("travel",  positives=[...], negatives=[...])
+cg.calibrate(z=3.0)
+cg.check("Cheapest month to fly to Tokyo?").concept  # -> "travel"
+```
+
+**As a guardrail** (one application) — the concept is the thing to catch; inject an action:
+```python
+cg.learn("policy_violation", positives=[...], negatives=[...])
+cg.calibrate(target_fpr=0.01)                        # tune false-refusals
+cg.run(prompt, action=Abort())                       # aborts + emits a marker when it fires
+```
+`ConceptGate` measures + orchestrates; actions are injected strategies (`Abort`, or your own via
+the `ConceptAction` protocol). `check` / input-side `run` use a **truncated forward** (only blocks
+`0..max(layers)` run), so a firing input is caught having run only a fraction of M.
 
 **Two optimization knobs** (independent — compose freely):
 ```python
 # memory: how much of the model's WEIGHTS to load
-cg = ConceptGate.from_pretrained("gpt2", layers=[4,6,8], load=LoadMode.FULL)        # default; can generate
-cg = ConceptGate.from_pretrained("gpt2", layers=[4,6,8], load=LoadMode.UP_TO_TAPS)  # blocks 0..max only; detect-only
+ConceptGate.from_pretrained("gpt2", layers=[4,6,8], load=LoadMode.FULL)        # default; can generate
+ConceptGate.from_pretrained("gpt2", layers=[4,6,8], load=LoadMode.UP_TO_TAPS)  # blocks 0..max only; detect-only
 
-# compute: how the activations are extracted during learn
-cg.learn("weapons", positives=[...], negatives=[...], batch_size=1)   # loop, least memory (default)
-cg.learn("weapons", positives=[...], negatives=[...], batch_size=32)  # padded batch, faster
+# compute: how activations are extracted during learn
+cg.learn("cooking", positives=[...], negatives=[...], batch_size=1)   # loop, least memory (default)
+cg.learn("cooking", positives=[...], negatives=[...], batch_size=32)  # padded batch, faster
 ```
 `LoadMode.UP_TO_TAPS` never materializes the tail (later blocks, final norm, lm_head) — for
 an 8B model tapped early that's ~6 GB instead of 16 GB — but it can't generate (`run()` that
@@ -84,18 +106,17 @@ conceptgate/
   gate.py           # ConceptGate — facade: from_pretrained/learn/calibrate/check/run
   concept.py        # Concept (mixture LLR unit) + BandpassConcept baseline + ConceptBank
   actions.py        # ConceptAction protocol, FireContext, Decision, Abort  (strategy layer)
-  taps.py           # TapForward — truncated forward (run only blocks 0..max tap)
+  taps.py           # TapForward — the signal listener: truncated forward (or full=True), batching
   spectral.py       # diff-of-means directions, spectrogram, bandpass filter (pure numpy)
   mixture.py        # Set((mu,Sigma)) per class: GMM (sklearn EM + BIC) on the spectrogram
   hooks.py          # model-agnostic block access + steering forward hooks
-  data.py           # load concept prompt sets + extract activations
+  data.py           # load concept prompt sets (JSON)
 data/concepts/      # tiny labeled prompt sets (~10/class)
 scripts/
-  demo.py           # end-to-end facade demo on GPT-2: learn / calibrate / check / run(Abort)
+  demo.py           # end-to-end facade demo on GPT-2: learn / calibrate / check / run + speedup
   toy_csg.py        # OFFLINE math check (no model): depth filter beats single layer
   toy_csg_mixture.py # mixture validation: regression / bimodal benign / kill-shot
   mixture_gpt2_check.py    # mixture on real GPT-2 activations
-  truncated_forward_bench.py  # truncated vs full forward wall-clock on GPT-2
 ```
 
 ## Run (always via `uv run`)
@@ -104,8 +125,7 @@ uv sync                              # build .venv from pyproject (torch, transf
 uv run python scripts/toy_csg.py     # offline math check  -> VALIDATION PASS (err 16% -> 9%)
 uv run python scripts/toy_csg_mixture.py       # mixture densities -> MIXTURE VALIDATION PASS
 uv run python scripts/mixture_gpt2_check.py    # mixture on real GPT-2 acts -> PASS
-uv run python scripts/truncated_forward_bench.py  # truncated forward -> BENCH: OK (~46% faster)
-uv run python scripts/demo.py        # facade end-to-end    -> DEMO: PASS
+uv run python scripts/demo.py        # facade end-to-end + speedup -> DEMO: PASS
 uv run pytest tests/ -q              # unit tests
 ```
 
