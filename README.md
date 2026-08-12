@@ -45,7 +45,7 @@ single layer (discriminabilities add in quadrature: `d' = √Σ d'ℓ²`).
 
 ## Use
 ```python
-from conceptgate import ConceptGate
+from conceptgate import ConceptGate, LoadMode
 from conceptgate.actions import Abort
 
 cg = ConceptGate.from_pretrained("gpt2", layers=[4, 6, 8])   # attach to any frozen HF model
@@ -58,6 +58,24 @@ cg.run(prompt, action=Abort())      # strategy decides; the gate drives + execut
 `ConceptGate` measures + orchestrates; actions are injected strategies (`Abort`, and your
 own via the `ConceptAction` protocol). `check`/input-side `run` use a **truncated forward**
 (only blocks `0..max(layers)` run), so a harmful prompt is caught having run a fraction of M.
+
+**Two optimization knobs** (independent — compose freely):
+```python
+# memory: how much of the model's WEIGHTS to load
+cg = ConceptGate.from_pretrained("gpt2", layers=[4,6,8], load=LoadMode.FULL)        # default; can generate
+cg = ConceptGate.from_pretrained("gpt2", layers=[4,6,8], load=LoadMode.UP_TO_TAPS)  # blocks 0..max only; detect-only
+
+# compute: how the activations are extracted during learn
+cg.learn("weapons", positives=[...], negatives=[...], batch_size=1)   # loop, least memory (default)
+cg.learn("weapons", positives=[...], negatives=[...], batch_size=32)  # padded batch, faster
+```
+`LoadMode.UP_TO_TAPS` never materializes the tail (later blocks, final norm, lm_head) — for
+an 8B model tapped early that's ~6 GB instead of 16 GB — but it can't generate (`run()` that
+would generate raises a clear error; use `check()`). Use it as a normal object or scoped:
+```python
+with ConceptGate.from_pretrained("gpt2", layers=[4,6,8], load=LoadMode.UP_TO_TAPS) as cg:
+    cg.learn(...); cg.check(...)       # model freed automatically on exit (or call cg.unload())
+```
 
 ## Layout
 ```
@@ -104,8 +122,13 @@ uv run pytest tests/ -q              # unit tests
   few-shot, `check`s via a **truncated forward** (only blocks `0..max tap`), and `run`s an
   injected `ConceptAction` strategy (`Abort` shipped). On GPT-2, truncated detection is
   ~46% faster than the full forward, activations bit-identical. The saving is for
-  detect/abort; generation still needs the full forward. Next: `Steer`/`Emit` actions and
-  the sequential per-tap early exit (the novel lever; see docs/superpowers/specs/).
+  detect/abort; generation still needs the full forward.
+- **Loading (done):** `LoadMode.UP_TO_TAPS` loads only blocks `0..max(tap)` (base model,
+  `num_hidden_layers=max+1`) — the tail is never materialized, so a large model tapped early
+  loads a fraction of its weights (validated bit-identical at the taps). `batch_size` on
+  `learn` is the memory↔compute dial for extraction. `ConceptGate` is usable as an object or
+  a context manager (`unload()` frees the weights). `LoadMode.STREAM` (accelerate offload)
+  reserved for later. Next: `Steer`/`Emit` actions and the sequential per-tap early exit.
 - **P1 (next):** Gemma-2-2B-it. Single-best-layer baseline (A); measure few-shot recall/FPR/PR.
 - **P2:** CSG depth filter vs A vs MLP (B) ablation; abort vs reroute comparison.
 - **P3:** jailbreak robustness vs a text-classifier guard; multi-concept K.
