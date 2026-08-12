@@ -176,10 +176,11 @@ near-boundary benign prompts (chemistry homework, military history) on a larger 
 
 **Where the GMM lives in the code:** `conceptgate/mixture.py` fits the library
 (sklearn's reference EM + BIC selection; a tiny numpy `GMM` dataclass stores and
-evaluates it), and `ConceptGate` in `conceptgate/gate.py` is the gate built on it —
-directions, standardization, steering (`W_raw`), and `GateBank`/`Guard` compatibility
-shared with `BandpassConceptGate`, the scalar-filter special case kept as the
-experimental baseline (filter variants best/diag/fisher). Math: [`math.md` §5b](./math.md).
+evaluates it), and `Concept` in `conceptgate/concept.py` is the learned unit built on it —
+directions, standardization, steering (`W_raw`), shared with `BandpassConcept`, the
+scalar-filter special case kept as the experimental baseline (filter variants
+best/diag/fisher); `ConceptBank` runs K of them. The public facade that attaches these to
+a frozen model and acts on firings is `ConceptGate` (`gate.py`). Math: [`math.md` §5b](./math.md).
 
 ---
 

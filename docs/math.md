@@ -1,7 +1,7 @@
 # conceptgate — The Mathematics
 
 > The rigorous companion to [`concepts.md`](./concepts.md). Every step here maps to code in
-> `conceptgate/concept_bank.py` and `conceptgate/gate.py`; the code map is in §11.
+> `conceptgate/concept_bank.py` and `conceptgate/concept.py`; the code map is in §11.
 >
 > GitHub renders the `$…$` / `$$…$$` LaTeX below. In a plain editor the source is still readable.
 
@@ -171,8 +171,7 @@ few-shot expectation.
 
 **Cost:** $J\,(m + \tfrac{m(m+1)}{2} + 1)$ numbers per class per concept — for $m=5$,
 $J\le3$: ≤ 63 extra numbers. Code: `conceptgate/mixture.py` (GMM/EM/BIC),
-`ConceptGate` in `conceptgate/gate.py` (the scalar special case is
-`BandpassConceptGate`).
+`Concept` in `conceptgate/concept.py` (the scalar special case is `BandpassConcept`).
 
 ---
 
@@ -227,7 +226,7 @@ $$
 - **Abstain** (no decision) iff $\lvert \mathrm{LLR}(S)-\tau\rvert<\text{margin}$ — the uncertain
   middle band that controls false refusals.
 
-**Threshold calibration** (`gate.py`):
+**Threshold calibration** (`concept.py`):
 
 - *FPR target*: $\tau=\operatorname{quantile}_{1-\mathrm{FPR}}\big(\{\mathrm{LLR}(S):S\in\text{neg}\}\big)$.
 - *$z$-based* (used in P0): fire iff the score exceeds the benign mean by $z$ std, i.e. set
@@ -298,15 +297,15 @@ vs one transformer forward. Abort *saves* compute (skips remaining decoding).
 | Math | Code |
 |---|---|
 | standardization, $w_\ell$, spectrogram, $f$ (best/diag/fisher), $d'$ | `conceptgate/concept_bank.py` |
-| `BandpassConceptGate` (std + $w$ + $w^{\text{raw}}$ + $f$ + 1-D Gaussians; §5/§7), `GateBank` (§8), metrics | `conceptgate/gate.py` |
+| `BandpassConcept` (std + $w$ + $w^{\text{raw}}$ + $f$ + 1-D Gaussians; §5/§7), `Concept` (§5b mixture gate, canonical), `ConceptBank` (§8), metrics | `conceptgate/concept.py` |
+| GMM density, EM fit, BIC selection (§5b) | `conceptgate/mixture.py` |
+| truncated forward (run only blocks 0..max tap) | `conceptgate/taps.py` |
 | reroute steering hooks, model-agnostic block access | `conceptgate/hooks.py` |
 | activation extraction (last-token / per-token) | `conceptgate/data.py` |
-| input/output-side gating loop, abort + reroute | `conceptgate/guard.py` |
+| `ConceptGate` facade + `ConceptAction` strategies (abort / steer / emit) | `conceptgate/gate.py`, `conceptgate/actions.py` |
 | §6 worked example (offline) | `scripts/toy_csg.py` |
-| GPT-2 end-to-end | `scripts/p0_smoke.py` |
-| GMM density, EM fit, BIC selection (§5b) | `conceptgate/mixture.py` |
-| `ConceptGate` (§5b mixture gate, canonical) | `conceptgate/gate.py` |
 | §5b validation (regression / bimodal / kill-shot) | `scripts/toy_csg_mixture.py` |
+| GPT-2 end-to-end | `scripts/p0_smoke.py` |
 
 ---
 
