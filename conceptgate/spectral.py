@@ -1,6 +1,7 @@
-"""The CSG core math (pure numpy).
+"""Signal-processing front-end (pure numpy): activations -> spectrogram -> filtered score.
 
-A concept is represented across `m` tapped layers and `d` model dims by:
+The stateless math the Concept classes are built on. A concept is represented across `m`
+tapped layers and `d` model dims by:
   - W   : [m, d]  per-layer diff-of-means *directions* (the "microphones"), unit-norm.
   - f   : [m]     a depth *bandpass filter* that blends the per-layer projections.
 

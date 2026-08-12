@@ -1,7 +1,7 @@
 # conceptgate — The Mathematics
 
 > The rigorous companion to [`concepts.md`](./concepts.md). Every step here maps to code in
-> `conceptgate/concept_bank.py` and `conceptgate/concept.py`; the code map is in §11.
+> `conceptgate/spectral.py` and `conceptgate/concept.py`; the code map is in §11.
 >
 > GitHub renders the `$…$` / `$$…$$` LaTeX below. In a plain editor the source is still readable.
 
@@ -296,7 +296,7 @@ vs one transformer forward. Abort *saves* compute (skips remaining decoding).
 
 | Math | Code |
 |---|---|
-| standardization, $w_\ell$, spectrogram, $f$ (best/diag/fisher), $d'$ | `conceptgate/concept_bank.py` |
+| standardization, $w_\ell$, spectrogram, $f$ (best/diag/fisher), $d'$ | `conceptgate/spectral.py` |
 | `BandpassConcept` (std + $w$ + $w^{\text{raw}}$ + $f$ + 1-D Gaussians; §5/§7), `Concept` (§5b mixture gate, canonical), `ConceptBank` (§8), metrics | `conceptgate/concept.py` |
 | GMM density, EM fit, BIC selection (§5b) | `conceptgate/mixture.py` |
 | truncated forward (run only blocks 0..max tap) | `conceptgate/taps.py` |

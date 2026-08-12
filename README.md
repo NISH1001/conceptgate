@@ -67,7 +67,7 @@ conceptgate/
   concept.py        # Concept (mixture LLR unit) + BandpassConcept baseline + ConceptBank
   actions.py        # ConceptAction protocol, FireContext, Decision, Abort  (strategy layer)
   taps.py           # TapForward — truncated forward (run only blocks 0..max tap)
-  concept_bank.py   # diff-of-means directions, spectrogram (pure numpy)
+  spectral.py       # diff-of-means directions, spectrogram, bandpass filter (pure numpy)
   mixture.py        # Set((mu,Sigma)) per class: GMM (sklearn EM + BIC) on the spectrogram
   hooks.py          # model-agnostic block access + steering (reroute) forward hooks
   data.py           # load concept prompt sets + extract activations

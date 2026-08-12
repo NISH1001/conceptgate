@@ -1,6 +1,6 @@
 import numpy as np
 
-from conceptgate import concept_bank as cb
+from conceptgate import spectral as spec
 from conceptgate.concept import BandpassConcept, Concept, ConceptBank, error_at_zero
 
 
@@ -15,7 +15,7 @@ def _synth(rng, n, sign, U, dprime):
 def _toy_data(seed=0, n=2000, m=3, d=32):
     rng = np.random.default_rng(seed)
     dprime = np.array([1.6, 2.0, 0.6])
-    U = cb._normalize(rng.standard_normal((m, d)), axis=-1)
+    U = spec._normalize(rng.standard_normal((m, d)), axis=-1)
     return _synth(rng, n, +1, U, dprime), _synth(rng, n, -1, U, dprime)
 
 

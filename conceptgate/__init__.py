@@ -12,12 +12,12 @@ forward that runs only the tapped layers), and act via injected strategies:
     cg.check(prompt)                    # Verdict — truncated forward
     cg.run(prompt, action=Abort())      # strategy decides; the gate drives + executes
 
-Layers: `concept`/`concept_bank`/`mixture` are the numpy math core; `taps`/`hooks`/`data`
+Layers: `spectral`/`concept`/`mixture` are the numpy math core; `taps`/`hooks`/`data`
 the torch boundary; `actions` the strategy layer; `gate` the facade. Only `ConceptGate` and
 the actions are the surface you normally touch.
 """
 # numpy-only, torch-free — safe to import for the math/toy path
-from . import actions, concept, concept_bank  # noqa: F401
+from . import actions, concept, spectral  # noqa: F401
 from .actions import Abort, ConceptAction, FireContext, Verdict  # noqa: F401
 from .concept import BandpassConcept, Concept, ConceptBank  # noqa: F401
 
@@ -25,7 +25,7 @@ __all__ = [
     "ConceptGate", "RunResult",                       # lazy (torch) — see __getattr__
     "Verdict", "Abort", "ConceptAction", "FireContext",
     "Concept", "BandpassConcept", "ConceptBank",
-    "actions", "concept", "concept_bank",
+    "actions", "concept", "spectral",
 ]
 
 

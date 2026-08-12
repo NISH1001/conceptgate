@@ -21,7 +21,7 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from conceptgate import concept_bank as cb
+from conceptgate import spectral as spec
 from conceptgate.concept import BandpassConcept, Concept, error_at_zero
 
 SEEDS = [0, 1, 2, 3, 4]
@@ -99,7 +99,7 @@ def run_scenario(name, cfg):
     Jsel = []
     for seed in SEEDS:
         rng = np.random.default_rng(seed)
-        U = cb._normalize(rng.standard_normal((m, d)), axis=-1)
+        U = spec._normalize(rng.standard_normal((m, d)), axis=-1)
         gains = np.asarray(cfg["gains"])
         spec_p = (cfg["pos"]["modes"], cfg["pos"]["weights"])
         spec_n = (cfg["neg"]["modes"], cfg["neg"]["weights"])

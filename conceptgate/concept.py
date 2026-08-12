@@ -18,7 +18,7 @@ import math
 from dataclasses import dataclass, field
 import numpy as np
 
-from . import concept_bank as cb
+from . import spectral as spec
 from . import mixture as mx
 
 _LOG2PI = float(np.log(2.0 * np.pi))
@@ -39,10 +39,10 @@ def _fit_directions(A_pos: np.ndarray, A_neg: np.ndarray):
     sd0 = A_all.std(axis=0) + 1e-6  # [m, d]
     Zp = (A_pos - mu0) / sd0
     Zn = (A_neg - mu0) / sd0
-    W = cb.fit_directions(Zp, Zn)
-    W_raw = cb._normalize(A_pos.mean(0) - A_neg.mean(0), axis=-1)
-    S_pos = cb.spectrogram(Zp, W)
-    S_neg = cb.spectrogram(Zn, W)
+    W = spec.fit_directions(Zp, Zn)
+    W_raw = spec._normalize(A_pos.mean(0) - A_neg.mean(0), axis=-1)
+    S_pos = spec.spectrogram(Zp, W)
+    S_neg = spec.spectrogram(Zn, W)
     return mu0, sd0, W, W_raw, S_pos, S_neg
 
 
@@ -109,10 +109,10 @@ class BandpassConcept(_GateCommon):
         self.mu0, self.sd0, self.W, self.W_raw, S_pos, S_neg = _fit_directions(
             A_pos, A_neg
         )
-        self.f = cb.fit_bandpass(S_pos, S_neg, method=self.filter_method)
-        self.train_dprime = cb.dprime_per_layer(S_pos, S_neg)
-        sp = cb.filtered_score(S_pos, self.f)
-        sn = cb.filtered_score(S_neg, self.f)
+        self.f = spec.fit_bandpass(S_pos, S_neg, method=self.filter_method)
+        self.train_dprime = spec.dprime_per_layer(S_pos, S_neg)
+        sp = spec.filtered_score(S_pos, self.f)
+        sn = spec.filtered_score(S_neg, self.f)
         self.mu_pos, self.sigma_pos = float(sp.mean()), float(sp.std(ddof=1))
         self.mu_neg, self.sigma_neg = float(sn.mean()), float(sn.std(ddof=1))
         return self
@@ -121,7 +121,7 @@ class BandpassConcept(_GateCommon):
     def score(self, A: np.ndarray) -> np.ndarray:
         """Filtered scalar score per sample. A: [N, m, d] -> [N]."""
         Z = (A - self.mu0) / self.sd0
-        return cb.filtered_score(cb.spectrogram(Z, self.W), self.f)
+        return spec.filtered_score(spec.spectrogram(Z, self.W), self.f)
 
     def llr(self, A: np.ndarray) -> np.ndarray:
         s = self.score(A)
@@ -180,7 +180,7 @@ class Concept(_GateCommon):
         self.mu0, self.sd0, self.W, self.W_raw, S_pos, S_neg = _fit_directions(
             A_pos, A_neg
         )
-        self.train_dprime = cb.dprime_per_layer(S_pos, S_neg)
+        self.train_dprime = spec.dprime_per_layer(S_pos, S_neg)
         kw = dict(covariance=self.covariance, shrinkage=self.shrinkage, seed=self.seed)
         self.gmm_pos = mx.select_gmm(S_pos, Js=self.Js, **kw)
         self.gmm_neg = mx.select_gmm(S_neg, Js=self.Js, **kw)
@@ -190,7 +190,7 @@ class Concept(_GateCommon):
     def spectro(self, A: np.ndarray) -> np.ndarray:
         """Standardized spectrogram. A: [N, m, d] -> [N, m]."""
         Z = (A - self.mu0) / self.sd0
-        return cb.spectrogram(Z, self.W)
+        return spec.spectrogram(Z, self.W)
 
     def llr(self, A: np.ndarray) -> np.ndarray:
         S = self.spectro(A)

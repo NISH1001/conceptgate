@@ -20,7 +20,7 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from conceptgate import concept_bank as cb
+from conceptgate import spectral as spec
 from conceptgate.concept import BandpassConcept, error_at_zero
 
 
@@ -46,7 +46,7 @@ def main() -> int:
     rng = np.random.default_rng(0)
     m, d, n = 3, 64, 6000
     dprime_target = np.array([1.6, 2.0, 0.6])
-    U = cb._normalize(rng.standard_normal((m, d)), axis=-1)  # one signal direction per layer
+    U = spec._normalize(rng.standard_normal((m, d)), axis=-1)  # one signal direction per layer
 
     A_pos = synth(rng, n, +1, U, dprime_target)
     A_neg = synth(rng, n, -1, U, dprime_target)
