@@ -305,7 +305,7 @@ vs one transformer forward. Abort *saves* compute (skips remaining decoding).
 | `ConceptGate` facade + `ConceptAction` strategies (abort / steer / emit) | `conceptgate/gate.py`, `conceptgate/actions.py` |
 | §6 worked example (offline) | `scripts/toy_csg.py` |
 | §5b validation (regression / bimodal / kill-shot) | `scripts/toy_csg_mixture.py` |
-| GPT-2 end-to-end | `scripts/p0_smoke.py` |
+| GPT-2 end-to-end (facade) | `scripts/demo.py` |
 
 ---
 

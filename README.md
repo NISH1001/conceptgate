@@ -69,16 +69,15 @@ conceptgate/
   taps.py           # TapForward — truncated forward (run only blocks 0..max tap)
   spectral.py       # diff-of-means directions, spectrogram, bandpass filter (pure numpy)
   mixture.py        # Set((mu,Sigma)) per class: GMM (sklearn EM + BIC) on the spectrogram
-  hooks.py          # model-agnostic block access + steering (reroute) forward hooks
+  hooks.py          # model-agnostic block access + steering forward hooks
   data.py           # load concept prompt sets + extract activations
-  guard.py          # legacy generation loop (reroute demo; folds into ConceptGate.run round 2)
 data/concepts/      # tiny labeled prompt sets (~10/class)
 scripts/
+  demo.py           # end-to-end facade demo on GPT-2: learn / calibrate / check / run(Abort)
   toy_csg.py        # OFFLINE math check (no model): depth filter beats single layer
   toy_csg_mixture.py # mixture validation: regression / bimodal benign / kill-shot
   mixture_gpt2_check.py    # mixture on real GPT-2 activations
   truncated_forward_bench.py  # truncated vs full forward wall-clock on GPT-2
-  p0_smoke.py       # end-to-end on GPT-2: detection + abort + reroute
 ```
 
 ## Run (always via `uv run`)
@@ -88,7 +87,7 @@ uv run python scripts/toy_csg.py     # offline math check  -> VALIDATION PASS (e
 uv run python scripts/toy_csg_mixture.py       # mixture densities -> MIXTURE VALIDATION PASS
 uv run python scripts/mixture_gpt2_check.py    # mixture on real GPT-2 acts -> PASS
 uv run python scripts/truncated_forward_bench.py  # truncated forward -> BENCH: OK (~46% faster)
-uv run python scripts/p0_smoke.py    # GPT-2 end-to-end     -> P0 SMOKE: PASS
+uv run python scripts/demo.py        # facade end-to-end    -> DEMO: PASS
 uv run pytest tests/ -q              # unit tests
 ```
 
