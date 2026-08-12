@@ -21,6 +21,10 @@ def get_blocks(model) -> list[torch.nn.Module]:
         return list(model.model.layers)                       # Llama / Gemma / Qwen / Mistral
     if hasattr(model, "gpt_neox") and hasattr(model.gpt_neox, "layers"):
         return list(model.gpt_neox.layers)                    # GPT-NeoX / Pythia
+    if hasattr(model, "h"):
+        return list(model.h)                                  # base GPT2Model (truncated load)
+    if hasattr(model, "layers"):
+        return list(model.layers)                             # base LlamaModel / GemmaModel / ...
     raise ValueError(
         f"Unknown architecture {type(model).__name__}; add its block path to get_blocks()."
     )

@@ -4,6 +4,12 @@ The stop-hook pattern (capture the deepest tap's output, then raise to halt the 
 pass) is standard interpretability tooling -- cf. nnsight, baukit's Trace(stop=True). It
 is re-derived here transparently on torch's public register_forward_hook API to keep the
 package dependency-light and legible; the mechanism is not a contribution.
+
+`batch_size` is the memory<->compute dial for extraction: 1 runs one prompt at a time
+(least activation memory), larger stacks prompts into one padded forward (faster). The
+single-prompt forward is already fully vectorized; batching only amortizes per-forward
+overhead. Read taps via these hooks, NEVER output_hidden_states: on a truncated model the
+deepest tap is the final block, so hidden_states would apply the final layernorm to it.
 """
 from __future__ import annotations
 
@@ -26,9 +32,9 @@ class TapForward:
     """Read taps at ``layers`` while running only blocks ``0..max(layers)``.
 
     Produces the same ``(A, counts)`` as :func:`data.extract_token_activations` -- same
-    shapes and (up to float noise) same values -- but never computes the blocks after the
-    deepest tap. ``layers`` are 0-based block indices; block L's output residual stream is
-    ``hidden_states[L+1]``, which is exactly what a forward hook on block L captures.
+    shapes and values -- but never computes the blocks after the deepest tap. ``layers``
+    are 0-based block indices; a forward hook on block L captures its raw output residual
+    stream (equal to ``hidden_states[L+1]`` on a full model, without the final layernorm).
     """
 
     def __init__(self, model, layers: list[int]):
@@ -39,11 +45,30 @@ class TapForward:
 
     def _hook(self, captured: dict, idx: int, stop: bool):
         def hook(_module, _inp, out):
-            captured[idx] = _block_output(out)[0].detach()  # [T, d] (batch item 0)
+            captured[idx] = _block_output(out).detach()   # [B, T, d]
             if stop:
                 raise _StopForward
 
         return hook
+
+    def _run(self, enc, device: str) -> dict:
+        """Truncated forward with fresh hooks; returns {layer: [B, T, d]}."""
+        captured: dict = {}
+        handles = [
+            self.blocks[L].register_forward_hook(
+                self._hook(captured, L, stop=(L == self.max_layer))
+            )
+            for L in self.layers
+        ]
+        try:
+            try:
+                self.model(**enc.to(device), use_cache=False)
+            except _StopForward:
+                pass
+        finally:
+            for h in handles:
+                h.remove()
+        return captured
 
     @torch.no_grad()
     def read(
@@ -53,29 +78,25 @@ class TapForward:
         device: str = "cpu",
         last_only: bool = False,
         skip_first: int = 0,
+        batch_size: int = 1,
     ) -> tuple[np.ndarray, np.ndarray]:
         self.model.eval()
+        if batch_size and batch_size > 1:
+            if not last_only:
+                raise ValueError(
+                    "batch_size > 1 requires last_only=True "
+                    "(per-token extraction is not batched); use batch_size=1"
+                )
+            return self._read_batched(tok, prompts, device, batch_size)
+        return self._read_loop(tok, prompts, device, last_only, skip_first)
+
+    def _read_loop(self, tok, prompts, device, last_only, skip_first):
         features: list[np.ndarray] = []
         counts: list[int] = []
         for p in prompts:
-            captured: dict = {}
-            handles = [
-                self.blocks[L].register_forward_hook(
-                    self._hook(captured, L, stop=(L == self.max_layer))
-                )
-                for L in self.layers
-            ]
-            try:
-                ids = tok(p, return_tensors="pt").to(device)
-                try:
-                    self.model(**ids, use_cache=False)
-                except _StopForward:
-                    pass
-            finally:
-                for h in handles:
-                    h.remove()
-            chosen = [captured[L] for L in self.layers]                    # each [T, d]
-            A = torch.stack(chosen, dim=0).permute(1, 0, 2).contiguous()   # [T, m, d]
+            cap = self._run(tok(p, return_tensors="pt"), device)
+            chosen = [cap[L][0] for L in self.layers]                    # each [T, d]
+            A = torch.stack(chosen, dim=0).permute(1, 0, 2).contiguous()  # [T, m, d]
             if last_only:
                 A = A[-1:]
             elif skip_first > 0:
@@ -84,3 +105,20 @@ class TapForward:
             features.append(arr)
             counts.append(arr.shape[0])
         return np.concatenate(features, axis=0), np.asarray(counts)
+
+    def _read_batched(self, tok, prompts, device, batch_size):
+        if tok.pad_token is None:
+            tok.pad_token = tok.eos_token
+        features: list[np.ndarray] = []
+        for i in range(0, len(prompts), batch_size):
+            chunk = prompts[i:i + batch_size]
+            enc = tok(chunk, return_tensors="pt", padding=True)
+            cap = self._run(enc, device)
+            # last real token per prompt (robust to left/right padding): the position
+            # where the mask's cumulative sum first hits its max.
+            last = enc["attention_mask"].cumsum(1).argmax(1).tolist()    # [B]
+            for b in range(len(chunk)):
+                acts = [cap[L][b, last[b]] for L in self.layers]         # each [d]
+                A = torch.stack(acts, dim=0)                             # [m, d]
+                features.append(A.float().cpu().numpy()[None, ...])      # [1, m, d]
+        return np.concatenate(features, axis=0), np.asarray([1] * len(prompts))
