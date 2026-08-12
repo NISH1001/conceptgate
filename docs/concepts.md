@@ -224,6 +224,13 @@ which standard `generate()` then samples and stops on.)
 - **P0.5 (done):** mixture densities — class-conditional Gaussian *mixtures* on the joint
   spectrogram (BIC-selected, J=1 on 10-shot). Toy: single-Gaussian results reproduced;
   bimodal-benign and no-linear-filter scenarios recovered near the Bayes floor.
+- **Facade (done):** `ConceptGate.from_pretrained(model, layers)` — one object that learns a
+  concept few-shot, MEASURES via a **truncated forward** (only blocks `0..max(tap)` run), and
+  ACTS via an injected `ConceptAction` strategy (`Abort` shipped; `Steer`/`Emit` scaffolded).
+  The gate stays thin: it measures and drives; actions are loosely coupled through a
+  `FireContext`. Truncated detection on GPT-2 is ~46% faster than the full forward, activations
+  bit-identical — a harmful prompt is caught having run a fraction of M and never generating.
+  (Saving is for detect/abort; generation still needs the full forward.)
 - **P1:** small instruct model (Gemma-2-2B-it / Qwen2.5). Single-best-layer baseline; few-shot
   recall/FPR/PR curves; output-side gating that's actually meaningful.
 - **P2:** CSG depth filter vs single-layer (A) vs MLP (B); abort-vs-reroute comparison; `attach_guard`

@@ -15,7 +15,7 @@ the single-Gaussian gate — by design.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable
+from collections.abc import Iterable
 
 import numpy as np
 from sklearn.mixture import GaussianMixture

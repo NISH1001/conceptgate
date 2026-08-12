@@ -1,239 +1,141 @@
-"""The calibrated gate: turn a concept's spectrogram into a fire / abstain / pass decision.
+"""ConceptGate: the public facade.
 
-Two gate families share one decision contract (llr -> fire/abstain/pass via `tau` and an
-optional abstain band):
+Attach to a frozen transformer, learn concepts few-shot, MEASURE cheaply (truncated
+forward), and ACT via injected strategies. ConceptGate measures and orchestrates; it holds
+no action logic (strategies live in actions.py) and no density math (concept.py / mixture.py).
+Firing a concept is ``llr > tau`` where tau is a calibrated operating point.
 
-  - ConceptGate (canonical): each class is a SET of (mu, Sigma) components — class-conditional
-    GMMs on the joint spectrogram, J per class chosen by BIC (J=1 on scarce data).
-  - BandpassConceptGate (nested baseline): scalar bandpass-filtered score + two 1-D Gaussians;
-    carries the best / diag / fisher filter variants the depth-fusion experiments compare.
-
-A GateBank runs K concepts in parallel and fires if any concept fires.
+    cg = ConceptGate.from_pretrained("gpt2", layers=[4, 6, 8])
+    cg.learn("weapons", positives=[...], negatives=[...])
+    cg.calibrate(z=3.0)
+    cg.check(prompt)                    # Verdict, truncated forward
+    cg.run(prompt, action=Abort())      # strategy decides; cg drives + executes
 """
 from __future__ import annotations
 
-import math
-from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from dataclasses import dataclass
 
 import numpy as np
+import torch
 
-from . import concept_bank as cb
-from . import mixture as mx
-
-_LOG2PI = float(np.log(2.0 * np.pi))
-
-
-def _gauss_logpdf(x: np.ndarray, mu: float, sigma: float) -> np.ndarray:
-    sigma = max(float(sigma), 1e-8)
-    return -0.5 * ((x - mu) / sigma) ** 2 - np.log(sigma) - 0.5 * _LOG2PI
-
-
-def _fit_directions(A_pos: np.ndarray, A_neg: np.ndarray):
-    """Shared few-shot front-end: standardization stats, directions, spectrograms.
-
-    A_pos, A_neg: [N, m, d] -> (mu0, sd0, W, W_raw, S_pos, S_neg).
-    """
-    A_all = np.concatenate([A_pos, A_neg], axis=0)
-    mu0 = A_all.mean(axis=0)                    # [m, d]
-    sd0 = A_all.std(axis=0) + 1e-6              # [m, d]
-    Zp = (A_pos - mu0) / sd0
-    Zn = (A_neg - mu0) / sd0
-    W = cb.fit_directions(Zp, Zn)
-    W_raw = cb._normalize(A_pos.mean(0) - A_neg.mean(0), axis=-1)
-    S_pos = cb.spectrogram(Zp, W)
-    S_neg = cb.spectrogram(Zn, W)
-    return mu0, sd0, W, W_raw, S_pos, S_neg
-
-
-class _GateCommon:
-    """Shared decision/calibration machinery. Subclasses provide llr(), tau, abstain_margin."""
-
-    def fire(self, A: np.ndarray) -> np.ndarray:
-        """Boolean fire decision per sample (abstain counts as no-fire)."""
-        return self.decide(A) > 0
-
-    def decide(self, A: np.ndarray) -> np.ndarray:
-        """+1 fire, 0 abstain, -1 pass."""
-        l = self.llr(A)
-        out = np.where(l > self.tau, 1, -1)
-        if self.abstain_margin > 0:
-            out = np.where(np.abs(l - self.tau) < self.abstain_margin, 0, out)
-        return out
-
-    def calibrate_threshold(self, A_neg_cal: np.ndarray, target_fpr: float = 0.05) -> float:
-        """Set tau so the false-positive rate on calibration negatives ~= target_fpr."""
-        l = np.sort(self.llr(A_neg_cal))
-        q = float(np.clip(1.0 - target_fpr, 0.0, 1.0))
-        self.tau = float(np.quantile(l, q))
-        return self.tau
+from . import actions as A
+from .concept import Concept
+from .taps import TapForward
 
 
 @dataclass
-class BandpassConceptGate(_GateCommon):
-    """Scalar-filter detector: directions + bandpass filter + two 1-D Gaussians.
+class RunResult:
+    text: str
+    verdict: A.Verdict
+    n_new: int = 0
+    aborted: bool = False
 
-    The nested baseline family (filter_method: best / diag / fisher) that the
-    depth-fusion experiments compare against. The canonical gate is ConceptGate
-    (class-conditional mixtures); this class is its exact scalar special case."""
 
-    name: str = "concept"
-    filter_method: str = "fisher"
-    tau: float = 0.0                 # LLR fire threshold (>tau -> fire)
-    abstain_margin: float = 0.0      # if >0, |LLR|<margin -> abstain (no decision)
-    # learned params (set by fit)
-    W: Optional[np.ndarray] = None        # [m, d] detection directions in STANDARDIZED space
-    W_raw: Optional[np.ndarray] = None     # [m, d] diff-of-means in RAW space (used for steering)
-    mu0: Optional[np.ndarray] = None       # [m, d] per-dim feature mean (standardization)
-    sd0: Optional[np.ndarray] = None       # [m, d] per-dim feature std (standardization)
-    f: Optional[np.ndarray] = None
-    mu_pos: float = 0.0
-    sigma_pos: float = 1.0
-    mu_neg: float = 0.0
-    sigma_neg: float = 1.0
-    train_dprime: Optional[np.ndarray] = None  # per-layer d' on the fit set (for inspection)
+class ConceptGate:
+    def __init__(self, model, tok, layers: list[int], device: str = "cpu"):
+        self.model = model.eval()
+        self.tok = tok
+        self.layers: list[int] = list(layers)
+        self.device = device
+        self.concepts: dict[str, Concept] = {}   # public: name -> learned Concept
+        self._taps = TapForward(model, self.layers)
 
-    def fit(self, A_pos: np.ndarray, A_neg: np.ndarray) -> "BandpassConceptGate":
-        """A_pos, A_neg: [N, m, d] activation samples (use the prompt's last-token rep per prompt).
+    @classmethod
+    def from_pretrained(cls, name: str, layers: list[int],
+                        device: str | None = None) -> ConceptGate:
+        from transformers import AutoModelForCausalLM, AutoTokenizer
 
-        Features are standardized per (layer, dim) using pooled fit statistics before computing
-        the diff-of-means direction — this tames GPT-2's massive-activation dimensions. A separate
-        raw-space direction (W_raw) is kept for reroute steering (which perturbs the raw stream).
-        """
-        self.mu0, self.sd0, self.W, self.W_raw, S_pos, S_neg = _fit_directions(A_pos, A_neg)
-        self.f = cb.fit_bandpass(S_pos, S_neg, method=self.filter_method)
-        self.train_dprime = cb.dprime_per_layer(S_pos, S_neg)
-        sp = cb.filtered_score(S_pos, self.f)
-        sn = cb.filtered_score(S_neg, self.f)
-        self.mu_pos, self.sigma_pos = float(sp.mean()), float(sp.std(ddof=1))
-        self.mu_neg, self.sigma_neg = float(sn.mean()), float(sn.std(ddof=1))
+        if device is None:
+            if torch.backends.mps.is_available():
+                device = "mps"
+            elif torch.cuda.is_available():
+                device = "cuda"
+            else:
+                device = "cpu"
+        tok = AutoTokenizer.from_pretrained(name)
+        model = AutoModelForCausalLM.from_pretrained(name).to(device).eval()
+        return cls(model, tok, layers, device)
+
+    # ---- learn ----
+    def learn(self, name: str, positives: list[str], negatives: list[str],
+              **concept_kw) -> ConceptGate:
+        """Few-shot: fit a Concept from prompt sets (last-token rep per prompt)."""
+        A_pos = self._taps.read(self.tok, list(positives), self.device, last_only=True)[0]
+        A_neg = self._taps.read(self.tok, list(negatives), self.device, last_only=True)[0]
+        self.concepts[name] = Concept(name=name, **concept_kw).fit(A_pos, A_neg)
         return self
 
-    # --- scoring ---
-    def score(self, A: np.ndarray) -> np.ndarray:
-        """Filtered scalar score per sample. A: [N, m, d] -> [N]."""
-        Z = (A - self.mu0) / self.sd0
-        return cb.filtered_score(cb.spectrogram(Z, self.W), self.f)
+    # ---- calibrate (sets tau = the operating point on every concept) ----
+    def calibrate(self, z: float = 3.0) -> ConceptGate:
+        for c in self.concepts.values():
+            c.calibrate_z(z)
+        return self
 
-    def llr(self, A: np.ndarray) -> np.ndarray:
-        s = self.score(A)
-        return _gauss_logpdf(s, self.mu_pos, self.sigma_pos) - _gauss_logpdf(
-            s, self.mu_neg, self.sigma_neg
+    # ---- measure ----
+    def _verdict(self, A_last: np.ndarray, step: int = 0) -> A.Verdict:
+        """Fire if ANY concept fires; attribute to the highest-LLR (firing) concept."""
+        if not self.concepts:
+            return A.Verdict(fired=False, step=step)
+        scored = {n: (float(c.llr(A_last)[0]), bool(c.fire(A_last)[0]))
+                  for n, c in self.concepts.items()}
+        firing = [n for n, (_, fired) in scored.items() if fired]
+        name = max(firing or scored, key=lambda n: scored[n][0])
+        return A.Verdict(fired=bool(firing), concept=name, score=scored[name][0], step=step)
+
+    def check(self, prompt: str) -> A.Verdict:
+        """Detection only, via truncated forward (runs only blocks 0..max(layers))."""
+        A_last = self._taps.read(self.tok, [prompt], self.device, last_only=True)[0]
+        return self._verdict(A_last, step=0)
+
+    # ---- act ----
+    def _context(self, v: A.Verdict, seq) -> A.FireContext:
+        return A.FireContext(
+            verdict=v, concept=self.concepts.get(v.concept), layers=self.layers,
+            tok=self.tok, seq=seq, step=v.step,
         )
 
-    # --- calibration ---
-    def calibrate_z(self, z: float = 3.0) -> float:
-        """Operating point: fire only when the filtered score exceeds the benign mean by z*sigma.
+    def _decide(self, action, v: A.Verdict, seq):
+        """Ask the action; return a Decision. Only Stop/Continue are wired this round."""
+        d = action.on_fire(self._context(v, seq))
+        if isinstance(d, (A.Stop, A.Continue)):
+            return d
+        raise NotImplementedError(f"{type(d).__name__} decisions land in a later round")
 
-        Uses the fitted benign Gaussian directly (smoother than an empirical quantile from a few
-        prompts). z=3 -> ~0.1% benign-tail FPR; still catches harmful samples whenever d' > z.
-        """
-        s_star = np.array([self.mu_neg + z * self.sigma_neg])
-        self.tau = float(
-            _gauss_logpdf(s_star, self.mu_pos, self.sigma_pos)[0]
-            - _gauss_logpdf(s_star, self.mu_neg, self.sigma_neg)[0]
-        )
-        return self.tau
+    def _last_act(self, hidden_states) -> np.ndarray:
+        chosen = [hidden_states[L + 1][0, -1] for L in self.layers]   # each [d]
+        return torch.stack(chosen, dim=0).float().cpu().numpy()[None, ...]   # [1, m, d]
 
+    @torch.no_grad()
+    def run(self, prompt: str, action, max_new_tokens: int = 20,
+            check_output: bool = True) -> RunResult:
+        """Drive M under an action. Input-side check is truncated (cheap); if it fires and
+        the action stops, M's full forward and generation are never run -- the compute win.
+        Otherwise generate (full forward) with per-token output-side checks."""
+        ids = self.tok(prompt, return_tensors="pt").to(self.device).input_ids
 
-def _phi(x: float) -> float:
-    """Standard normal CDF."""
-    return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
+        # input-side: cheap truncated check; abort here skips the full model entirely
+        v = self.check(prompt)
+        if v.fired:
+            d = self._decide(action, v, ids)
+            if isinstance(d, A.Stop):
+                text = prompt + (" " + d.emit if d.emit else "")
+                return RunResult(text=text.rstrip(), verdict=v, n_new=0, aborted=True)
 
-
-@dataclass
-class ConceptGate(_GateCommon):
-    """The canonical gate: a concept class is a SET of (mu, Sigma) components on the
-    joint spectrogram.
-
-    Class-conditional GMMs fitted directly in spectrogram space R^m (J per class
-    chosen by BIC; J=1 with shared covariance recovers the fisher bandpass, so
-    BandpassConceptGate is the nested special case kept as the experimental
-    baseline). Directions, standardization, and steering (W_raw) are shared."""
-
-    name: str = "concept"
-    Js: Tuple[int, ...] = (1, 2, 3)
-    covariance: str = "full"
-    shrinkage: float = 0.1
-    seed: int = 0
-    tau: float = 0.0                 # LLR fire threshold (>tau -> fire)
-    abstain_margin: float = 0.0      # if >0, |LLR - tau| < margin -> abstain
-    # learned params (set by fit)
-    W: Optional[np.ndarray] = None
-    W_raw: Optional[np.ndarray] = None
-    mu0: Optional[np.ndarray] = None
-    sd0: Optional[np.ndarray] = None
-    gmm_pos: Optional[mx.GMM] = None
-    gmm_neg: Optional[mx.GMM] = None
-    train_dprime: Optional[np.ndarray] = None
-
-    def fit(self, A_pos: np.ndarray, A_neg: np.ndarray) -> "ConceptGate":
-        """A_pos, A_neg: [N, m, d] activation samples (last-token rep per prompt)."""
-        self.mu0, self.sd0, self.W, self.W_raw, S_pos, S_neg = _fit_directions(A_pos, A_neg)
-        self.train_dprime = cb.dprime_per_layer(S_pos, S_neg)
-        kw = dict(covariance=self.covariance, shrinkage=self.shrinkage, seed=self.seed)
-        self.gmm_pos = mx.select_gmm(S_pos, Js=self.Js, **kw)
-        self.gmm_neg = mx.select_gmm(S_neg, Js=self.Js, **kw)
-        return self
-
-    # --- scoring ---
-    def spectro(self, A: np.ndarray) -> np.ndarray:
-        """Standardized spectrogram. A: [N, m, d] -> [N, m]."""
-        Z = (A - self.mu0) / self.sd0
-        return cb.spectrogram(Z, self.W)
-
-    def llr(self, A: np.ndarray) -> np.ndarray:
-        S = self.spectro(A)
-        return self.gmm_pos.logpdf(S) - self.gmm_neg.logpdf(S)
-
-    # --- calibration ---
-    def calibrate_z(self, z: float = 3.0, n_samples: int = 10_000) -> float:
-        """Benign-mixture quantile operating point (the mixture analogue of 'mean + z*sd').
-
-        Draw samples from the fitted benign GMM (no model calls), evaluate their LLRs,
-        and put tau at the 1 - Phi(-z) quantile: z=3 -> ~0.1% benign-tail FPR.
-        """
-        S = self.gmm_neg.sample(n_samples, seed=self.seed)
-        l = self.gmm_pos.logpdf(S) - self.gmm_neg.logpdf(S)
-        self.tau = float(np.quantile(l, 1.0 - _phi(-z)))
-        return self.tau
-
-
-@dataclass
-class GateBank:
-    """K concepts; fires if ANY concept fires (max-LLR combination)."""
-
-    gates: List[_GateCommon] = field(default_factory=list)
-
-    def add(self, g: _GateCommon) -> "GateBank":
-        self.gates.append(g)
-        return self
-
-    def llr_max(self, A: np.ndarray) -> np.ndarray:
-        if not self.gates:
-            return np.full(A.shape[0], -np.inf)
-        return np.max(np.stack([g.llr(A) for g in self.gates], axis=0), axis=0)
-
-    def fire(self, A: np.ndarray) -> np.ndarray:
-        if not self.gates:
-            return np.zeros(A.shape[0], dtype=bool)
-        return np.any(np.stack([g.fire(A) for g in self.gates], axis=0), axis=0)
-
-    def which(self, A: np.ndarray) -> np.ndarray:
-        """Index of the highest-LLR concept per sample (useful for picking a steering direction)."""
-        if not self.gates:
-            return np.zeros(A.shape[0], dtype=int)
-        return np.argmax(np.stack([g.llr(A) for g in self.gates], axis=0), axis=0)
-
-
-# ---------- metrics ----------
-def recall_fpr(fire_pos: np.ndarray, fire_neg: np.ndarray) -> tuple[float, float]:
-    """recall = P(fire | harmful), fpr = P(fire | benign)."""
-    return float(np.mean(fire_pos)), float(np.mean(fire_neg))
-
-
-def error_at_zero(scores_pos: np.ndarray, scores_neg: np.ndarray) -> float:
-    """Balanced misclassification at the LLR=0 / midpoint threshold (for the toy validation)."""
-    fnr = float(np.mean(scores_pos <= 0))
-    fpr = float(np.mean(scores_neg > 0))
-    return 0.5 * (fnr + fpr)
+        # passed input-side -> generate with full forward, output-side checks per token
+        seq = ids
+        n_prompt = ids.shape[1]
+        for step in range(1, max_new_tokens + 1):
+            out = self.model(input_ids=seq, output_hidden_states=True, use_cache=False)
+            if check_output:
+                vo = self._verdict(self._last_act(out.hidden_states), step=step)
+                if vo.fired:
+                    d = self._decide(action, vo, seq)
+                    if isinstance(d, A.Stop):
+                        gen = self.tok.decode(seq[0, n_prompt:])
+                        text = (prompt + gen).rstrip() + (" " + d.emit if d.emit else "")
+                        return RunResult(text=text, verdict=vo, n_new=step - 1, aborted=True)
+            nxt = int(torch.argmax(out.logits[0, -1]))
+            seq = torch.cat([seq, torch.tensor([[nxt]], device=self.device)], dim=1)
+            if self.tok.eos_token_id is not None and nxt == self.tok.eos_token_id:
+                break
+        return RunResult(text=self.tok.decode(seq[0]), verdict=v, n_new=seq.shape[1] - n_prompt)

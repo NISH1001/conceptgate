@@ -21,7 +21,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from conceptgate import concept_bank as cb
-from conceptgate.gate import BandpassConceptGate, error_at_zero
+from conceptgate.concept import BandpassConcept, error_at_zero
 
 
 def phi(x: float) -> float:
@@ -37,8 +37,8 @@ def synth(rng, n, sign, U, dprime):
     """
     m, d = U.shape
     A = rng.standard_normal((n, m, d))  # isotropic noise, sigma=1 (var=1 along any unit dir)
-    for l in range(m):
-        A[:, l, :] += sign * (dprime[l] / 2.0) * U[l]
+    for layer in range(m):
+        A[:, layer, :] += sign * (dprime[layer] / 2.0) * U[layer]
     return A
 
 
@@ -64,7 +64,7 @@ def main() -> int:
 
     results = {}
     for method in ["best", "diag", "fisher"]:
-        g = BandpassConceptGate(name="toy", filter_method=method).fit(A_pos[tr], A_neg[tr])
+        g = BandpassConcept(name="toy", filter_method=method).fit(A_pos[tr], A_neg[tr])
         # balanced error at the calibrated midpoint between the two filtered-score Gaussians
         sp = g.score(A_pos[te]) - 0.5 * (g.mu_pos + g.mu_neg)
         sn = g.score(A_neg[te]) - 0.5 * (g.mu_pos + g.mu_neg)
