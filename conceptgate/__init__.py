@@ -22,7 +22,7 @@ from .actions import Abort, ConceptAction, FireContext, Verdict  # noqa: F401
 from .concept import BandpassConcept, Concept, ConceptBank  # noqa: F401
 
 __all__ = [
-    "ConceptGate", "RunResult",                       # lazy (torch) — see __getattr__
+    "ConceptGate", "RunResult", "LoadMode",           # lazy (torch) — see __getattr__
     "Verdict", "Abort", "ConceptAction", "FireContext",
     "Concept", "BandpassConcept", "ConceptBank",
     "actions", "concept", "spectral",
@@ -31,7 +31,7 @@ __all__ = [
 
 def __getattr__(name):
     """Lazily expose the torch-backed facade so the numpy math path stays torch-free."""
-    if name in ("ConceptGate", "RunResult"):
+    if name in ("ConceptGate", "RunResult", "LoadMode"):
         from . import gate
 
         return getattr(gate, name)
