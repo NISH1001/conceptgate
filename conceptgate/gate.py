@@ -14,13 +14,12 @@ Firing a concept is ``llr > tau`` where tau is a calibrated operating point.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List
 
 import numpy as np
 import torch
 
 from . import actions as A
-from .concept import Concept, ConceptBank
+from .concept import Concept
 from .taps import TapForward
 
 
@@ -33,17 +32,17 @@ class RunResult:
 
 
 class ConceptGate:
-    def __init__(self, model, tok, layers: List[int], device: str = "cpu"):
+    def __init__(self, model, tok, layers: list[int], device: str = "cpu"):
         self.model = model.eval()
         self.tok = tok
-        self.layers = list(layers)
+        self.layers: list[int] = list(layers)
         self.device = device
-        self.bank = ConceptBank()
-        self._concepts: Dict[str, Concept] = {}
+        self.concepts: dict[str, Concept] = {}   # public: name -> learned Concept
         self._taps = TapForward(model, self.layers)
 
     @classmethod
-    def from_pretrained(cls, name: str, layers: List[int], device: str = None) -> "ConceptGate":
+    def from_pretrained(cls, name: str, layers: list[int],
+                        device: str | None = None) -> ConceptGate:
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
         if device is None:
@@ -58,33 +57,30 @@ class ConceptGate:
         return cls(model, tok, layers, device)
 
     # ---- learn ----
-    def learn(self, name: str, positives, negatives, **concept_kw) -> "ConceptGate":
+    def learn(self, name: str, positives: list[str], negatives: list[str],
+              **concept_kw) -> ConceptGate:
         """Few-shot: fit a Concept from prompt sets (last-token rep per prompt)."""
         A_pos = self._taps.read(self.tok, list(positives), self.device, last_only=True)[0]
         A_neg = self._taps.read(self.tok, list(negatives), self.device, last_only=True)[0]
-        c = Concept(name=name, **concept_kw).fit(A_pos, A_neg)
-        self._concepts[name] = c
-        self.bank.add(c)
+        self.concepts[name] = Concept(name=name, **concept_kw).fit(A_pos, A_neg)
         return self
 
     # ---- calibrate (sets tau = the operating point on every concept) ----
-    def calibrate(self, z: float = 3.0) -> "ConceptGate":
-        for c in self.bank.gates:
+    def calibrate(self, z: float = 3.0) -> ConceptGate:
+        for c in self.concepts.values():
             c.calibrate_z(z)
         return self
 
     # ---- measure ----
     def _verdict(self, A_last: np.ndarray, step: int = 0) -> A.Verdict:
-        if not self.bank.gates:
+        """Fire if ANY concept fires; attribute to the highest-LLR (firing) concept."""
+        if not self.concepts:
             return A.Verdict(fired=False, step=step)
-        idx = int(self.bank.which(A_last)[0])
-        c = self.bank.gates[idx]
-        return A.Verdict(
-            fired=bool(self.bank.fire(A_last)[0]),
-            concept=c.name,
-            score=float(c.llr(A_last)[0]),
-            step=step,
-        )
+        scored = {n: (float(c.llr(A_last)[0]), bool(c.fire(A_last)[0]))
+                  for n, c in self.concepts.items()}
+        firing = [n for n, (_, fired) in scored.items() if fired]
+        name = max(firing or scored, key=lambda n: scored[n][0])
+        return A.Verdict(fired=bool(firing), concept=name, score=scored[name][0], step=step)
 
     def check(self, prompt: str) -> A.Verdict:
         """Detection only, via truncated forward (runs only blocks 0..max(layers))."""
@@ -94,7 +90,7 @@ class ConceptGate:
     # ---- act ----
     def _context(self, v: A.Verdict, seq) -> A.FireContext:
         return A.FireContext(
-            verdict=v, concept=self._concepts.get(v.concept), layers=self.layers,
+            verdict=v, concept=self.concepts.get(v.concept), layers=self.layers,
             tok=self.tok, seq=seq, step=v.step,
         )
 

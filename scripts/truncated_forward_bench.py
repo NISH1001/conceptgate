@@ -51,7 +51,8 @@ def main() -> int:
     A_full, A_tr = full()[0], trunc()[0]
     equiv = bool(np.allclose(A_full, A_tr, rtol=1e-4, atol=1e-4))
 
-    full(); trunc()  # warm up
+    full()  # warm up
+    trunc()
     t_full, t_trunc = _median_ms(full), _median_ms(trunc)
 
     skipped = total - (max_tap + 1)

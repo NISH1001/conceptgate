@@ -11,8 +11,6 @@ output-side (on each newly generated token's activations).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
-
 import numpy as np
 import torch
 
@@ -26,14 +24,14 @@ GUARDRAILED = "[GUARDRAILED]"
 class GenResult:
     text: str
     fired: bool = False
-    stage: Optional[str] = None        # "input" | "output" | None
-    concept: Optional[int] = None      # index of firing concept in the bank
+    stage: str | None = None           # "input" | "output" | None
+    concept: int | None = None         # index of firing concept in the bank
     n_new: int = 0                     # number of new tokens produced before stopping
-    fire_step: Optional[int] = None    # decode step at which it fired (0 = on the prompt)
+    fire_step: int | None = None       # decode step at which it fired (0 = on the prompt)
 
 
 class Guard:
-    def __init__(self, model, tok, gate_bank: ConceptBank, layers: List[int], device: str = "cpu"):
+    def __init__(self, model, tok, gate_bank: ConceptBank, layers: list[int], device: str = "cpu"):
         self.model = model
         self.tok = tok
         self.gb = gate_bank
@@ -47,7 +45,7 @@ class Guard:
         A = torch.stack(chosen, dim=0)                               # [m, d]
         return A.float().cpu().numpy()[None, ...]                    # [1, m, d]
 
-    def _steer_deltas(self, concept_idx: int, alpha: float) -> Dict[int, torch.Tensor]:
+    def _steer_deltas(self, concept_idx: int, alpha: float) -> dict[int, torch.Tensor]:
         """-alpha * w_l for the firing concept at each tapped layer."""
         g = self.gb.gates[concept_idx]
         deltas = {}

@@ -11,14 +11,14 @@ here for the seam but wired into the driver in a later round.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, List, Optional, Protocol, Union, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 
 # ---- Verdict: the result of measuring a prompt against the bank ----
 @dataclass
 class Verdict:
     fired: bool
-    concept: Optional[str] = None   # name of the firing (max-LLR) concept
+    concept: str | None = None      # name of the firing (max-LLR) concept
     score: float = 0.0              # the firing LLR
     step: int = 0                   # decode step (0 = the prompt itself)
 
@@ -27,7 +27,7 @@ class Verdict:
 @dataclass(frozen=True)
 class Stop:
     """Halt decoding; optionally append `emit` text."""
-    emit: Optional[str] = None
+    emit: str | None = None
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,7 @@ class ForceToken:
     token_id: int = 0
 
 
-Decision = Union[Stop, Continue, InjectSteer, ForceToken]
+Decision = Stop | Continue | InjectSteer | ForceToken
 STOP = Stop()
 CONTINUE = Continue()
 
@@ -57,7 +57,7 @@ CONTINUE = Continue()
 class FireContext:
     verdict: Verdict          # which concept fired, its score, the step
     concept: Any              # the firing Concept object (carries W_raw for steering)
-    layers: List[int]         # tapped block indices
+    layers: list[int]         # tapped block indices
     tok: Any = None           # tokenizer (for markers / decoding)
     seq: Any = None           # token ids generated so far
     step: int = 0             # decode step (0 = prompt)

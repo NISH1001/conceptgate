@@ -7,8 +7,6 @@ package dependency-light and legible; the mechanism is not a contribution.
 """
 from __future__ import annotations
 
-from typing import List, Tuple
-
 import numpy as np
 import torch
 
@@ -33,7 +31,7 @@ class TapForward:
     ``hidden_states[L+1]``, which is exactly what a forward hook on block L captures.
     """
 
-    def __init__(self, model, layers: List[int]):
+    def __init__(self, model, layers: list[int]):
         self.model = model
         self.layers = list(layers)
         self.max_layer = max(layers)
@@ -51,14 +49,14 @@ class TapForward:
     def read(
         self,
         tok,
-        prompts: List[str],
+        prompts: list[str],
         device: str = "cpu",
         last_only: bool = False,
         skip_first: int = 0,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         self.model.eval()
-        feats: List[np.ndarray] = []
-        counts: List[int] = []
+        features: list[np.ndarray] = []
+        counts: list[int] = []
         for p in prompts:
             captured: dict = {}
             handles = [
@@ -83,6 +81,6 @@ class TapForward:
             elif skip_first > 0:
                 A = A[skip_first:]
             arr = A.float().cpu().numpy()
-            feats.append(arr)
+            features.append(arr)
             counts.append(arr.shape[0])
-        return np.concatenate(feats, axis=0), np.asarray(counts)
+        return np.concatenate(features, axis=0), np.asarray(counts)

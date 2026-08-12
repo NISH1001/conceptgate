@@ -10,12 +10,10 @@ therefore perturbs exactly that hidden state and everything downstream of it.
 """
 from __future__ import annotations
 
-from typing import Dict, List
-
 import torch
 
 
-def get_blocks(model) -> List[torch.nn.Module]:
+def get_blocks(model) -> list[torch.nn.Module]:
     """Return the list of transformer block modules, across common architectures."""
     if hasattr(model, "transformer") and hasattr(model.transformer, "h"):
         return list(model.transformer.h)                      # GPT-2 family
@@ -45,7 +43,7 @@ class SteeringHooks:
 
     def __init__(self, model):
         self.blocks = get_blocks(model)
-        self.deltas: Dict[int, torch.Tensor] = {}
+        self.deltas: dict[int, torch.Tensor] = {}
         self.handles: list = []
         self.enabled: bool = False
 
@@ -61,12 +59,12 @@ class SteeringHooks:
 
         return hook
 
-    def register(self, layers: List[int]) -> "SteeringHooks":
+    def register(self, layers: list[int]) -> SteeringHooks:
         for idx in layers:
             self.handles.append(self.blocks[idx].register_forward_hook(self._make_hook(idx)))
         return self
 
-    def set_deltas(self, deltas: Dict[int, torch.Tensor]) -> None:
+    def set_deltas(self, deltas: dict[int, torch.Tensor]) -> None:
         self.deltas = deltas
 
     def clear(self) -> None:

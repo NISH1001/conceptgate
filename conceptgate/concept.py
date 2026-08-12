@@ -11,12 +11,11 @@ point. Two variants:
 A ConceptBank runs K concepts in parallel and fires if any concept fires. The public
 facade that attaches these to a frozen model and acts on firings is ConceptGate (gate.py).
 """
+
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
-
 import numpy as np
 
 from . import concept_bank as cb
@@ -36,8 +35,8 @@ def _fit_directions(A_pos: np.ndarray, A_neg: np.ndarray):
     A_pos, A_neg: [N, m, d] -> (mu0, sd0, W, W_raw, S_pos, S_neg).
     """
     A_all = np.concatenate([A_pos, A_neg], axis=0)
-    mu0 = A_all.mean(axis=0)                    # [m, d]
-    sd0 = A_all.std(axis=0) + 1e-6              # [m, d]
+    mu0 = A_all.mean(axis=0)  # [m, d]
+    sd0 = A_all.std(axis=0) + 1e-6  # [m, d]
     Zp = (A_pos - mu0) / sd0
     Zn = (A_neg - mu0) / sd0
     W = cb.fit_directions(Zp, Zn)
@@ -56,17 +55,19 @@ class _GateCommon:
 
     def decide(self, A: np.ndarray) -> np.ndarray:
         """+1 fire, 0 abstain, -1 pass."""
-        l = self.llr(A)
-        out = np.where(l > self.tau, 1, -1)
+        scores = self.llr(A)
+        out = np.where(scores > self.tau, 1, -1)
         if self.abstain_margin > 0:
-            out = np.where(np.abs(l - self.tau) < self.abstain_margin, 0, out)
+            out = np.where(np.abs(scores - self.tau) < self.abstain_margin, 0, out)
         return out
 
-    def calibrate_threshold(self, A_neg_cal: np.ndarray, target_fpr: float = 0.05) -> float:
+    def calibrate_threshold(
+        self, A_neg_cal: np.ndarray, target_fpr: float = 0.05
+    ) -> float:
         """Set tau so the false-positive rate on calibration negatives ~= target_fpr."""
-        l = np.sort(self.llr(A_neg_cal))
+        scores = np.sort(self.llr(A_neg_cal))
         q = float(np.clip(1.0 - target_fpr, 0.0, 1.0))
-        self.tau = float(np.quantile(l, q))
+        self.tau = float(np.quantile(scores, q))
         return self.tau
 
 
@@ -80,19 +81,23 @@ class BandpassConcept(_GateCommon):
 
     name: str = "concept"
     filter_method: str = "fisher"
-    tau: float = 0.0                 # LLR fire threshold (>tau -> fire)
-    abstain_margin: float = 0.0      # if >0, |LLR|<margin -> abstain (no decision)
+    tau: float = 0.0  # LLR fire threshold (>tau -> fire)
+    abstain_margin: float = 0.0  # if >0, |LLR|<margin -> abstain (no decision)
     # learned params (set by fit)
-    W: Optional[np.ndarray] = None        # [m, d] detection directions in STANDARDIZED space
-    W_raw: Optional[np.ndarray] = None     # [m, d] diff-of-means in RAW space (used for steering)
-    mu0: Optional[np.ndarray] = None       # [m, d] per-dim feature mean (standardization)
-    sd0: Optional[np.ndarray] = None       # [m, d] per-dim feature std (standardization)
-    f: Optional[np.ndarray] = None
+    W: np.ndarray | None = None  # [m, d] detection directions in STANDARDIZED space
+    W_raw: np.ndarray | None = (
+        None  # [m, d] diff-of-means in RAW space (used for steering)
+    )
+    mu0: np.ndarray | None = None  # [m, d] per-dim feature mean (standardization)
+    sd0: np.ndarray | None = None  # [m, d] per-dim feature std (standardization)
+    f: np.ndarray | None = None
     mu_pos: float = 0.0
     sigma_pos: float = 1.0
     mu_neg: float = 0.0
     sigma_neg: float = 1.0
-    train_dprime: Optional[np.ndarray] = None  # per-layer d' on the fit set (for inspection)
+    train_dprime: np.ndarray | None = (
+        None  # per-layer d' on the fit set (for inspection)
+    )
 
     def fit(self, A_pos: np.ndarray, A_neg: np.ndarray) -> "BandpassConcept":
         """A_pos, A_neg: [N, m, d] activation samples (use the prompt's last-token rep per prompt).
@@ -101,7 +106,9 @@ class BandpassConcept(_GateCommon):
         the diff-of-means direction — this tames GPT-2's massive-activation dimensions. A separate
         raw-space direction (W_raw) is kept for reroute steering (which perturbs the raw stream).
         """
-        self.mu0, self.sd0, self.W, self.W_raw, S_pos, S_neg = _fit_directions(A_pos, A_neg)
+        self.mu0, self.sd0, self.W, self.W_raw, S_pos, S_neg = _fit_directions(
+            A_pos, A_neg
+        )
         self.f = cb.fit_bandpass(S_pos, S_neg, method=self.filter_method)
         self.train_dprime = cb.dprime_per_layer(S_pos, S_neg)
         sp = cb.filtered_score(S_pos, self.f)
@@ -153,24 +160,26 @@ class Concept(_GateCommon):
     baseline). Directions, standardization, and steering (W_raw) are shared."""
 
     name: str = "concept"
-    Js: Tuple[int, ...] = (1, 2, 3)
+    Js: tuple[int, ...] = (1, 2, 3)
     covariance: str = "full"
     shrinkage: float = 0.1
     seed: int = 0
-    tau: float = 0.0                 # LLR fire threshold (>tau -> fire)
-    abstain_margin: float = 0.0      # if >0, |LLR - tau| < margin -> abstain
+    tau: float = 0.0  # LLR fire threshold (>tau -> fire)
+    abstain_margin: float = 0.0  # if >0, |LLR - tau| < margin -> abstain
     # learned params (set by fit)
-    W: Optional[np.ndarray] = None
-    W_raw: Optional[np.ndarray] = None
-    mu0: Optional[np.ndarray] = None
-    sd0: Optional[np.ndarray] = None
-    gmm_pos: Optional[mx.GMM] = None
-    gmm_neg: Optional[mx.GMM] = None
-    train_dprime: Optional[np.ndarray] = None
+    W: np.ndarray | None = None
+    W_raw: np.ndarray | None = None
+    mu0: np.ndarray | None = None
+    sd0: np.ndarray | None = None
+    gmm_pos: mx.GMM | None = None
+    gmm_neg: mx.GMM | None = None
+    train_dprime: np.ndarray | None = None
 
     def fit(self, A_pos: np.ndarray, A_neg: np.ndarray) -> "Concept":
         """A_pos, A_neg: [N, m, d] activation samples (last-token rep per prompt)."""
-        self.mu0, self.sd0, self.W, self.W_raw, S_pos, S_neg = _fit_directions(A_pos, A_neg)
+        self.mu0, self.sd0, self.W, self.W_raw, S_pos, S_neg = _fit_directions(
+            A_pos, A_neg
+        )
         self.train_dprime = cb.dprime_per_layer(S_pos, S_neg)
         kw = dict(covariance=self.covariance, shrinkage=self.shrinkage, seed=self.seed)
         self.gmm_pos = mx.select_gmm(S_pos, Js=self.Js, **kw)
@@ -189,14 +198,17 @@ class Concept(_GateCommon):
 
     # --- calibration ---
     def calibrate_z(self, z: float = 3.0, n_samples: int = 10_000) -> float:
-        """Benign-mixture quantile operating point (the mixture analogue of 'mean + z*sd').
+        """Set tau to a false-alarm target, expressed as 'z sigma above benign'.
 
-        Draw samples from the fitted benign GMM (no model calls), evaluate their LLRs,
-        and put tau at the 1 - Phi(-z) quantile: z=3 -> ~0.1% benign-tail FPR.
+        The benign class is modeled as a Gaussian mixture (gmm_neg). We draw n_samples
+        from that fitted benign density, score their LLRs, and put tau at the
+        (1 - Phi(-z)) quantile -- i.e. only that fraction of benign inputs would fire.
+        z=3 -> ~0.1% benign false-alarm rate. (This replaces the plain 'mean + z*std'
+        rule, which assumes a single Gaussian; here the benign side may be multi-modal.)
         """
         S = self.gmm_neg.sample(n_samples, seed=self.seed)
-        l = self.gmm_pos.logpdf(S) - self.gmm_neg.logpdf(S)
-        self.tau = float(np.quantile(l, 1.0 - _phi(-z)))
+        scores = self.gmm_pos.logpdf(S) - self.gmm_neg.logpdf(S)
+        self.tau = float(np.quantile(scores, 1.0 - _phi(-z)))
         return self.tau
 
 
@@ -204,9 +216,9 @@ class Concept(_GateCommon):
 class ConceptBank:
     """K concepts; fires if ANY concept fires (max-LLR combination)."""
 
-    gates: List[_GateCommon] = field(default_factory=list)
+    gates: list[_GateCommon] = field(default_factory=list)
 
-    def add(self, g: _GateCommon) -> "ConceptBank":
+    def add(self, g: _GateCommon) -> ConceptBank:
         self.gates.append(g)
         return self
 

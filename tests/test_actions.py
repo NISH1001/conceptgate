@@ -2,7 +2,6 @@ from conceptgate.actions import (
     STOP,
     Abort,
     ConceptAction,
-    Continue,
     FireContext,
     Stop,
     Verdict,

@@ -36,8 +36,8 @@ def synth_modes(rng, n, U, gains, modes, weights):
     idx = rng.choice(len(modes), size=n, p=weights)
     A = rng.standard_normal((n, m, d))
     off = np.asarray(modes, dtype=float)[idx]                    # [n]
-    for l in range(m):
-        A[:, l, :] += (off * gains[l])[:, None] * U[l][None, :]
+    for layer in range(m):
+        A[:, layer, :] += (off * gains[layer])[:, None] * U[layer][None, :]
     return A
 
 
@@ -48,8 +48,8 @@ def true_logpdf(A, U, gains, modes, weights):
     parts = []
     for j, mode in enumerate(modes):
         maha = np.zeros(n)
-        for l in range(A.shape[1]):
-            diff = A[:, l, :] - mode * gains[l] * U[l][None, :]
+        for layer in range(A.shape[1]):
+            diff = A[:, layer, :] - mode * gains[layer] * U[layer][None, :]
             maha += np.sum(diff * diff, axis=1)
         parts.append(np.log(weights[j]) - 0.5 * maha)
     P = np.stack(parts, axis=1)

@@ -7,8 +7,8 @@ from conceptgate.concept import BandpassConcept, Concept, ConceptBank, error_at_
 def _synth(rng, n, sign, U, dprime):
     m, d = U.shape
     A = rng.standard_normal((n, m, d))
-    for l in range(m):
-        A[:, l, :] += sign * (dprime[l] / 2.0) * U[l]
+    for layer in range(m):
+        A[:, layer, :] += sign * (dprime[layer] / 2.0) * U[layer]
     return A
 
 
