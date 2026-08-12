@@ -6,3 +6,6 @@ artifacts/
 *.pt
 *.npz
 .uv/
+
+# workflow scaffolding (specs/plans) — not repo docs
+docs/superpowers/
