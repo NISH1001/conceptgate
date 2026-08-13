@@ -14,12 +14,9 @@ Run:  uv run python scripts/toy_csg.py
 from __future__ import annotations
 
 import math
-import os
-import sys
 
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from conceptgate import spectral as spec
 from conceptgate.concept import BandpassConcept, error_at_zero
 

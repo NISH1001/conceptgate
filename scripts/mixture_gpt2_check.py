@@ -14,12 +14,9 @@ Run:  uv run python scripts/mixture_gpt2_check.py
 """
 from __future__ import annotations
 
-import os
-import sys
 import warnings
 
 warnings.filterwarnings("ignore")
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
