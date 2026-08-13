@@ -8,6 +8,7 @@ Run:  uv run marimo edit scripts/demo_marimo.py     # editable
 """
 import marimo
 
+__generated_with = "0.23.16"
 app = marimo.App(width="medium")
 
 
@@ -24,18 +25,23 @@ def _():
 
 @app.cell
 def _(os):
+    # this repo is package=false, so put its root on sys.path BEFORE importing conceptgate
+    import sys
+
+    try:
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    except NameError:
+        root = os.getcwd()   # fallback: `marimo run` launched from the repo root
+    if root not in sys.path:
+        sys.path.insert(0, root)
+
     # loads once (no reactive deps) — model + few-shot concept
     from conceptgate import ConceptGate
     from conceptgate import data as D
     from conceptgate.taps import TapForward
 
-    try:
-        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    except NameError:
-        root = os.getcwd()
     concept = D.load_concept(os.path.join(root, "data/concepts/weapons.json"))
     layers = concept["layers_gpt2"]
-
     cg = ConceptGate.from_pretrained("gpt2", layers=layers)
     cg.learn("weapons", concept["positives"], concept["negatives"])
     tf = TapForward(cg.model, layers)
@@ -61,6 +67,7 @@ def _(cg, concept, layers, mo, np, plt, prompt, tf, z):
 
     Ap = tf.read(cg.tok, concept["test_positives"], cg.device, last_only=True)[0]
     An = tf.read(cg.tok, concept["test_negatives"], cg.device, last_only=True)[0]
+    Sp, Sn = c.spectro(Ap), c.spectro(An)           # [N, m] loudness per tap
     Lp, Ln = c.llr(Ap), c.llr(An)
     v = cg.check(prompt.value)                      # reactive: re-runs when the text changes
 
@@ -90,11 +97,26 @@ def _(cg, concept, layers, mo, np, plt, prompt, tf, z):
     ax2.legend(fontsize=8)
     fig.tight_layout()
 
+    # heatmap: per-prompt loudness across taps (positives above the line, negatives below)
+    S_all = np.vstack([Sp, Sn])
+    labels = [p[:30] for p in concept["test_positives"]] + [p[:30] for p in concept["test_negatives"]]
+    vmax = float(np.abs(S_all).max())
+    fig2, ax3 = plt.subplots(figsize=(7.5, 5))
+    im = ax3.imshow(S_all, aspect="auto", cmap="RdBu_r", vmin=-vmax, vmax=vmax)
+    ax3.set_xticks(x)
+    ax3.set_xticklabels([f"blk {L}" for L in layers])
+    ax3.set_yticks(np.arange(len(labels)))
+    ax3.set_yticklabels(labels, fontsize=7)
+    ax3.axhline(len(Sp) - 0.5, color="k", lw=1.2)
+    ax3.set_title("per-prompt loudness heatmap (red = concept-like, blue = not)")
+    fig2.colorbar(im, ax=ax3, label="loudness")
+    fig2.tight_layout()
+
     verdict = mo.md(
         f"**{prompt.value!r}** → {'🔴 **FIRED**' if v.fired else '🟢 passed'}  ·  "
         f"score = **{v.score:.2f}**  ·  τ = {c.tau:.2f}"
     )
-    mo.vstack([verdict, fig])
+    mo.vstack([verdict, fig, fig2])
     return
 
 
