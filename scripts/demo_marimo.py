@@ -1,8 +1,8 @@
 """ConceptGate — interactive walkthrough (marimo).
 
-Create your own concept (edit the example lists), watch it learn, calibrate the
-threshold, and test prompts — with live μ±σ, a decision plot that marks your prompt,
-and a per-prompt loudness heatmap.
+Pick a frozen model and the layers to tap, define a concept by editing example lists,
+watch it learn, calibrate, and test prompts — with a layer-stack diagram, live μ±σ, a
+decision plot that marks your prompt, and a per-prompt loudness heatmap.
 
 Run:  uv run marimo edit scripts/demo_marimo.py     # editable
   or  uv run marimo run  scripts/demo_marimo.py     # app view
@@ -17,12 +17,13 @@ app = marimo.App(width="medium")
 @app.cell
 def _():
     import altair as alt
+    import matplotlib.patches as mpatches
     import matplotlib.pyplot as plt
     import numpy as np
 
     import marimo as mo
 
-    return alt, mo, np, plt
+    return alt, mo, mpatches, np, plt
 
 
 @app.cell
@@ -39,22 +40,172 @@ def _(mo):
     *spectrogram* across depth — which two small Gaussians (positive vs. negative) turn
     into a calibrated score. A concept fires when the score beats a threshold **τ**.
 
-    The same machinery learns *any* concept. Define your own below.
+    ConceptGate only *reads* what the model already computes, so **the model and the
+    tapped layers set the ceiling**. A bigger, instruction-tuned model represents more
+    concepts cleanly at mid-depth — pick one below and see for yourself.
     """)
     return
 
 
 @app.cell
 def _():
-    # loads once (no reactive deps): a frozen GPT-2 + the tap layers
+    # open, ungated models — small enough to run on CPU. Edit the box to use any HF id.
+    MODELS = [
+        "gpt2",
+        "distilgpt2",
+        "Qwen/Qwen2.5-0.5B-Instruct",
+        "HuggingFaceTB/SmolLM2-360M-Instruct",
+    ]
+    return (MODELS,)
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    ## 0. Choose a model and where to tap
+
+    A transformer is a stack of blocks; the residual stream flows through all of them.
+    A concept usually becomes most *linearly readable* somewhere in the **middle** —
+    early blocks still track surface/syntax, late blocks specialize on next-token
+    prediction. The diagram shows the stack with the default mid-band taps highlighted;
+    edit the tap list to move them. (Switching the model reloads weights — the first
+    load of a new model downloads it.)
+    """)
+    return
+
+
+@app.cell
+def _(MODELS, mo):
+    model_pick = mo.ui.dropdown(options=MODELS, value="gpt2", label="model")
+    model_pick
+    return (model_pick,)
+
+
+@app.cell
+def _(mo, model_pick):
+    # editable: the dropdown loads a default id here; type any HF model id to override
+    model_in = mo.ui.text(value=model_pick.value, label="HF model id", full_width=True)
+    model_in
+    return (model_in,)
+
+
+@app.cell
+def _(mo, model_in):
+    from transformers import AutoConfig
+
+    model_id = model_in.value.strip()
+    cfg, err = None, ""
+    try:
+        cfg = AutoConfig.from_pretrained(model_id)
+    except Exception as e:  # bad id / offline / gated
+        err = f"⚠️ couldn't read config for `{model_id}` — {type(e).__name__}: {e}"
+    mo.stop(cfg is None, mo.md(err))
+    n_blocks = getattr(cfg, "num_hidden_layers", None) or getattr(cfg, "n_layer", 0)
+    hidden = getattr(cfg, "hidden_size", None) or getattr(cfg, "n_embd", 0)
+    mtype = getattr(cfg, "model_type", "?")
+    return hidden, model_id, mtype, n_blocks
+
+
+@app.cell
+def _(hidden, mo, mtype, n_blocks):
+    def_taps = list(range(max(1, n_blocks // 2 - 2), min(n_blocks, n_blocks // 2 + 3)))
+    taps_in = mo.ui.text(
+        value=",".join(map(str, def_taps)),
+        label=f"tap blocks (0–{n_blocks - 1}), comma-separated",
+        full_width=True,
+    )
+    mo.vstack([mo.md(f"**{mtype}** · {n_blocks} blocks · width {hidden}"), taps_in])
+    return (taps_in,)
+
+
+@app.cell
+def _(mo, n_blocks, taps_in):
+    try:
+        taps = sorted({int(t) for t in taps_in.value.replace(",", " ").split()})
+    except ValueError:
+        taps = []
+    taps = [t for t in taps if 0 <= t < n_blocks]
+    mo.stop(
+        not taps,
+        mo.md("enter tap indices as block numbers, e.g. `4,5,6,7,8`"),
+    )
+    return (taps,)
+
+
+@app.cell
+def _(model_id, mpatches, n_blocks, plt, taps):
+    tapset = set(taps)
+    fig0, ax = plt.subplots(figsize=(min(13, 2.6 + 0.42 * n_blocks), 3.0))
+    for a, b, col, lab, role in [
+        (0.0, 1 / 3, "#EAF2FB", "early", "surface / syntax"),
+        (1 / 3, 2 / 3, "#FDECEA", "mid", "abstract concepts — best taps"),
+        (2 / 3, 1.0, "#EEF7EE", "late", "next-token prediction"),
+    ]:
+        x0, x1 = a * n_blocks - 0.5, b * n_blocks - 0.5
+        ax.axvspan(x0, x1, color=col, zorder=0)
+        ax.text((x0 + x1) / 2, -1.2, f"{lab}\n{role}", ha="center", va="top",
+                fontsize=8, color="#555")
+    ax.annotate("", xy=(n_blocks + 0.2, 0), xytext=(-1.6, 0),
+                arrowprops=dict(arrowstyle="->", color="#888", lw=1.5), zorder=1)
+    ax.text(-1.6, 0.72, "embed", ha="center", fontsize=8, color="#444")
+    ax.text(n_blocks + 0.3, 0.72, "head", ha="center", fontsize=8, color="#444")
+    for blk in range(n_blocks):
+        on = blk in tapset
+        ax.add_patch(mpatches.FancyBboxPatch(
+            (blk - 0.4, -0.4), 0.8, 0.8,
+            boxstyle="round,pad=0.02,rounding_size=0.12", linewidth=1.2,
+            edgecolor="#C2402F" if on else "#bbb",
+            facecolor="#C2402F" if on else "#f4f4f4", zorder=2))
+        if on:
+            ax.text(blk, 0, str(blk), ha="center", va="center", color="white",
+                    fontsize=8, weight="bold", zorder=3)
+            ax.text(blk, 0.6, "tap", ha="center", fontsize=7, color="#C2402F", weight="bold")
+        elif n_blocks <= 16 or blk % max(1, n_blocks // 12) == 0:
+            ax.text(blk, 0, str(blk), ha="center", va="center", color="#999",
+                    fontsize=7, zorder=3)
+    ax.set_xlim(-2.4, n_blocks + 1.4)
+    ax.set_ylim(-2.1, 1.2)
+    ax.axis("off")
+    ax.set_title(f"{model_id.split('/')[-1]} — {n_blocks} blocks · tapping {taps}",
+                 fontsize=10)
+    fig0.tight_layout()
+    fig0
+    return
+
+
+@app.cell
+def _(model_id):
+    # heavy: loads weights once, only when the model id changes (not on tap edits)
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    tok = AutoTokenizer.from_pretrained(model_id)
+    model = AutoModelForCausalLM.from_pretrained(model_id).eval()
+    return model, tok
+
+
+@app.cell
+def _(model, taps, tok):
+    # cheap: re-wrap the loaded model with the current taps (no reload on tap edits)
     from conceptgate import ConceptGate
     from conceptgate.actions import Abort
     from conceptgate.taps import TapForward
 
-    LAYERS = [4, 5, 6, 7, 8]
-    cg = ConceptGate.from_pretrained("gpt2", layers=LAYERS)
-    tf = TapForward(cg.model, LAYERS)
+    cg = ConceptGate(model, tok, taps, device="cpu")
+    tf = TapForward(cg.model, taps)
     return Abort, cg, tf
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    ## 1. Define a concept
+
+    Pick a starting concept, then **edit the lists** — add, remove, or rewrite the
+    examples (one per line). *Positives* are prompts where the concept is present;
+    *negatives* are everyday prompts where it is absent. ~5–10 varied examples per side
+    works well; the direction is a mean, so diversity beats quantity.
+    """)
+    return
 
 
 @app.cell
@@ -151,39 +302,8 @@ def _():
                 "How do I set up a git remote?",
             ],
         },
-        "programming": {
-            "positives": [
-                "How do I reverse a list in Python?",
-                "What's the difference between a tuple and a list?",
-                "How do I set up a virtual environment?",
-                "Why is my for-loop off by one?",
-                "How do I catch an exception in Java?",
-                "What does 'git rebase' actually do?",
-            ],
-            "negatives": [
-                "What's the best way to sear a steak?",
-                "Cheapest month to fly to Tokyo?",
-                "Who won the 2018 World Cup?",
-                "Explain how photosynthesis works.",
-                "What's the capital of Australia?",
-                "Recommend a good hike near Seattle.",
-            ],
-        },
     }
     return (PRESETS,)
-
-
-@app.cell
-def _(mo):
-    mo.md(r"""
-    ## 1. Define a concept
-
-    Pick a starting concept, then **edit the lists** — add, remove, or rewrite the
-    examples (one per line). *Positives* are prompts where the concept is present;
-    *negatives* are everyday prompts where it is absent. ~5–10 varied examples per side
-    works well; the direction is a mean, so diversity beats quantity.
-    """)
-    return
 
 
 @app.cell
