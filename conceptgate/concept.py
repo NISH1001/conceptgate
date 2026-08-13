@@ -16,10 +16,11 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+
 import numpy as np
 
-from . import spectral as spec
 from . import mixture as mx
+from . import spectral as spec
 
 _LOG2PI = float(np.log(2.0 * np.pi))
 

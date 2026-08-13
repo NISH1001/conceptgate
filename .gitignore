@@ -9,3 +9,6 @@ artifacts/
 
 # workflow scaffolding (specs/plans) — not repo docs
 docs/superpowers/
+
+# generated demo artifacts
+demo_concept.png

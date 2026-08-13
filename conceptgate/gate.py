@@ -11,6 +11,7 @@ Firing a concept is ``llr > tau`` where tau is a calibrated operating point.
     cg.check(prompt)                    # Verdict, truncated forward
     cg.run(prompt, action=Abort())      # strategy decides; cg drives + executes
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -46,26 +47,38 @@ class RunResult:
 
 
 class ConceptGate:
-    def __init__(self, model, tok, layers: list[int], device: str = "cpu",
-                 detect_only: bool = False, debug: bool = False):
+    def __init__(
+        self,
+        model,
+        tok,
+        layers: list[int],
+        device: str = "cpu",
+        detect_only: bool = False,
+        debug: bool = False,
+    ):
         self.model = model.eval()
         self.tok = tok
         self.layers: list[int] = list(layers)
         self.device = device
-        self.detect_only = detect_only           # loaded up-to-taps -> cannot generate
+        self.detect_only = detect_only  # loaded up-to-taps -> cannot generate
         self.debug = debug
         if debug:
-            logger.enable("conceptgate")         # loguru: turn on this package's debug logs
-        self.concepts: dict[str, Concept] = {}   # public: name -> learned Concept
+            logger.enable("conceptgate")  # loguru: turn on this package's debug logs
+        self.concepts: dict[str, Concept] = {}  # public: name -> learned Concept
         self._taps = TapForward(model, self.layers)
 
     @classmethod
-    def from_pretrained(cls, name: str, layers: list[int],
-                        load: LoadMode | str = LoadMode.FULL,
-                        device: str | None = None, debug: bool = False) -> ConceptGate:
+    def from_pretrained(
+        cls,
+        name: str,
+        layers: list[int],
+        load: LoadMode | str = LoadMode.FULL,
+        device: str | None = None,
+        debug: bool = False,
+    ) -> ConceptGate:
         from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 
-        load = LoadMode(load)   # normalize: accepts LoadMode or its string value
+        load = LoadMode(load)  # normalize: accepts LoadMode or its string value
         if device is None:
             if torch.backends.mps.is_available():
                 device = "mps"
@@ -85,13 +98,26 @@ class ConceptGate:
             detect_only = False
         model = model.to(device).eval()
         gate = cls(model, tok, layers, device, detect_only=detect_only, debug=debug)
-        logger.debug("loaded {} on {}: load={}, taps={}, blocks_run<={}, detect_only={}",
-                     name, device, load.value, list(layers), max(layers), detect_only)
+        logger.debug(
+            "loaded {} on {}: load={}, taps={}, blocks_run<={}, detect_only={}",
+            name,
+            device,
+            load.value,
+            list(layers),
+            max(layers),
+            detect_only,
+        )
         return gate
 
     # ---- learn ----
-    def learn(self, name: str, positives: list[str], negatives: list[str],
-              batch_size: int = 1, **concept_kw) -> ConceptGate:
+    def learn(
+        self,
+        name: str,
+        positives: list[str],
+        negatives: list[str],
+        batch_size: int = 1,
+        **concept_kw,
+    ) -> ConceptGate:
         """Few-shot: fit a Concept from prompt sets (last-token rep per prompt).
 
         batch_size is the memory<->compute dial for extraction: 1 runs one prompt at a
@@ -100,18 +126,29 @@ class ConceptGate:
         per-forward overhead, mostly a GPU / many-prompts win.
         """
         read = lambda ps: self._taps.read(  # noqa: E731
-            self.tok, list(ps), self.device, last_only=True, batch_size=batch_size)[0]
+            self.tok, list(ps), self.device, last_only=True, batch_size=batch_size
+        )[0]
         c = Concept(name=name, **concept_kw).fit(read(positives), read(negatives))
         self.concepts[name] = c
-        logger.debug("learn {!r}: {}+{} prompts, J=({},{})", name, len(positives),
-                     len(negatives), c.gmm_pos.n_components, c.gmm_neg.n_components)
+        logger.debug(
+            "learn {!r}: {}+{} prompts, J=({},{})",
+            name,
+            len(positives),
+            len(negatives),
+            c.gmm_pos.n_components,
+            c.gmm_neg.n_components,
+        )
         return self
 
     # ---- calibrate (sets tau = the operating point on every concept) ----
     def calibrate(self, z: float = 3.0) -> ConceptGate:
         for c in self.concepts.values():
             c.calibrate_z(z)
-        logger.debug("calibrate z={}: tau={}", z, {n: round(c.tau, 2) for n, c in self.concepts.items()})
+        logger.debug(
+            "calibrate z={}: tau={}",
+            z,
+            {n: round(c.tau, 2) for n, c in self.concepts.items()},
+        )
         return self
 
     # ---- measure ----
@@ -119,13 +156,23 @@ class ConceptGate:
         """Fire if ANY concept fires; attribute to the highest-LLR (firing) concept."""
         if not self.concepts:
             return A.Verdict(fired=False, step=step)
-        scored = {n: (float(c.llr(A_last)[0]), bool(c.fire(A_last)[0]))
-                  for n, c in self.concepts.items()}
+        scored = {
+            n: (float(c.llr(A_last)[0]), bool(c.fire(A_last)[0]))
+            for n, c in self.concepts.items()
+        }
         firing = [n for n, (_, fired) in scored.items() if fired]
         name = max(firing or scored, key=lambda n: scored[n][0])
-        v = A.Verdict(fired=bool(firing), concept=name, score=scored[name][0], step=step)
-        logger.debug("verdict@{}: {} -> fired={} concept={} score={:.2f}", step,
-                     {n: (round(s, 2), f) for n, (s, f) in scored.items()}, v.fired, v.concept, v.score)
+        v = A.Verdict(
+            fired=bool(firing), concept=name, score=scored[name][0], step=step
+        )
+        logger.debug(
+            "verdict@{}: {} -> fired={} concept={} score={:.2f}",
+            step,
+            {n: (round(s, 2), f) for n, (s, f) in scored.items()},
+            v.fired,
+            v.concept,
+            v.score,
+        )
         return v
 
     def check(self, prompt: str) -> A.Verdict:
@@ -136,8 +183,12 @@ class ConceptGate:
     # ---- act ----
     def _context(self, v: A.Verdict, seq) -> A.FireContext:
         return A.FireContext(
-            verdict=v, concept=self.concepts.get(v.concept), layers=self.layers,
-            tok=self.tok, seq=seq, step=v.step,
+            verdict=v,
+            concept=self.concepts.get(v.concept),
+            layers=self.layers,
+            tok=self.tok,
+            seq=seq,
+            step=v.step,
         )
 
     def _decide(self, action, v: A.Verdict, seq):
@@ -148,12 +199,13 @@ class ConceptGate:
         raise NotImplementedError(f"{type(d).__name__} decisions land in a later round")
 
     def _last_act(self, hidden_states) -> np.ndarray:
-        chosen = [hidden_states[L + 1][0, -1] for L in self.layers]   # each [d]
-        return torch.stack(chosen, dim=0).float().cpu().numpy()[None, ...]   # [1, m, d]
+        chosen = [hidden_states[L + 1][0, -1] for L in self.layers]  # each [d]
+        return torch.stack(chosen, dim=0).float().cpu().numpy()[None, ...]  # [1, m, d]
 
     @torch.no_grad()
-    def run(self, prompt: str, action, max_new_tokens: int = 20,
-            check_output: bool = True) -> RunResult:
+    def run(
+        self, prompt: str, action, max_new_tokens: int = 20, check_output: bool = True
+    ) -> RunResult:
         """Drive M under an action. Input-side check is truncated (cheap); if it fires and
         the action stops, M's full forward and generation are never run -- the compute win.
         Otherwise generate (full forward) with per-token output-side checks."""
@@ -186,13 +238,19 @@ class ConceptGate:
                     d = self._decide(action, vo, seq)
                     if isinstance(d, A.Stop):
                         gen = self.tok.decode(seq[0, n_prompt:])
-                        text = (prompt + gen).rstrip() + (" " + d.emit if d.emit else "")
-                        return RunResult(text=text, verdict=vo, n_new=step - 1, aborted=True)
+                        text = (prompt + gen).rstrip() + (
+                            " " + d.emit if d.emit else ""
+                        )
+                        return RunResult(
+                            text=text, verdict=vo, n_new=step - 1, aborted=True
+                        )
             nxt = int(torch.argmax(out.logits[0, -1]))
             seq = torch.cat([seq, torch.tensor([[nxt]], device=self.device)], dim=1)
             if self.tok.eos_token_id is not None and nxt == self.tok.eos_token_id:
                 break
-        return RunResult(text=self.tok.decode(seq[0]), verdict=v, n_new=seq.shape[1] - n_prompt)
+        return RunResult(
+            text=self.tok.decode(seq[0]), verdict=v, n_new=seq.shape[1] - n_prompt
+        )
 
     # ---- lifecycle: use as a normal object (call unload() when done) or via `with` ----
     def unload(self) -> None:
