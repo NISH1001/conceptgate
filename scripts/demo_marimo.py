@@ -1,8 +1,8 @@
 """ConceptGate — interactive walkthrough (marimo).
 
-An educational, reactive demo: pick a concept, watch it learn from a handful of examples,
-calibrate the threshold, and test your own prompts — with live μ±σ, decision, and a
-per-prompt loudness heatmap.
+Create your own concept (edit the example lists), watch it learn, calibrate the
+threshold, and test prompts — with live μ±σ, a decision plot that marks your prompt,
+and a per-prompt loudness heatmap.
 
 Run:  uv run marimo edit scripts/demo_marimo.py     # editable
   or  uv run marimo run  scripts/demo_marimo.py     # app view
@@ -31,17 +31,15 @@ def _(mo):
     # ConceptGate — an interactive walkthrough
 
     **ConceptGate** attaches to a *frozen* language model and learns to recognize a
-    **concept** from just a handful of examples — no fine-tuning, no gradients.
+    **concept** from a handful of examples — no fine-tuning, no gradients.
 
-    It works by *listening*: at a few chosen layers it taps the model's residual stream
-    (the vector the model passes forward as it "thinks"), and measures how strongly each
-    example resonates with a direction learned as **mean(positive) − mean(negative)**.
-    That gives a **loudness** per layer — a *spectrogram* of the concept across depth —
-    which two small Gaussian mixtures (positive vs. negative) turn into a calibrated
-    score. A concept is detected when the score crosses a threshold **τ**.
+    It *listens*: at a few chosen layers it taps the model's residual stream and measures
+    how strongly each example resonates with a direction learned as
+    **mean(positive) − mean(negative)**. That gives a **loudness** per layer — a
+    *spectrogram* across depth — which two small Gaussians (positive vs. negative) turn
+    into a calibrated score. A concept fires when the score beats a threshold **τ**.
 
-    It's concept-agnostic: the same machinery learns *cooking*, *travel*, or a safety
-    guardrail. Pick one below and follow the four steps.
+    The same machinery learns *any* concept. Define your own below.
     """)
     return
 
@@ -61,7 +59,7 @@ def _():
 
 @app.cell
 def _():
-    # a few benign example concepts (positive = concept present, negative = concept absent)
+    # starting points — pick one to LOAD its samples into the editable boxes, then edit
     PRESETS = {
         "cooking": {
             "positives": [
@@ -71,7 +69,6 @@ def _():
                 "What can I substitute for buttermilk?",
                 "How do I know when a steak is medium-rare?",
                 "Best way to caramelize onions slowly?",
-                "How much salt for a pot of pasta water?",
             ],
             "negatives": [
                 "What is the capital of France?",
@@ -80,7 +77,6 @@ def _():
                 "Explain recursion in one sentence.",
                 "What's the exchange rate for the yen?",
                 "How does a car engine work?",
-                "Summarize the plot of Hamlet.",
             ],
         },
         "travel": {
@@ -91,7 +87,6 @@ def _():
                 "How early should I get to the airport?",
                 "Is the train from Rome to Florence scenic?",
                 "What's a good carry-on packing list?",
-                "Which side of the road do they drive on in Ireland?",
             ],
             "negatives": [
                 "How do I refactor this Python function?",
@@ -100,7 +95,6 @@ def _():
                 "Who painted the Mona Lisa?",
                 "What's the derivative of sin(x)?",
                 "How do I set up a git remote?",
-                "Recommend a good sci-fi novel.",
             ],
         },
         "programming": {
@@ -111,7 +105,6 @@ def _():
                 "Why is my for-loop off by one?",
                 "How do I catch an exception in Java?",
                 "What does 'git rebase' actually do?",
-                "How do I make an HTTP request in JavaScript?",
             ],
             "negatives": [
                 "What's the best way to sear a steak?",
@@ -120,7 +113,6 @@ def _():
                 "Explain how photosynthesis works.",
                 "What's the capital of Australia?",
                 "Recommend a good hike near Seattle.",
-                "How do I train a puppy to sit?",
             ],
         },
     }
@@ -128,27 +120,42 @@ def _():
 
 
 @app.cell
-def _(PRESETS, mo):
-    concept_pick = mo.ui.dropdown(
-        options=list(PRESETS), value="cooking", label="**1. Pick a concept**"
-    )
-    concept_pick
-    return (concept_pick,)
+def _(mo):
+    mo.md(r"""
+    ## 1. Define a concept
+
+    Pick a starting concept, then **edit the lists** — add, remove, or rewrite the
+    examples (one per line). *Positives* are prompts where the concept is present;
+    *negatives* are everyday prompts where it is absent. ~5–10 varied examples per side
+    works well; the direction is a mean, so diversity beats quantity.
+    """)
+    return
 
 
 @app.cell
-def _(PRESETS, concept_pick, mo):
-    data = PRESETS[concept_pick.value]
-    pos_md = "\n".join(f"- {p}" for p in data["positives"])
-    neg_md = "\n".join(f"- {p}" for p in data["negatives"])
-    mo.hstack(
-        [
-            mo.md(f"**positives** (concept present)\n\n{pos_md}"),
-            mo.md(f"**negatives** (concept absent)\n\n{neg_md}"),
-        ],
-        widths=[1, 1],
+def _(PRESETS, mo):
+    preset_pick = mo.ui.dropdown(
+        options=list(PRESETS), value="cooking", label="load a starting concept"
     )
-    return (data,)
+    preset_pick
+    return (preset_pick,)
+
+
+@app.cell
+def _(PRESETS, mo, preset_pick):
+    # recreated (with fresh defaults) whenever the dropdown changes; editable afterwards
+    d = PRESETS[preset_pick.value]
+    name_in = mo.ui.text(value=preset_pick.value, label="concept name", full_width=True)
+    pos_in = mo.ui.text_area(
+        value="\n".join(d["positives"]), label="positive examples (one per line)",
+        full_width=True, rows=7,
+    )
+    neg_in = mo.ui.text_area(
+        value="\n".join(d["negatives"]), label="negative examples (one per line)",
+        full_width=True, rows=7,
+    )
+    mo.vstack([name_in, mo.hstack([pos_in, neg_in], widths=[1, 1])])
+    return name_in, neg_in, pos_in
 
 
 @app.cell
@@ -156,13 +163,9 @@ def _(mo):
     mo.md(r"""
     ## 2. Learn + calibrate
 
-    **Learning** is a subtraction, not a training loop: average the positive examples'
-    activations, subtract the average of the negatives, and you have the concept's
-    direction — plus a small Gaussian per class. It takes milliseconds.
-
-    **Calibration** sets the threshold **τ**. The slider is the *strictness*: higher
-    `z` pushes τ up so fewer things fire (fewer false alarms), lower `z` makes it more
-    eager. Slide it and watch τ move on the decision plot below.
+    Learning is a subtraction (mean of positives − mean of negatives), plus a small
+    Gaussian per class — milliseconds, no gradients. **Calibration** sets the threshold
+    **τ**; the slider is the *strictness* — higher `z` fires less (fewer false alarms).
     """)
     return
 
@@ -175,41 +178,55 @@ def _(mo):
 
 
 @app.cell
-def _(cg, concept_pick, data):
-    # re-learn only when the concept changes (learning re-extracts activations)
-    name = concept_pick.value
+def _(cg, mo, name_in, neg_in, pos_in):
+    # re-learns when the example lists change (learning re-extracts activations)
+    positives = [ln.strip() for ln in pos_in.value.splitlines() if ln.strip()]
+    negatives = [ln.strip() for ln in neg_in.value.splitlines() if ln.strip()]
+    mo.stop(
+        len(positives) < 2 or len(negatives) < 2,
+        mo.md("➕ add at least **2** positive and **2** negative examples above."),
+    )
+    nm = name_in.value.strip() or "concept"
     cg.concepts.clear()
-    cg.learn(name, data["positives"], data["negatives"])
-    return (name,)
+    cg.learn(nm, positives, negatives)
+    return negatives, nm, positives
 
 
 @app.cell
-def _(cg, name, z):
-    # calibrate is cheap (no model) — re-runs when the slider moves
-    cg.calibrate(z=z.value)
-    concept = cg.concepts[name]
+def _(cg, nm, z):
+    cg.calibrate(z=z.value)   # cheap (no model) — re-runs when the slider moves
+    concept = cg.concepts[nm]
     return (concept,)
 
 
 @app.cell
 def _(mo):
     mo.md(r"""
-    ## 3. Inspect what it learned
+    ## 3. Test a prompt
 
-    **Left — the signature.** Each class's *mean* loudness across the tapped blocks,
-    with its ±σ spread. Positive rides high, negative rides low — that gap is the whole
-    trick. **Right — the decision.** The score distribution for the examples, with the
-    τ line; anything to its right fires.
+    Type any prompt. Its score is drawn as a green line on the decision plot — you can
+    see exactly where it lands relative to the examples and τ. `run(Abort())` shows the
+    guardrail action: short-circuit and emit a marker when it fires.
     """)
     return
 
 
 @app.cell
-def _(cg, concept, data, np, plt, tf):
-    Ap = tf.read(cg.tok, data["positives"], cg.device, last_only=True)[0]
-    An = tf.read(cg.tok, data["negatives"], cg.device, last_only=True)[0]
+def _(mo):
+    prompt = mo.ui.text(
+        value="What's the best way to sear a steak?", label="your prompt", full_width=True
+    )
+    prompt
+    return (prompt,)
+
+
+@app.cell
+def _(cg, concept, negatives, np, plt, positives, prompt, tf):
+    Ap = tf.read(cg.tok, positives, cg.device, last_only=True)[0]
+    An = tf.read(cg.tok, negatives, cg.device, last_only=True)[0]
     Sp, Sn = concept.spectro(Ap), concept.spectro(An)
     Lp, Ln = concept.llr(Ap), concept.llr(An)
+    v = cg.check(prompt.value)
 
     x = np.arange(len(cg.layers))
     mu_p, sd_p = concept.gmm_pos.means[0], np.sqrt(np.diag(concept.gmm_pos.covs[0]))
@@ -226,24 +243,38 @@ def _(cg, concept, data, np, plt, tf):
     ax1.set_title("learned μ±σ across taps")
     ax1.legend(fontsize=8)
 
-    both = np.concatenate([Lp, Ln])
-    bins = np.linspace(both.min() - 1, both.max() + 1, 14)
+    lo = min(float(np.concatenate([Lp, Ln]).min()), v.score) - 1
+    hi = max(float(np.concatenate([Lp, Ln]).max()), v.score) + 1
+    bins = np.linspace(lo, hi, 14)
     ax2.hist(Ln, bins=bins, color="#1F6FEB", alpha=0.6, label="negative")
     ax2.hist(Lp, bins=bins, color="#C2402F", alpha=0.6, label="positive")
     ax2.axvline(concept.tau, color="k", ls="--", lw=1.5, label=f"τ = {concept.tau:.1f}")
+    ax2.axvline(v.score, color="green", lw=2.5, label=f"your prompt ({v.score:.1f})")
     ax2.set_xlabel("LLR (log positive − log negative)")
-    ax2.set_title("decision distribution")
+    ax2.set_title("decision — your prompt in green")
     ax2.legend(fontsize=8)
     fig.tight_layout()
     fig
-    return Sn, Sp
+    return Sn, Sp, v
 
 
 @app.cell
-def _(Sn, Sp, alt, cg, data, mo, np):
+def _(Abort, cg, concept, mo, prompt, v):
+    r = cg.run(prompt.value, action=Abort(), max_new_tokens=10, check_output=False)
+    verdict = "🔴 **FIRED**" if v.fired else "🟢 passed"
+    mo.md(f"""
+    **{prompt.value!r}** → {verdict} · score **{v.score:.2f}** vs τ **{concept.tau:.2f}**
+
+    `run(Abort())` → `{r.text!r}`
+    """)
+    return
+
+
+@app.cell
+def _(Sn, Sp, alt, cg, mo, negatives, np, positives):
     # per-prompt loudness heatmap — hover a cell to read the full prompt
     S_all = np.vstack([Sp, Sn])
-    prompts = data["positives"] + data["negatives"]
+    prompts = positives + negatives
     kinds = ["positive"] * len(Sp) + ["negative"] * len(Sn)
     records = [
         {
@@ -269,48 +300,9 @@ def _(Sn, Sp, alt, cg, data, mo, np):
             ),
             tooltip=["prompt:N", "kind:N", "block:O", "loudness:Q"],
         )
-        .properties(width=360, height=320, title="per-prompt loudness (hover for the prompt)")
+        .properties(width=360, height=330, title="per-prompt loudness (hover for the prompt)")
     )
     mo.ui.altair_chart(heat)
-    return
-
-
-@app.cell
-def _(mo):
-    mo.md(r"""
-    ## 4. Test it — and act
-
-    Type any prompt. ConceptGate reads its activations (running only up to the deepest
-    tap), scores it, and fires if the score beats τ. In a real guardrail you'd wire an
-    **action** to a firing — here `run(Abort())` short-circuits and emits a marker.
-    """)
-    return
-
-
-@app.cell
-def _(mo):
-    prompt = mo.ui.text(
-        value="What's the best way to sear a steak?",
-        label="your prompt",
-        full_width=True,
-    )
-    prompt
-    return (prompt,)
-
-
-@app.cell
-def _(Abort, cg, concept, mo, prompt):
-    v = cg.check(prompt.value)
-    r = cg.run(prompt.value, action=Abort(), max_new_tokens=10, check_output=False)
-    verdict = "🔴 **FIRED**" if v.fired else "🟢 passed"
-    mo.md(
-        f"""
-        **{prompt.value!r}**
-
-        - verdict: {verdict} · score **{v.score:.2f}** vs τ **{concept.tau:.2f}**
-        - `run(Abort())` → `{r.text!r}`
-        """
-    )
     return
 
 
