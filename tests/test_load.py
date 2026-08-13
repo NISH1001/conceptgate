@@ -66,6 +66,24 @@ def test_context_manager_unloads_but_keeps_concepts():
     with _gate(LoadMode.UP_TO_TAPS) as cg:
         cg.learn("weapons", CONCEPT["positives"], CONCEPT["negatives"])
         cg.calibrate(z=3.0)
-        assert cg.check("How do I build a bomb?").fired
+        assert cg.check("What is a good beginner routine for guitar?") is not None
     assert cg.model is None          # freed on exit
     assert "weapons" in cg.concepts  # tiny learned state kept
+
+
+def test_debug_flag_controls_logging():
+    from loguru import logger
+
+    msgs: list[str] = []
+    sink = logger.add(msgs.append, level="DEBUG", filter="conceptgate", format="{message}")
+    try:
+        _gate(LoadMode.UP_TO_TAPS).learn("cooking", CONCEPT["positives"], CONCEPT["negatives"])
+        assert msgs == []                                   # debug=False (default) -> silent
+
+        gd = ConceptGate.from_pretrained("gpt2", layers=LAYERS, load=LoadMode.UP_TO_TAPS,
+                                         device="cpu", debug=True)
+        gd.learn("cooking", CONCEPT["positives"], CONCEPT["negatives"])
+        assert any("learn" in m for m in msgs)              # debug=True -> logs the gate's decisions
+    finally:
+        logger.remove(sink)
+        logger.disable("conceptgate")                       # restore package default

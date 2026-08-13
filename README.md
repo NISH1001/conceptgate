@@ -99,6 +99,13 @@ with ConceptGate.from_pretrained("gpt2", layers=[4,6,8], load=LoadMode.UP_TO_TAP
     cg.learn(...); cg.check(...)       # model freed automatically on exit (or call cg.unload())
 ```
 
+**Debug logging** — `debug=True` turns on loguru logs of the gate's decisions (silent by default):
+```python
+cg = ConceptGate.from_pretrained("gpt2", layers=[4,6,8], debug=True)
+# DEBUG conceptgate.gate:learn     - learn 'cooking': 12+12 prompts, J=(1,1)
+# DEBUG conceptgate.gate:_verdict  - verdict@0: {'cooking': (-9.73, False)} -> fired=False ...
+```
+
 ## Layout
 ```
 conceptgate/

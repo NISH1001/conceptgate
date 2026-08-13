@@ -16,10 +16,14 @@ Layers: `spectral`/`concept`/`mixture` are the numpy math core; `taps`/`hooks`/`
 the torch boundary; `actions` the strategy layer; `gate` the facade. Only `ConceptGate` and
 the actions are the surface you normally touch.
 """
+from loguru import logger
+
 # numpy-only, torch-free — safe to import for the math/toy path
 from . import actions, concept, spectral  # noqa: F401
 from .actions import Abort, ConceptAction, FireContext, Verdict  # noqa: F401
 from .concept import BandpassConcept, Concept, ConceptBank  # noqa: F401
+
+logger.disable("conceptgate")   # silent by default; ConceptGate(debug=True) re-enables
 
 __all__ = [
     "ConceptGate", "RunResult", "LoadMode",           # lazy (torch) — see __getattr__

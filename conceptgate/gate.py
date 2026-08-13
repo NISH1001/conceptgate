@@ -18,6 +18,7 @@ from enum import Enum
 
 import numpy as np
 import torch
+from loguru import logger
 
 from . import actions as A
 from .concept import Concept
@@ -46,19 +47,22 @@ class RunResult:
 
 class ConceptGate:
     def __init__(self, model, tok, layers: list[int], device: str = "cpu",
-                 detect_only: bool = False):
+                 detect_only: bool = False, debug: bool = False):
         self.model = model.eval()
         self.tok = tok
         self.layers: list[int] = list(layers)
         self.device = device
         self.detect_only = detect_only           # loaded up-to-taps -> cannot generate
+        self.debug = debug
+        if debug:
+            logger.enable("conceptgate")         # loguru: turn on this package's debug logs
         self.concepts: dict[str, Concept] = {}   # public: name -> learned Concept
         self._taps = TapForward(model, self.layers)
 
     @classmethod
     def from_pretrained(cls, name: str, layers: list[int],
                         load: LoadMode | str = LoadMode.FULL,
-                        device: str | None = None) -> ConceptGate:
+                        device: str | None = None, debug: bool = False) -> ConceptGate:
         from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 
         load = LoadMode(load)   # normalize: accepts LoadMode or its string value
@@ -80,7 +84,10 @@ class ConceptGate:
             model = AutoModelForCausalLM.from_pretrained(name)
             detect_only = False
         model = model.to(device).eval()
-        return cls(model, tok, layers, device, detect_only=detect_only)
+        gate = cls(model, tok, layers, device, detect_only=detect_only, debug=debug)
+        logger.debug("loaded {} on {}: load={}, taps={}, blocks_run<={}, detect_only={}",
+                     name, device, load.value, list(layers), max(layers), detect_only)
+        return gate
 
     # ---- learn ----
     def learn(self, name: str, positives: list[str], negatives: list[str],
@@ -94,13 +101,17 @@ class ConceptGate:
         """
         read = lambda ps: self._taps.read(  # noqa: E731
             self.tok, list(ps), self.device, last_only=True, batch_size=batch_size)[0]
-        self.concepts[name] = Concept(name=name, **concept_kw).fit(read(positives), read(negatives))
+        c = Concept(name=name, **concept_kw).fit(read(positives), read(negatives))
+        self.concepts[name] = c
+        logger.debug("learn {!r}: {}+{} prompts, J=({},{})", name, len(positives),
+                     len(negatives), c.gmm_pos.n_components, c.gmm_neg.n_components)
         return self
 
     # ---- calibrate (sets tau = the operating point on every concept) ----
     def calibrate(self, z: float = 3.0) -> ConceptGate:
         for c in self.concepts.values():
             c.calibrate_z(z)
+        logger.debug("calibrate z={}: tau={}", z, {n: round(c.tau, 2) for n, c in self.concepts.items()})
         return self
 
     # ---- measure ----
@@ -112,7 +123,10 @@ class ConceptGate:
                   for n, c in self.concepts.items()}
         firing = [n for n, (_, fired) in scored.items() if fired]
         name = max(firing or scored, key=lambda n: scored[n][0])
-        return A.Verdict(fired=bool(firing), concept=name, score=scored[name][0], step=step)
+        v = A.Verdict(fired=bool(firing), concept=name, score=scored[name][0], step=step)
+        logger.debug("verdict@{}: {} -> fired={} concept={} score={:.2f}", step,
+                     {n: (round(s, 2), f) for n, (s, f) in scored.items()}, v.fired, v.concept, v.score)
+        return v
 
     def check(self, prompt: str) -> A.Verdict:
         """Detection only, via truncated forward (runs only blocks 0..max(layers))."""
