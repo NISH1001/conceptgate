@@ -39,8 +39,8 @@ def main() -> int:
     concept = D.load_concept(os.path.join(ROOT, "data/concepts/weapons.json"))
     layers = concept["layers_gpt2"]
 
-    # 1. attach to a frozen model, pick the tap layers
-    cg = ConceptGate.from_pretrained("gpt2", layers=layers)
+    # 1. attach to a frozen model, pick the tap layers (debug=True: demo shows the gate's decisions)
+    cg = ConceptGate.from_pretrained("gpt2", layers=layers, debug=True)
 
     # 2. learn the guardrail few-shot (12 harmful + 12 benign), 3. set the operating point
     cg.learn("weapons", positives=concept["positives"], negatives=concept["negatives"])
