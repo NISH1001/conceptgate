@@ -206,7 +206,7 @@ class ConceptGate:
             step=v.step,
         )
 
-    def _decide(self, action, v: A.Verdict, seq):
+    def _decide(self, action: A.ConceptAction, v: A.Verdict, seq) -> A.Decision:
         """Ask the action; return a Decision. Only Stop/Continue are wired this round."""
         d = action.on_fire(self._context(v, seq))
         if isinstance(d, (A.Stop, A.Continue)):
@@ -219,7 +219,11 @@ class ConceptGate:
 
     @torch.no_grad()
     def run(
-        self, prompt: str, action, max_new_tokens: int = 20, check_output: bool = True
+        self,
+        prompt: str,
+        action: A.ConceptAction,
+        max_new_tokens: int = 20,
+        check_output: bool = True,
     ) -> RunResult:
         """Drive M under an action. Input-side check is truncated (cheap); if it fires and
         the action stops, M's full forward and generation are never run -- the compute win.
