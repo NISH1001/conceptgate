@@ -48,19 +48,26 @@ def _fit_directions(A_pos: np.ndarray, A_neg: np.ndarray):
 
 
 class _GateCommon:
-    """Shared decision/calibration machinery. Subclasses provide llr(), tau, abstain_margin."""
+    """Shared decision/calibration machinery. Subclasses provide llr(), tau."""
+
+    # runtime-set default (overwritten by calibrate); class default keeps it off the dataclass
+    score_scale: float = 1.0    # robust spread of benign LLR near tau -> confidence scale
 
     def fire(self, A: np.ndarray) -> np.ndarray:
         """Boolean fire decision per sample (abstain counts as no-fire)."""
         return self.decide(A) > 0
 
     def decide(self, A: np.ndarray) -> np.ndarray:
-        """+1 fire, 0 abstain, -1 pass."""
-        scores = self.llr(A)
-        out = np.where(scores > self.tau, 1, -1)
+        """+1 fire, 0 abstain, -1 pass. abstain_margin is a P(present) half-width at 0.5."""
+        out = np.where(self.llr(A) > self.tau, 1, -1)
         if self.abstain_margin > 0:
-            out = np.where(np.abs(scores - self.tau) < self.abstain_margin, 0, out)
+            out = np.where(np.abs(self.p_present(A) - 0.5) < self.abstain_margin, 0, out)
         return out
+
+    def p_present(self, A: np.ndarray) -> np.ndarray:
+        """P(concept present): logistic of (LLR - tau) scaled by the benign spread."""
+        z = (self.llr(A) - self.tau) / max(self.score_scale, 1e-8)
+        return 1.0 / (1.0 + np.exp(-z))
 
     def calibrate_threshold(
         self, A_neg_cal: np.ndarray, target_fpr: float = 0.05
@@ -131,18 +138,29 @@ class BandpassConcept(_GateCommon):
         )
 
     # --- calibration ---
-    def calibrate_z(self, z: float = 3.0) -> float:
+    def calibrate_z(self, z: float = 3.0, margin: float = 0.0) -> float:
         """Operating point: fire only when the filtered score exceeds the benign mean by z*sigma.
 
         Uses the fitted benign Gaussian directly (smoother than an empirical quantile from a few
         prompts). z=3 -> ~0.1% benign-tail FPR; still catches harmful samples whenever d' > z.
+        `margin` is a P(present) half-width around 0.5 for the abstain band; 0 disables it.
         """
         s_star = np.array([self.mu_neg + z * self.sigma_neg])
         self.tau = float(
             _gauss_logpdf(s_star, self.mu_pos, self.sigma_pos)[0]
             - _gauss_logpdf(s_star, self.mu_neg, self.sigma_neg)[0]
         )
+        sb = np.random.default_rng(0).normal(self.mu_neg, self.sigma_neg, 4000)
+        sc = self.llr_from_score(sb)
+        lo = float(np.quantile(sc, _phi(max(z - 1.0, 0.0))))  # local spread near tau
+        self.score_scale = max(self.tau - lo, 1e-6)
+        self.abstain_margin = float(margin)  # P(present) half-width around 0.5
         return self.tau
+
+    def llr_from_score(self, s: np.ndarray) -> np.ndarray:
+        return _gauss_logpdf(s, self.mu_pos, self.sigma_pos) - _gauss_logpdf(
+            s, self.mu_neg, self.sigma_neg
+        )
 
 
 def _phi(x: float) -> float:
@@ -198,7 +216,9 @@ class Concept(_GateCommon):
         return self.gmm_pos.logpdf(S) - self.gmm_neg.logpdf(S)
 
     # --- calibration ---
-    def calibrate_z(self, z: float = 3.0, n_samples: int = 10_000) -> float:
+    def calibrate_z(
+        self, z: float = 3.0, n_samples: int = 10_000, margin: float = 0.0
+    ) -> float:
         """Set tau to a false-alarm target, expressed as 'z sigma above benign'.
 
         The benign class is modeled as a Gaussian mixture (gmm_neg). We draw n_samples
@@ -206,10 +226,18 @@ class Concept(_GateCommon):
         (1 - Phi(-z)) quantile -- i.e. only that fraction of benign inputs would fire.
         z=3 -> ~0.1% benign false-alarm rate. (This replaces the plain 'mean + z*std'
         rule, which assumes a single Gaussian; here the benign side may be multi-modal.)
+
+        The same benign scores set score_scale (local spread near tau, for p_present);
+        margin sets the abstain band |p_present - 0.5| < margin (0 disables it).
         """
         S = self.gmm_neg.sample(n_samples, seed=self.seed)
         scores = self.gmm_pos.logpdf(S) - self.gmm_neg.logpdf(S)
         self.tau = float(np.quantile(scores, 1.0 - _phi(-z)))
+        # confidence scale = benign spread LOCAL to tau (one z-step toward the bulk), not
+        # the full benign IQR -- the heavy LLR tails would otherwise dwarf the real margin
+        lo = float(np.quantile(scores, _phi(max(z - 1.0, 0.0))))
+        self.score_scale = max(self.tau - lo, 1e-6)
+        self.abstain_margin = float(margin)  # P(present) half-width around 0.5
         return self.tau
 
 

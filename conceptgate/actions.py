@@ -21,6 +21,10 @@ class Verdict:
     concept: str | None = None      # name of the firing (max-LLR) concept
     score: float = 0.0              # the firing LLR
     step: int = 0                   # decode step (0 = the prompt itself)
+    tau: float = 0.0                # the concept's calibrated threshold
+    margin: float = 0.0             # score - tau (signed distance to the boundary)
+    p_present: float = 0.5          # P(concept present): logistic of the margin
+    abstained: bool = False         # inside the unsure band around tau (no decision)
 
 
 # ---- Decision: what the gate should do (a Command the driver executes) ----

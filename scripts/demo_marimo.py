@@ -371,7 +371,7 @@ def _(cg, mo, name_in, neg_in, pos_in):
 
 @app.cell
 def _(cg, nm, z):
-    cg.calibrate(z=z.value)   # cheap (no model) — re-runs when the slider moves
+    cg.calibrate(z=z.value, margin=0.1)   # margin: abstain when P(present) is within 0.1 of 0.5
     concept = cg.concepts[nm]
     return (concept,)
 
@@ -381,9 +381,10 @@ def _(mo):
     mo.md(r"""
     ## 3. Test a prompt
 
-    The prompt's score is marked as a green line on the decision plot, relative to the
-    example distributions and τ. `run(Abort())` runs the guardrail action: short-circuit
-    and emit a marker on a fire.
+    Each prompt gets a three-way call — **fire / unsure / pass** — plus a confidence
+    **P(present)**. The green line is its score on the decision plot; the grey band around
+    τ is the *unsure* zone, where the gate declines rather than guess (this is what stops
+    one word from flipping a borderline verdict). `run(Abort())` short-circuits on a fire.
     """)
     return
 
@@ -426,6 +427,11 @@ def _(cg, concept, negatives, np, plt, positives, prompt, tf):
     bins = np.linspace(lo, hi, 14)
     ax2.hist(Ln, bins=bins, color="#1F6FEB", alpha=0.6, label="negative")
     ax2.hist(Lp, bins=bins, color="#C2402F", alpha=0.6, label="positive")
+    hp = concept.abstain_margin
+    band = float(np.log((0.5 + hp) / (0.5 - hp))) * concept.score_scale if hp > 0 else 0.0
+    if band > 0:
+        ax2.axvspan(concept.tau - band, concept.tau + band, color="0.5", alpha=0.2,
+                    label="unsure")
     ax2.axvline(concept.tau, color="k", ls="--", lw=1.5, label=f"τ = {concept.tau:.1f}")
     ax2.axvline(v.score, color="green", lw=2.5, label=f"your prompt ({v.score:.1f})")
     ax2.set_xlabel("LLR (log positive − log negative)")
@@ -439,9 +445,12 @@ def _(cg, concept, negatives, np, plt, positives, prompt, tf):
 @app.cell
 def _(Abort, cg, concept, mo, prompt, v):
     r = cg.run(prompt.value, action=Abort(), max_new_tokens=10, check_output=False)
-    verdict = "🔴 **FIRED**" if v.fired else "🟢 passed"
+    label = "🔴 **FIRE**" if v.fired else ("🟡 **unsure**" if v.abstained else "🟢 **pass**")
     mo.md(f"""
-    **{prompt.value!r}** → {verdict} · score **{v.score:.2f}** vs τ **{concept.tau:.2f}**
+    **{prompt.value!r}** → {label}
+
+    P(present) **{v.p_present:.2f}** · score **{v.score:.2f}** vs τ **{concept.tau:.2f}**
+    (margin {v.margin:+.2f})
 
     `run(Abort())` → `{r.text!r}`
     """)

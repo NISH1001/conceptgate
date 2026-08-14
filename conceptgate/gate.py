@@ -141,37 +141,52 @@ class ConceptGate:
         return self
 
     # ---- calibrate (sets tau = the operating point on every concept) ----
-    def calibrate(self, z: float = 3.0) -> ConceptGate:
+    def calibrate(self, z: float = 3.0, margin: float = 0.0) -> ConceptGate:
         for c in self.concepts.values():
-            c.calibrate_z(z)
+            c.calibrate_z(z, margin=margin)
         logger.debug(
-            "calibrate z={}: tau={}",
+            "calibrate z={} margin={}: tau={}",
             z,
+            margin,
             {n: round(c.tau, 2) for n, c in self.concepts.items()},
         )
         return self
 
     # ---- measure ----
     def _verdict(self, A_last: np.ndarray, step: int = 0) -> A.Verdict:
-        """Fire if ANY concept fires; attribute to the highest-LLR (firing) concept."""
+        """Fire if ANY concept fires; attribute to the highest-LLR (firing) concept.
+
+        Also reports uncertainty on the attributed concept: p_present (calibrated), an
+        abstain flag (score inside the concept's unsure band around tau), and an OOD flag
+        (input unlike either learned class)."""
         if not self.concepts:
             return A.Verdict(fired=False, step=step)
         scored = {
-            n: (float(c.llr(A_last)[0]), bool(c.fire(A_last)[0]))
+            n: (float(c.llr(A_last)[0]), int(c.decide(A_last)[0]))
             for n, c in self.concepts.items()
         }
-        firing = [n for n, (_, fired) in scored.items() if fired]
+        firing = [n for n, (_, d) in scored.items() if d > 0]
         name = max(firing or scored, key=lambda n: scored[n][0])
+        c = self.concepts[name]
+        llr, dec = scored[name]
         v = A.Verdict(
-            fired=bool(firing), concept=name, score=scored[name][0], step=step
+            fired=bool(firing),
+            concept=name,
+            score=llr,
+            step=step,
+            tau=float(c.tau),
+            margin=float(llr - c.tau),
+            p_present=float(c.p_present(A_last)[0]),
+            abstained=(not firing) and dec == 0,
         )
         logger.debug(
-            "verdict@{}: {} -> fired={} concept={} score={:.2f}",
+            "verdict@{}: {} -> fired={} concept={} p={:.2f} abstain={}",
             step,
-            {n: (round(s, 2), f) for n, (s, f) in scored.items()},
+            {n: (round(s, 2), d) for n, (s, d) in scored.items()},
             v.fired,
             v.concept,
-            v.score,
+            round(v.p_present, 2),
+            v.abstained,
         )
         return v
 
