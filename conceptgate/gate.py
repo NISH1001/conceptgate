@@ -21,7 +21,14 @@ import numpy as np
 import torch
 from loguru import logger
 
-from . import actions as A
+from .actions import (
+    ConceptAction,
+    Continue,
+    Decision,
+    FireContext,
+    Stop,
+    Verdict,
+)
 from .concept import Concept
 from .taps import TapForward
 
@@ -41,7 +48,7 @@ class LoadMode(Enum):
 @dataclass
 class RunResult:
     text: str
-    verdict: A.Verdict
+    verdict: Verdict
     n_new: int = 0
     aborted: bool = False
 
@@ -153,14 +160,14 @@ class ConceptGate:
         return self
 
     # ---- measure ----
-    def _verdict(self, A_last: np.ndarray, step: int = 0) -> A.Verdict:
+    def _verdict(self, A_last: np.ndarray, step: int = 0) -> Verdict:
         """Fire if ANY concept fires; attribute to the highest-LLR (firing) concept.
 
         Also reports uncertainty on the attributed concept: p_present (calibrated), an
         abstain flag (score inside the concept's unsure band around tau), and an OOD flag
         (input unlike either learned class)."""
         if not self.concepts:
-            return A.Verdict(fired=False, step=step)
+            return Verdict(fired=False, step=step)
         scored = {
             n: (float(c.llr(A_last)[0]), int(c.decide(A_last)[0]))
             for n, c in self.concepts.items()
@@ -169,7 +176,7 @@ class ConceptGate:
         name = max(firing or scored, key=lambda n: scored[n][0])
         c = self.concepts[name]
         llr, dec = scored[name]
-        v = A.Verdict(
+        v = Verdict(
             fired=bool(firing),
             concept=name,
             score=llr,
@@ -190,14 +197,14 @@ class ConceptGate:
         )
         return v
 
-    def check(self, prompt: str) -> A.Verdict:
+    def check(self, prompt: str) -> Verdict:
         """Detection only, via truncated forward (runs only blocks 0..max(layers))."""
         A_last = self._taps.read(self.tok, [prompt], self.device, last_only=True)[0]
         return self._verdict(A_last, step=0)
 
     # ---- act ----
-    def _context(self, v: A.Verdict, seq) -> A.FireContext:
-        return A.FireContext(
+    def _context(self, v: Verdict, seq) -> FireContext:
+        return FireContext(
             verdict=v,
             concept=self.concepts.get(v.concept),
             layers=self.layers,
@@ -206,10 +213,10 @@ class ConceptGate:
             step=v.step,
         )
 
-    def _decide(self, action: A.ConceptAction, v: A.Verdict, seq) -> A.Decision:
+    def _decide(self, action: ConceptAction, v: Verdict, seq) -> Decision:
         """Ask the action; return a Decision. Only Stop/Continue are wired this round."""
         d = action.on_fire(self._context(v, seq))
-        if isinstance(d, (A.Stop, A.Continue)):
+        if isinstance(d, (Stop, Continue)):
             return d
         raise NotImplementedError(f"{type(d).__name__} decisions land in a later round")
 
@@ -221,7 +228,7 @@ class ConceptGate:
     def run(
         self,
         prompt: str,
-        action: A.ConceptAction,
+        action: ConceptAction,
         max_new_tokens: int = 20,
         check_output: bool = True,
     ) -> RunResult:
@@ -234,7 +241,7 @@ class ConceptGate:
         v = self.check(prompt)
         if v.fired:
             d = self._decide(action, v, ids)
-            if isinstance(d, A.Stop):
+            if isinstance(d, Stop):
                 text = prompt + (" " + d.emit if d.emit else "")
                 return RunResult(text=text.rstrip(), verdict=v, n_new=0, aborted=True)
 
@@ -255,7 +262,7 @@ class ConceptGate:
                 vo = self._verdict(self._last_act(out.hidden_states), step=step)
                 if vo.fired:
                     d = self._decide(action, vo, seq)
-                    if isinstance(d, A.Stop):
+                    if isinstance(d, Stop):
                         gen = self.tok.decode(seq[0, n_prompt:])
                         text = (prompt + gen).rstrip() + (
                             " " + d.emit if d.emit else ""
