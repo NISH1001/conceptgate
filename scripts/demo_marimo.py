@@ -31,18 +31,18 @@ def _(mo):
     mo.md(r"""
     # ConceptGate — an interactive walkthrough
 
-    **ConceptGate** attaches to a *frozen* language model and learns to recognize a
-    **concept** from a handful of examples — no fine-tuning, no gradients.
+    **ConceptGate** attaches to a frozen language model and detects a **concept** from a
+    handful of examples — no fine-tuning, no gradients.
 
-    It *listens*: at a few chosen layers it taps the model's residual stream and measures
-    how strongly each example resonates with a direction learned as
-    **mean(positive) − mean(negative)**. That gives a **loudness** per layer — a
-    *spectrogram* across depth — which two small Gaussians (positive vs. negative) turn
-    into a calibrated score. A concept fires when the score beats a threshold **τ**.
+    At a few chosen layers it taps the residual stream and projects each example onto a
+    direction learned as **mean(positive) − mean(negative)**, giving a per-layer
+    **loudness** (a *spectrogram* across depth). A Gaussian per class turns that into a
+    log-likelihood-ratio score; the concept fires when the score exceeds a threshold
+    **τ**.
 
-    ConceptGate only *reads* what the model already computes, so **the model and the
-    tapped layers set the ceiling**. A bigger, instruction-tuned model represents more
-    concepts cleanly at mid-depth — pick one below and see for yourself.
+    ConceptGate only reads what the model already computes, so the base model and tap
+    layers bound what it can separate. Instruction-tuned models tend to represent
+    concepts more linearly at mid-depth.
     """)
     return
 
@@ -64,12 +64,11 @@ def _(mo):
     mo.md(r"""
     ## 0. Choose a model and where to tap
 
-    A transformer is a stack of blocks; the residual stream flows through all of them.
-    A concept usually becomes most *linearly readable* somewhere in the **middle** —
-    early blocks still track surface/syntax, late blocks specialize on next-token
-    prediction. The diagram shows the stack with the default mid-band taps highlighted;
-    edit the tap list to move them. (Switching the model reloads weights — the first
-    load of a new model downloads it.)
+    A transformer is a stack of blocks; the residual stream runs through all of them. A
+    concept is usually most linearly readable in the **middle** — early blocks track
+    surface form, late blocks specialize on next-token prediction. The diagram highlights
+    the default mid-band taps; edit the tap list to move them. Switching models reloads
+    weights (first use downloads the model).
     """)
     return
 
@@ -200,10 +199,10 @@ def _(mo):
     mo.md(r"""
     ## 1. Define a concept
 
-    Pick a starting concept, then **edit the lists** — add, remove, or rewrite the
-    examples (one per line). *Positives* are prompts where the concept is present;
-    *negatives* are everyday prompts where it is absent. ~5–10 varied examples per side
-    works well; the direction is a mean, so diversity beats quantity.
+    Pick a starting concept, then edit the lists (one example per line). *Positives*
+    contain the concept; *negatives* are everyday prompts without it. ~5–10 varied
+    examples per side is enough — the direction is a mean, so variety matters more than
+    count.
     """)
     return
 
@@ -337,14 +336,13 @@ def _(mo):
     mo.md(r"""
     ## 2. Learn + calibrate
 
-    Learning is a subtraction (mean of positives − mean of negatives), plus a small
-    Gaussian per class — milliseconds, no gradients. **Calibration** sets the threshold
-    **τ** from the *negative* distribution; the slider is the *strictness* — higher `z`
-    fires less (fewer false alarms, but it also starts missing true hits). Easy concepts
-    tolerate a high `z`; a concept whose negatives *overlap* the positives — like
-    jailbreak, where benign roleplay and "ignore…" prompts sit close — needs a lower `z`
-    (≈2) to stay sensitive. That overlap is also why the negatives include near-miss
-    benign prompts: they pin the boundary on the override framing, not the keywords.
+    Learning is one subtraction (mean positives − mean negatives) plus a Gaussian per
+    class. **Calibration** sets **τ** from the negative distribution: `z` is the
+    strictness, placing τ where only a small fraction of benign prompts would fire
+    (z=2 → ~2.3%, z=3 → ~0.13%). Higher `z` means fewer false alarms but more misses.
+    Concepts whose negatives overlap the positives — jailbreak, where benign
+    "ignore…"/roleplay prompts sit close — need a lower `z` (≈2); the near-miss benign
+    negatives above pin the boundary on the override framing, not the keywords.
     """)
     return
 
@@ -383,9 +381,9 @@ def _(mo):
     mo.md(r"""
     ## 3. Test a prompt
 
-    Type any prompt. Its score is drawn as a green line on the decision plot — you can
-    see exactly where it lands relative to the examples and τ. `run(Abort())` shows the
-    guardrail action: short-circuit and emit a marker when it fires.
+    The prompt's score is marked as a green line on the decision plot, relative to the
+    example distributions and τ. `run(Abort())` runs the guardrail action: short-circuit
+    and emit a marker on a fire.
     """)
     return
 
@@ -458,7 +456,7 @@ def _(Sn, Sp, alt, cg, mo, negatives, np, positives):
     kinds = ["positive"] * len(Sp) + ["negative"] * len(Sn)
     records = [
         {
-            "label": f"{'＋' if kinds[i] == 'positive' else '－'} {prompts[i][:34]}",
+            "label": f"{'＋' if kinds[i] == 'positive' else '－'} {prompts[i][:46]}",
             "prompt": prompts[i],
             "kind": kinds[i],
             "block": f"blk {layer}",
@@ -467,12 +465,15 @@ def _(Sn, Sp, alt, cg, mo, negatives, np, positives):
         for i in range(len(prompts))
         for j, layer in enumerate(cg.layers)
     ]
+    n_rows, n_cols = len(prompts), len(cg.layers)
     heat = (
         alt.Chart(alt.Data(values=records))
-        .mark_rect()
+        .mark_rect(stroke="white", strokeWidth=1.5)
         .encode(
-            x=alt.X("block:O", title="tapped block"),
-            y=alt.Y("label:N", sort=None, title=None),
+            x=alt.X("block:O", title="tapped block",
+                    axis=alt.Axis(labelFontSize=12, titleFontSize=12)),
+            y=alt.Y("label:N", sort=None, title=None,
+                    axis=alt.Axis(labelLimit=420, labelFontSize=12)),
             color=alt.Color(
                 "loudness:Q",
                 scale=alt.Scale(scheme="redblue", reverse=True, domainMid=0),
@@ -480,7 +481,10 @@ def _(Sn, Sp, alt, cg, mo, negatives, np, positives):
             ),
             tooltip=["prompt:N", "kind:N", "block:O", "loudness:Q"],
         )
-        .properties(width=360, height=330, title="per-prompt loudness (hover for the prompt)")
+        .properties(
+            width=max(440, 74 * n_cols), height=30 * n_rows,
+            title="per-prompt loudness (hover for the prompt)",
+        )
     )
     mo.ui.altair_chart(heat)
     return
