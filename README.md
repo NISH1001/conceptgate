@@ -15,7 +15,7 @@ is just one application.
 Picture M as a **hallway** a "thought" travels down. We bolt **microphones** (probes) at several
 layers; each is tuned to a concept's **signature** and reports a **loudness**. The loudness across
 depth is a **spectrogram**; a tiny learned **bandpass filter** blends the layers (trusting the clear
-ones), and a **bell-curve gate** decides fire / pass. On fire: **abort** (stop / emit a token) or
+ones), and a **bell-curve gate** decides fire / abstain / pass. On fire: **abort** (stop / emit a token) or
 **reroute** (steer the stream so M derails).
 
 ```
@@ -58,10 +58,16 @@ cg = ConceptGate.from_pretrained("gpt2", layers=[4, 6, 8])   # attach to any fro
 cg.learn("cooking",
          positives=["How long do I boil pasta?", "What temperature to bake bread?", "How do I dice an onion?"],
          negatives=["What's the capital of France?", "How do I center a div in CSS?", "Who won the game?"])
-cg.calibrate(z=3.0)                                  # sets tau (operating point)
+cg.calibrate(z=3.0, margin=0.1)                      # sets tau (operating point) + an abstain band
 
-cg.check("What's the best way to sear a steak?")     # Verdict(fired=True, concept="cooking", score=...)
+v = cg.check("What's the best way to sear a steak?")
+# -> Verdict(fired=…, concept="cooking", p_present=…, abstained=…, score=…, tau=…)
+#    (few-shot is honest: with only ~3 examples a borderline prompt may come back abstained)
 ```
+
+Each `check` returns a **Verdict** — a three-way call `fired` / `abstained` / pass, plus a calibrated
+`p_present`. `margin` in `calibrate` sets the abstain band (`|p_present − 0.5| < margin`, a probability
+half-width; `margin=0` keeps a plain boolean). `run` reports the same Verdict inside its `RunResult`.
 
 **Several concepts at once** — fires if any fires, and tells you which:
 ```python
@@ -74,7 +80,7 @@ cg.check("Cheapest month to fly to Tokyo?").concept  # -> "travel"
 **As a guardrail** (one application) — the concept is the thing to catch; inject an action:
 ```python
 cg.learn("policy_violation", positives=[...], negatives=[...])
-cg.calibrate(target_fpr=0.01)                        # tune false-refusals
+cg.calibrate(z=3.0, margin=0.1)                      # operating point (higher z = stricter) + abstain band
 cg.run(prompt, action=Abort())                       # aborts + emits a marker when it fires
 ```
 `ConceptGate` measures + orchestrates; actions are injected strategies (`Abort`, or your own via
@@ -103,7 +109,7 @@ with ConceptGate.from_pretrained("gpt2", layers=[4,6,8], load=LoadMode.UP_TO_TAP
 ```python
 cg = ConceptGate.from_pretrained("gpt2", layers=[4,6,8], debug=True)
 # DEBUG conceptgate.gate:learn     - learn 'cooking': 12+12 prompts, J=(1,1)
-# DEBUG conceptgate.gate:_verdict  - verdict@0: {'cooking': (-9.73, False)} -> fired=False ...
+# DEBUG conceptgate.gate:_verdict  - verdict@0: {'cooking': (-9.73, -1)} -> fired=False concept=cooking p=0.02 abstain=False
 ```
 
 ## Layout

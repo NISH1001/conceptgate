@@ -222,9 +222,13 @@ $$
 \mathrm{LLR}(S)=\log\mathcal{N}(S;\mu^+,\sigma^+)-\log\mathcal{N}(S;\mu^-,\sigma^-).
 $$
 
-- **Fire** iff $\mathrm{LLR}(S)>\tau$.
-- **Abstain** (no decision) iff $\lvert \mathrm{LLR}(S)-\tau\rvert<\text{margin}$ — the uncertain
-  middle band that controls false refusals.
+- **Confidence.** Map the LLR to a calibrated probability
+  $P_{\text{present}}(S)=\sigma\big((\mathrm{LLR}(S)-\tau)/s\big)$, where $s$ is the benign LLR
+  spread *local* to $\tau$ (the heavy LLR tails make a global spread useless).
+- **Decision (fire / abstain / pass).** Fire iff $\mathrm{LLR}(S)>\tau$, pass iff
+  $\mathrm{LLR}(S)<\tau$, but **abstain** (override to no decision) whenever
+  $\lvert P_{\text{present}}(S)-\tfrac12\rvert<\text{margin}$ — the uncertain middle band.
+  `margin` is a probability half-width; $\text{margin}=0$ disables abstain.
 
 **Threshold calibration** (`concept.py`):
 
@@ -322,6 +326,6 @@ vs one transformer forward. Abort *saves* compute (skips remaining decoding).
 | $f$ | depth bandpass filter |
 | $d'_\ell,d'_{\text{comb}}$ | per-layer / fused discriminability |
 | $\mu^\pm,\sigma^\pm$ | Gaussian params of $S$ for each class |
-| $\tau,\text{margin}$ | LLR fire threshold / abstain band half-width |
+| $\tau,\,s,\,\text{margin}$ | LLR threshold / confidence scale / abstain band (probability half-width) |
 | $\alpha$ | reroute steering strength |
 | $\Phi$ | standard normal CDF |
