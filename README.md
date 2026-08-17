@@ -87,6 +87,11 @@ cg.run(prompt, action=Abort())                       # aborts + emits a marker w
 the `ConceptAction` protocol). `check` / input-side `run` use a **truncated forward** (only blocks
 `0..max(layers)` run), so a firing input is caught having run only a fraction of M.
 
+**Detection direction** (opt-in): `cg.learn(..., direction=Direction.LOGISTIC)` fits a per-layer
+discriminative direction instead of the default diff-of-means — it closes the detection gap to a
+linear SVM (largest gains on weaker models), while the steering direction stays diff-of-means.
+Default is `Direction.DIFF_OF_MEANS`.
+
 **Two optimization knobs** (independent — compose freely):
 ```python
 # memory: how much of the model's WEIGHTS to load
