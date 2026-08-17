@@ -21,14 +21,14 @@ from loguru import logger
 # numpy-only, torch-free — safe to import for the math/toy path
 from . import actions, concept, spectral  # noqa: F401
 from .actions import Abort, ConceptAction, FireContext, Verdict  # noqa: F401
-from .concept import BandpassConcept, Concept, ConceptBank  # noqa: F401
+from .concept import BandpassConcept, Concept, ConceptBank, Direction  # noqa: F401
 
 logger.disable("conceptgate")   # silent by default; ConceptGate(debug=True) re-enables
 
 __all__ = [
     "ConceptGate", "RunResult", "LoadMode",           # lazy (torch) — see __getattr__
     "Verdict", "Abort", "ConceptAction", "FireContext",
-    "Concept", "BandpassConcept", "ConceptBank",
+    "Concept", "BandpassConcept", "ConceptBank", "Direction",
     "actions", "concept", "spectral",
 ]
 

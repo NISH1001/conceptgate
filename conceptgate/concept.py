@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from enum import Enum
 
 import numpy as np
 
@@ -25,25 +26,34 @@ from . import spectral as spec
 _LOG2PI = float(np.log(2.0 * np.pi))
 
 
+class Direction(Enum):
+    """How the per-layer *detection* direction is estimated (steering stays diff-of-means)."""
+
+    DIFF_OF_MEANS = "diff"   # isotropic mean difference -- closed-form (default)
+    LOGISTIC = "logistic"    # per-layer L2-logistic -- discriminative, covariance-aware
+
+
 def _gauss_logpdf(x: np.ndarray, mu: float, sigma: float) -> np.ndarray:
     sigma = max(float(sigma), 1e-8)
     return -0.5 * ((x - mu) / sigma) ** 2 - np.log(sigma) - 0.5 * _LOG2PI
 
 
-def _fit_directions(A_pos: np.ndarray, A_neg: np.ndarray, direction: str = "diff"):
+def _fit_directions(
+    A_pos: np.ndarray, A_neg: np.ndarray, direction: Direction | str = Direction.DIFF_OF_MEANS
+):
     """Shared few-shot front-end: standardization stats, directions, spectrograms.
 
-    direction "diff" -> diff-of-means (isotropic); "logistic" -> per-layer discriminative
-    (covariance-aware) detection direction. W_raw stays diff-of-means -- the steering vector,
-    decoupled from the detection direction. A_pos, A_neg: [N, m, d] -> (mu0, sd0, W, W_raw,
-    S_pos, S_neg).
+    direction (Direction or its str value): DIFF_OF_MEANS -> diff-of-means (isotropic);
+    LOGISTIC -> per-layer discriminative (covariance-aware). W_raw stays diff-of-means --
+    the steering vector, decoupled from the detection direction. A_pos, A_neg: [N, m, d]
+    -> (mu0, sd0, W, W_raw, S_pos, S_neg).
     """
     A_all = np.concatenate([A_pos, A_neg], axis=0)
     mu0 = A_all.mean(axis=0)  # [m, d]
     sd0 = A_all.std(axis=0) + 1e-6  # [m, d]
     Zp = (A_pos - mu0) / sd0
     Zn = (A_neg - mu0) / sd0
-    if direction == "logistic":
+    if Direction(direction) is Direction.LOGISTIC:
         W = spec.fit_directions_logistic(Zp, Zn)
     else:
         W = spec.fit_directions(Zp, Zn)
@@ -189,7 +199,7 @@ class Concept(_GateCommon):
     covariance: str = "full"
     shrinkage: float = 0.1
     seed: int = 0
-    direction: str = "diff"  # detection direction: "diff" (diff-of-means) | "logistic"
+    direction: Direction | str = Direction.DIFF_OF_MEANS  # detection-direction estimator
     tau: float = 0.0  # LLR fire threshold (>tau -> fire)
     abstain_margin: float = 0.0  # if >0, |LLR - tau| < margin -> abstain
     # learned params (set by fit)
