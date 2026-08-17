@@ -33,6 +33,24 @@ def fit_directions(A_pos: np.ndarray, A_neg: np.ndarray) -> np.ndarray:
     return _normalize(mu_pos - mu_neg, axis=-1)
 
 
+def fit_directions_logistic(
+    A_pos: np.ndarray, A_neg: np.ndarray, C: float = 1.0
+) -> np.ndarray:
+    """Per-layer L2-logistic direction -- the discriminative (covariance-aware) alternative
+    to fit_directions' isotropic diff-of-means. A_*: [N, m, d] -> W [m, d], unit-norm."""
+    from sklearn.linear_model import LogisticRegression
+
+    m = A_pos.shape[1]
+    y = np.concatenate([np.ones(len(A_pos)), np.zeros(len(A_neg))])
+    W = np.stack([
+        LogisticRegression(C=C, max_iter=1000)
+        .fit(np.concatenate([A_pos[:, layer], A_neg[:, layer]], axis=0), y)
+        .coef_[0]
+        for layer in range(m)
+    ])
+    return _normalize(W, axis=-1)
+
+
 def spectrogram(A: np.ndarray, W: np.ndarray) -> np.ndarray:
     """Project activations onto the per-layer concept directions.
 

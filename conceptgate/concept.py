@@ -30,18 +30,24 @@ def _gauss_logpdf(x: np.ndarray, mu: float, sigma: float) -> np.ndarray:
     return -0.5 * ((x - mu) / sigma) ** 2 - np.log(sigma) - 0.5 * _LOG2PI
 
 
-def _fit_directions(A_pos: np.ndarray, A_neg: np.ndarray):
+def _fit_directions(A_pos: np.ndarray, A_neg: np.ndarray, direction: str = "diff"):
     """Shared few-shot front-end: standardization stats, directions, spectrograms.
 
-    A_pos, A_neg: [N, m, d] -> (mu0, sd0, W, W_raw, S_pos, S_neg).
+    direction "diff" -> diff-of-means (isotropic); "logistic" -> per-layer discriminative
+    (covariance-aware) detection direction. W_raw stays diff-of-means -- the steering vector,
+    decoupled from the detection direction. A_pos, A_neg: [N, m, d] -> (mu0, sd0, W, W_raw,
+    S_pos, S_neg).
     """
     A_all = np.concatenate([A_pos, A_neg], axis=0)
     mu0 = A_all.mean(axis=0)  # [m, d]
     sd0 = A_all.std(axis=0) + 1e-6  # [m, d]
     Zp = (A_pos - mu0) / sd0
     Zn = (A_neg - mu0) / sd0
-    W = spec.fit_directions(Zp, Zn)
-    W_raw = spec._normalize(A_pos.mean(0) - A_neg.mean(0), axis=-1)
+    if direction == "logistic":
+        W = spec.fit_directions_logistic(Zp, Zn)
+    else:
+        W = spec.fit_directions(Zp, Zn)
+    W_raw = spec._normalize(A_pos.mean(0) - A_neg.mean(0), axis=-1)  # steering: diff-of-means
     S_pos = spec.spectrogram(Zp, W)
     S_neg = spec.spectrogram(Zn, W)
     return mu0, sd0, W, W_raw, S_pos, S_neg
@@ -183,6 +189,7 @@ class Concept(_GateCommon):
     covariance: str = "full"
     shrinkage: float = 0.1
     seed: int = 0
+    direction: str = "diff"  # detection direction: "diff" (diff-of-means) | "logistic"
     tau: float = 0.0  # LLR fire threshold (>tau -> fire)
     abstain_margin: float = 0.0  # if >0, |LLR - tau| < margin -> abstain
     # learned params (set by fit)
@@ -197,7 +204,7 @@ class Concept(_GateCommon):
     def fit(self, A_pos: np.ndarray, A_neg: np.ndarray) -> "Concept":
         """A_pos, A_neg: [N, m, d] activation samples (last-token rep per prompt)."""
         self.mu0, self.sd0, self.W, self.W_raw, S_pos, S_neg = _fit_directions(
-            A_pos, A_neg
+            A_pos, A_neg, direction=self.direction
         )
         self.train_dprime = spec.dprime_per_layer(S_pos, S_neg)
         kw = dict(covariance=self.covariance, shrinkage=self.shrinkage, seed=self.seed)
