@@ -163,9 +163,8 @@ class ConceptGate:
     def _verdict(self, A_last: np.ndarray, step: int = 0) -> Verdict:
         """Fire if ANY concept fires; attribute to the highest-LLR (firing) concept.
 
-        Also reports uncertainty on the attributed concept: p_present (calibrated), an
-        abstain flag (score inside the concept's unsure band around tau), and an OOD flag
-        (input unlike either learned class)."""
+        Also reports uncertainty on the attributed concept: p_present (calibrated) and an
+        abstain flag (score inside the concept's unsure band around tau)."""
         if not self.concepts:
             return Verdict(fired=False, step=step)
         scored = {
@@ -213,9 +212,9 @@ class ConceptGate:
             step=v.step,
         )
 
-    def _decide(self, action: ConceptAction, v: Verdict, seq) -> Decision:
-        """Ask the action; return a Decision. Only Stop/Continue are wired this round."""
-        d = action.on_fire(self._context(v, seq))
+    def _dispatch(self, action: ConceptAction, v: Verdict, seq) -> Decision:
+        """Hand the verdict to the action; return its Decision. Only Stop/Continue wired."""
+        d = action.decide(self._context(v, seq))
         if isinstance(d, (Stop, Continue)):
             return d
         raise NotImplementedError(f"{type(d).__name__} decisions land in a later round")
@@ -232,15 +231,20 @@ class ConceptGate:
         max_new_tokens: int = 20,
         check_output: bool = True,
     ) -> RunResult:
-        """Drive M under an action. Input-side check is truncated (cheap); if it fires and
-        the action stops, M's full forward and generation are never run -- the compute win.
-        Otherwise generate (full forward) with per-token output-side checks."""
+        """Drive M under an action. Input-side check is truncated (cheap); on a flagged
+        verdict (fire or abstain) the action decides -- if it stops, M's full forward and
+        generation never run (the compute win). Otherwise generate with per-token checks."""
+        if not isinstance(action, ConceptAction):
+            raise TypeError(
+                f"action must be a ConceptAction (have a .decide(ctx) method); "
+                f"got {type(action).__name__}"
+            )
         ids = self.tok(prompt, return_tensors="pt").to(self.device).input_ids
 
-        # input-side: cheap truncated check; abort here skips the full model entirely
+        # input-side: cheap truncated check; a stop here skips the full model entirely
         v = self.check(prompt)
-        if v.fired:
-            d = self._decide(action, v, ids)
+        if v.fired or v.abstained:
+            d = self._dispatch(action, v, ids)
             if isinstance(d, Stop):
                 text = prompt + (" " + d.emit if d.emit else "")
                 return RunResult(text=text.rstrip(), verdict=v, n_new=0, aborted=True)
@@ -260,8 +264,8 @@ class ConceptGate:
             out = self.model(input_ids=seq, output_hidden_states=True, use_cache=False)
             if check_output:
                 vo = self._verdict(self._last_act(out.hidden_states), step=step)
-                if vo.fired:
-                    d = self._decide(action, vo, seq)
+                if vo.fired or vo.abstained:
+                    d = self._dispatch(action, vo, seq)
                     if isinstance(d, Stop):
                         gen = self.tok.decode(seq[0, n_prompt:])
                         text = (prompt + gen).rstrip() + (

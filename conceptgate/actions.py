@@ -1,9 +1,10 @@
 """Actions: what to do when a concept fires. Strategy pattern.
 
-A ConceptAction is a policy. When a concept fires during ConceptGate.run, the gate builds
-a FireContext (a narrow view of the firing) and calls action.on_fire(ctx). The action
-returns a Decision; the gate executes it. Actions never touch the gate's internals -- only
-the FireContext -- so adding an action never changes the gate.
+A ConceptAction is a policy. When a concept is flagged (fires OR abstains) during
+ConceptGate.run, the gate builds a FireContext (a narrow view of the verdict) and calls
+action.decide(ctx). The action returns a Decision; the gate executes it. Actions never
+touch the gate's internals -- only the FireContext -- so adding an action never changes
+the gate. The fire-vs-unsure policy lives in the action (e.g. Abort(on_unsure=True)).
 
 Round 1 ships Abort. Steer / Emit and their Decisions (InjectSteer, ForceToken) are defined
 here for the seam but wired into the driver in a later round.
@@ -67,17 +68,23 @@ class FireContext:
     step: int = 0             # decode step (0 = prompt)
 
 
-# ---- the Strategy protocol: any object with on_fire IS a ConceptAction ----
+# ---- the Strategy protocol: any object with decide() IS a ConceptAction ----
 @runtime_checkable
 class ConceptAction(Protocol):
-    def on_fire(self, ctx: FireContext) -> Decision: ...
+    def decide(self, ctx: FireContext) -> Decision: ...
 
 
 # ---- built-in actions ----
 @dataclass
 class Abort:
-    """Short-circuit: stop decoding immediately and emit a fixed marker."""
+    """Short-circuit: stop decoding and emit a fixed marker. With on_unsure=True it also
+    stops on an abstain (unsure) verdict, not only a confident fire -- the fire-vs-unsure
+    policy lives here in the action, not in run()."""
     marker: str = "[GUARDRAILED]"
+    on_unsure: bool = False
 
-    def on_fire(self, ctx: FireContext) -> Decision:
-        return Stop(emit=self.marker)
+    def decide(self, ctx: FireContext) -> Decision:
+        v = ctx.verdict
+        if v.fired or (self.on_unsure and v.abstained):
+            return Stop(emit=self.marker)
+        return Continue()

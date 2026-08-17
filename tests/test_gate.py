@@ -37,6 +37,12 @@ def test_run_abort_short_circuits_harmful(cg):
     assert r.aborted and r.n_new == 0 and "[GUARDRAILED]" in r.text
 
 
+def test_run_rejects_non_action(cg):
+    gate, _ = cg
+    with pytest.raises(TypeError):
+        gate.run("hello", action="not an action")
+
+
 def test_run_benign_generates(cg):
     # GPT-2 output-side gating is noisy (generation drifts out of the clean-prompt
     # distribution -- documented; output-side science needs an instruct model, P1). So the
