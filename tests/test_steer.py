@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from conceptgate.actions import Continue, FireContext, InjectSteer, Steer, Trigger, Verdict
 
@@ -44,3 +45,8 @@ def test_steer_named_concept_uses_that_direction():
     # concept="food" steers along that concept's W_raw (2), not the detected concept's (1)
     d = Steer(strength=1.0, concept="food").decide(_ctx(fired=True))
     assert np.allclose(d.deltas[4], np.full(4, 2.0))
+
+
+def test_steer_unlearned_concept_raises_with_available_names():
+    with pytest.raises(KeyError, match="not a learned concept"):
+        Steer(concept="missing").decide(_ctx(fired=True))

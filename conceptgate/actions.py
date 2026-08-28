@@ -116,9 +116,23 @@ class Steer:
     concept: str | None = None
 
     def decide(self, ctx: FireContext) -> Decision:
-        if _triggered(self.when, ctx.verdict):
-            c = ctx.concepts[self.concept] if self.concept else ctx.concept
-            W = c.W_raw  # [m, d] per-layer diff-of-means (raw space)
-            deltas = {ctx.layers[i]: self.strength * W[i] for i in range(len(ctx.layers))}
-            return InjectSteer(deltas=deltas)
-        return Continue()
+        if not _triggered(self.when, ctx.verdict):
+            return Continue()
+        if self.concept is not None:
+            bank = ctx.concepts or {}
+            if self.concept not in bank:  # a typo'd/unlearned name is a bug -> fail fast
+                raise KeyError(
+                    f"Steer(concept={self.concept!r}): not a learned concept; "
+                    f"available {sorted(bank)}. Call cg.learn({self.concept!r}, ...) first."
+                )
+            c = bank[self.concept]
+        else:
+            c = ctx.concept  # steer along whatever was detected
+        if c is None:
+            raise ValueError(
+                "Steer: nothing to steer along -- no concept named and none detected. "
+                "Pass Steer(concept=...) or learn a concept first."
+            )
+        W = c.W_raw  # [m, d] per-layer diff-of-means (raw space)
+        deltas = {ctx.layers[i]: self.strength * W[i] for i in range(len(ctx.layers))}
+        return InjectSteer(deltas=deltas)
