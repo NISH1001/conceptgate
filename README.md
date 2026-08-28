@@ -83,9 +83,29 @@ cg.learn("policy_violation", positives=[...], negatives=[...])
 cg.calibrate(z=3.0, margin=0.1)                      # operating point (higher z = stricter) + abstain band
 cg.run(prompt, action=Abort())                       # aborts + emits a marker when it fires
 ```
-`ConceptGate` measures + orchestrates; actions are injected strategies (`Abort`, or your own via
-the `ConceptAction` protocol). `check` / input-side `run` use a **truncated forward** (only blocks
-`0..max(layers)` run), so a firing input is caught having run only a fraction of M.
+`ConceptGate` measures + orchestrates; actions are injected strategies (`Abort`, `Steer`, or your
+own via the `ConceptAction` protocol). `check` / input-side `run` use a **truncated forward** (only
+blocks `0..max(layers)` run), so a firing input is caught having run only a fraction of M.
+
+**Steer the generation** (the write side) — the same concept direction that *reads* can also
+*write*. Added back into the residual stream while M generates, it bends the output **toward** the
+concept (positive strength) or **away** (negative). This is the real differentiator over a
+classifier: it *changes* behavior, few-shot, no training.
+```python
+from conceptgate.actions import Steer, Trigger
+
+cg.learn("food", positives=[...], negatives=[...])
+cg.run(prompt, action=Steer(concept="food", strength=6.0, when=Trigger.ALWAYS))
+```
+`strength`'s sign picks toward/away (a good range is ~3–10% of the residual norm; too high tips
+into gibberish). `concept=` names which learned concept to steer along (default: the detected one),
+and raises if that name wasn't learned. Steering needs the concept **learned** (it uses the
+diff-of-means direction `W_raw`) — not calibrated.
+
+**`Trigger` — when an action acts** (shared by every action): `FIRE` (only on a confident fire),
+`FIRE_OR_UNSURE` (also on an abstain), `ALWAYS` (unconditional, regardless of the verdict). So
+`Abort(when=Trigger.FIRE)` blocks when a concept fires; `Steer(when=Trigger.ALWAYS)` steers every
+generation. Verdict-gated triggers (`FIRE` / `FIRE_OR_UNSURE`) need `calibrate`; `ALWAYS` does not.
 
 **Detection direction** (opt-in): `cg.learn(..., direction=Direction.LOGISTIC)` fits a per-layer
 discriminative direction instead of the default diff-of-means — it closes the detection gap to a
@@ -120,10 +140,10 @@ cg = ConceptGate.from_pretrained("gpt2", layers=[4,6,8], debug=True)
 ## Layout
 ```
 conceptgate/
-  __init__.py       # public surface: ConceptGate, actions, Verdict
+  __init__.py       # public surface: ConceptGate, Abort/Steer/Trigger, Direction, Verdict
   gate.py           # ConceptGate — facade: from_pretrained/learn/calibrate/check/run
   concept.py        # Concept (mixture LLR unit) + BandpassConcept baseline + ConceptBank
-  actions.py        # ConceptAction protocol, FireContext, Decision, Abort  (strategy layer)
+  actions.py        # ConceptAction protocol, FireContext, Decision, Abort, Steer, Trigger  (strategy layer)
   taps.py           # TapForward — the signal listener: truncated forward (or full=True), batching
   spectral.py       # diff-of-means directions, spectrogram, bandpass filter (pure numpy)
   mixture.py        # Set((mu,Sigma)) per class: GMM (sklearn EM + BIC) on the spectrogram
@@ -131,6 +151,7 @@ conceptgate/
   data.py           # load concept prompt sets (JSON)
 data/concepts/      # tiny labeled prompt sets (~10/class)
 scripts/
+  demo_marimo.py    # interactive marimo walkthrough: model/tap picker, detect, steer, tap-depth vs cost
   demo.py           # end-to-end facade demo on GPT-2: learn / calibrate / check / run + speedup
   toy_csg.py        # OFFLINE math check (no model): depth filter beats single layer
   toy_csg_mixture.py # mixture validation: regression / bimodal benign / kill-shot
@@ -166,7 +187,13 @@ uv run pytest tests/ -q              # unit tests
   loads a fraction of its weights (validated bit-identical at the taps). `batch_size` on
   `learn` is the memory↔compute dial for extraction. `ConceptGate` is usable as an object or
   a context manager (`unload()` frees the weights). `LoadMode.STREAM` (accelerate offload)
-  reserved for later. Next: `Steer`/`Emit` actions and the sequential per-tap early exit.
+  reserved for later.
+- **Steer (done):** the write side — `run(action=Steer(...))` adds a concept's diff-of-means
+  direction back into the residual stream during generation, steering the output toward/away
+  (validated coherent on Qwen2.5-0.5B; magnitude-sensitive). `Steer(concept=...)` picks among many
+  learned concepts. Every action shares a `Trigger` (`FIRE` / `FIRE_OR_UNSURE` / `ALWAYS`), and
+  `run` is the single driver for detect-and-act and unconditional steering alike. Next:
+  `Emit`/`ForceToken` (force tokens into the stream) and the sequential per-tap early exit.
 - **P1 (next):** Gemma-2-2B-it. Single-best-layer baseline (A); measure few-shot recall/FPR/PR.
 - **P2:** CSG depth filter vs A vs MLP (B) ablation; abort vs reroute comparison.
 - **P3:** jailbreak robustness vs a text-classifier guard; multi-concept K.
