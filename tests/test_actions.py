@@ -5,6 +5,7 @@ from conceptgate.actions import (
     Continue,
     FireContext,
     Stop,
+    Trigger,
     Verdict,
 )
 
@@ -34,9 +35,14 @@ def test_abort_default_passes_on_abstain():
     assert isinstance(Abort().decide(_ctx_abstain()), Continue)
 
 
-def test_abort_on_unsure_stops_on_abstain():
-    d = Abort(on_unsure=True).decide(_ctx_abstain())
+def test_abort_fire_or_unsure_stops_on_abstain():
+    d = Abort(when=Trigger.FIRE_OR_UNSURE).decide(_ctx_abstain())
     assert isinstance(d, Stop) and d.emit == "[GUARDRAILED]"
+
+
+def test_abort_always_stops_even_on_pass():
+    ctx = FireContext(verdict=Verdict(fired=False, abstained=False), concept=None, layers=[4, 6, 8])
+    assert isinstance(Abort(when="always").decide(ctx), Stop)   # trigger accepts a str too
 
 
 def test_abort_satisfies_protocol():

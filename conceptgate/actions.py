@@ -1,17 +1,17 @@
-"""Actions: what to do when a concept fires. Strategy pattern.
+"""Actions: what to do about a concept. Strategy pattern.
 
-A ConceptAction is a policy. When a concept is flagged (fires OR abstains) during
-ConceptGate.run, the gate builds a FireContext (a narrow view of the verdict) and calls
-action.decide(ctx). The action returns a Decision; the gate executes it. Actions never
-touch the gate's internals -- only the FireContext -- so adding an action never changes
-the gate. The fire-vs-unsure policy lives in the action (e.g. Abort(on_unsure=True)).
+A ConceptAction is a policy. On every verdict during ConceptGate.run, the gate builds a
+FireContext (a narrow view of the verdict) and calls action.decide(ctx); the action returns
+a Decision the gate executes. Actions never touch the gate's internals -- only the
+FireContext -- so adding an action never changes the gate. WHEN an action acts (fire /
+fire-or-unsure / always) is a general Trigger the action carries; WHAT it does is the action.
 
-Round 1 ships Abort. Steer / Emit and their Decisions (InjectSteer, ForceToken) are defined
-here for the seam but wired into the driver in a later round.
+Shipped: Abort (-> Stop) and Steer (-> InjectSteer). Emit (-> ForceToken) is scaffolded.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, Protocol, runtime_checkable
 
 
@@ -42,13 +42,13 @@ class Continue:
 
 @dataclass(frozen=True)
 class InjectSteer:
-    """Add per-layer steering vectors to the residual stream, then continue. (round 2)"""
+    """Add per-layer steering vectors to the residual stream, then keep generating."""
     deltas: dict = field(default_factory=dict)   # {layer_index: 1-D vector}
 
 
 @dataclass(frozen=True)
 class ForceToken:
-    """Force the next token id. (round 2)"""
+    """Force the next token id. (scaffolded, not yet wired)"""
     token_id: int = 0
 
 
@@ -74,33 +74,46 @@ class ConceptAction(Protocol):
     def decide(self, ctx: FireContext) -> Decision: ...
 
 
+# ---- Trigger: WHEN an action acts (a general policy, shared across actions) ----
+class Trigger(Enum):
+    """When an action acts on a verdict (accepts the member or its string value)."""
+
+    FIRE = "fire"                      # only on a confident fire
+    FIRE_OR_UNSURE = "fire_or_unsure"  # ... or on an abstain (fail-closed-ish)
+    ALWAYS = "always"                  # unconditionally, regardless of the verdict
+
+
+def _triggered(when: Trigger | str, v: Verdict) -> bool:
+    when = Trigger(when)
+    if when is Trigger.ALWAYS:
+        return True
+    if when is Trigger.FIRE_OR_UNSURE:
+        return v.fired or v.abstained
+    return v.fired
+
+
 # ---- built-in actions ----
 @dataclass
 class Abort:
-    """Short-circuit: stop decoding and emit a fixed marker. With on_unsure=True it also
-    stops on an abstain (unsure) verdict, not only a confident fire -- the fire-vs-unsure
-    policy lives here in the action, not in run()."""
+    """Halt generation and emit a fixed marker when the trigger fires (default: on a fire)."""
     marker: str = "[GUARDRAILED]"
-    on_unsure: bool = False
+    when: Trigger | str = Trigger.FIRE
 
     def decide(self, ctx: FireContext) -> Decision:
-        v = ctx.verdict
-        if v.fired or (self.on_unsure and v.abstained):
-            return Stop(emit=self.marker)
-        return Continue()
+        return Stop(emit=self.marker) if _triggered(self.when, ctx.verdict) else Continue()
 
 
 @dataclass
 class Steer:
     """Nudge generation along the concept's steering direction (W_raw): strength > 0 steers
-    TOWARD the concept, < 0 AWAY. Acts on a flagged verdict; on_unsure also steers on abstain.
-    The gate installs the returned InjectSteer as forward hooks for the whole generation."""
+    TOWARD the concept, < 0 AWAY. `when` controls it -- ALWAYS steers unconditionally, FIRE /
+    FIRE_OR_UNSURE only when the concept is flagged. The gate installs the returned InjectSteer
+    as forward hooks for the whole generation."""
     strength: float = 8.0
-    on_unsure: bool = False
+    when: Trigger | str = Trigger.FIRE
 
     def decide(self, ctx: FireContext) -> Decision:
-        v = ctx.verdict
-        if v.fired or (self.on_unsure and v.abstained):
+        if _triggered(self.when, ctx.verdict):
             W = ctx.concept.W_raw  # [m, d] per-layer diff-of-means (raw space)
             deltas = {ctx.layers[i]: self.strength * W[i] for i in range(len(ctx.layers))}
             return InjectSteer(deltas=deltas)

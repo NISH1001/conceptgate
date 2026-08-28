@@ -1,6 +1,6 @@
 import numpy as np
 
-from conceptgate.actions import Continue, FireContext, InjectSteer, Steer, Verdict
+from conceptgate.actions import Continue, FireContext, InjectSteer, Steer, Trigger, Verdict
 
 
 class _DummyConcept:
@@ -26,6 +26,11 @@ def test_steer_passes_when_not_flagged():
     assert isinstance(Steer().decide(_ctx(fired=False)), Continue)
 
 
-def test_steer_on_unsure_acts_on_abstain():
-    assert isinstance(Steer(on_unsure=True).decide(_ctx(fired=False, abstained=True)), InjectSteer)
-    assert isinstance(Steer(on_unsure=False).decide(_ctx(fired=False, abstained=True)), Continue)
+def test_steer_fire_or_unsure_acts_on_abstain():
+    assert isinstance(Steer(when=Trigger.FIRE_OR_UNSURE).decide(_ctx(fired=False, abstained=True)), InjectSteer)
+    assert isinstance(Steer(when=Trigger.FIRE).decide(_ctx(fired=False, abstained=True)), Continue)
+
+
+def test_steer_always_acts_on_pass():
+    # unconditional steering: acts even when nothing fired (replaces the old generate())
+    assert isinstance(Steer(when=Trigger.ALWAYS).decide(_ctx(fired=False, abstained=False)), InjectSteer)
