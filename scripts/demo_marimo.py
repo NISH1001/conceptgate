@@ -595,5 +595,86 @@ def _(Steer, Trigger, cg_steer, mo, np, steer_concept, steer_frac, steer_prompt,
     return
 
 
+@app.cell
+def _(mo):
+    mo.md(r"""
+    ## 5. How cheap can the guardrail get?
+
+    Detection runs only blocks `0..tap`, so tapping **earlier** means fewer blocks per
+    prompt — a real saving on a guardrail that fires on *everything*. But an early layer may
+    not have formed the concept yet. This sweeps every layer and plots **separability**
+    (leave-one-out AUC of the same standardized diff-of-means detector ConceptGate uses,
+    held out so it can't overfit) against **cost** (fraction of the transformer you'd run to
+    tap there). The **knee** — the earliest layer that already separates — is the cheapest
+    place to gate. It's concept- and model-specific: harder concepts need to go deeper.
+    """)
+    return
+
+
+@app.cell
+def _(model, n_blocks, negatives, np, positives, tok):
+    from sklearn.metrics import roc_auc_score
+    from conceptgate.taps import TapForward as _TF
+
+    _all = _TF(model, list(range(n_blocks)))              # read every layer in one pass
+    _Ap = _all.read(tok, positives, "cpu", last_only=True)[0]   # [n_pos, L, d]
+    _An = _all.read(tok, negatives, "cpu", last_only=True)[0]
+
+    def _loo_auc(P, N):
+        # leave-one-out AUC of the standardized diff-of-means detector (held out -> honest)
+        X = np.vstack([P, N])
+        y = np.r_[np.ones(len(P)), np.zeros(len(N))]
+        s = np.empty(len(X))
+        for i in range(len(X)):
+            m = np.ones(len(X), bool)
+            m[i] = False
+            Xi, yi = X[m], y[m]
+            mu, sd = Xi.mean(0), Xi.std(0) + 1e-6
+            Z = (Xi - mu) / sd
+            w = Z[yi == 1].mean(0) - Z[yi == 0].mean(0)   # diff-of-means direction
+            s[i] = ((X[i] - mu) / sd) @ w
+        return float(roc_auc_score(y, s))
+
+    aucs = [_loo_auc(_Ap[:, L, :], _An[:, L, :]) for L in range(n_blocks)]
+    costs = [(L + 1) / n_blocks for L in range(n_blocks)]  # blocks run to tap at L
+    return aucs, costs
+
+
+@app.cell
+def _(aucs, costs, n_blocks, plt, taps):
+    _target = 0.85
+    _knee = next((L for L, a in enumerate(aucs) if a >= _target), None)
+    _xs = list(range(n_blocks))
+
+    _fig, _ax = plt.subplots(figsize=(9, 3.6))
+    _ax.plot(_xs, aucs, "o-", color="#C2402F", lw=2, label="separability (LOO AUC)")
+    _ax.axhline(_target, ls="--", lw=0.8, color="0.5")
+    _ax.set_xlabel("tap layer (block index)")
+    _ax.set_ylabel("AUC", color="#C2402F")
+    _ax.set_ylim(0.45, 1.02)
+    _ax.set_xticks(_xs)
+
+    _ax2 = _ax.twinx()
+    _ax2.plot(_xs, costs, "s-", color="#1F6FEB", lw=2, label="cost (blocks run)")
+    _ax2.set_ylabel("fraction of model run", color="#1F6FEB")
+    _ax2.set_ylim(0, 1.05)
+
+    for _L in taps:
+        _ax.axvline(_L, color="green", alpha=0.2)   # your current taps
+    if _knee is not None:
+        _ax.axvline(_knee, color="k", lw=1.5)
+        _ax.set_title(
+            f"knee: block {_knee} separates (AUC {aucs[_knee]:.2f}) at "
+            f"{costs[_knee] * 100:.0f}% of the model  ·  green = current taps"
+        )
+    else:
+        _ax.set_title("no layer clears the target AUC — concept may be too hard for this model")
+    _ax.legend(loc="lower right", fontsize=8)
+    _ax2.legend(loc="center right", fontsize=8)
+    _fig.tight_layout()
+    _fig
+    return
+
+
 if __name__ == "__main__":
     app.run()
