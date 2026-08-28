@@ -88,3 +88,20 @@ class Abort:
         if v.fired or (self.on_unsure and v.abstained):
             return Stop(emit=self.marker)
         return Continue()
+
+
+@dataclass
+class Steer:
+    """Nudge generation along the concept's steering direction (W_raw): strength > 0 steers
+    TOWARD the concept, < 0 AWAY. Acts on a flagged verdict; on_unsure also steers on abstain.
+    The gate installs the returned InjectSteer as forward hooks for the whole generation."""
+    strength: float = 8.0
+    on_unsure: bool = False
+
+    def decide(self, ctx: FireContext) -> Decision:
+        v = ctx.verdict
+        if v.fired or (self.on_unsure and v.abstained):
+            W = ctx.concept.W_raw  # [m, d] per-layer diff-of-means (raw space)
+            deltas = {ctx.layers[i]: self.strength * W[i] for i in range(len(ctx.layers))}
+            return InjectSteer(deltas=deltas)
+        return Continue()
