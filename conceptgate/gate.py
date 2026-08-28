@@ -209,6 +209,7 @@ class ConceptGate:
             verdict=v,
             concept=self.concepts.get(v.concept),
             layers=self.layers,
+            concepts=self.concepts,
             tok=self.tok,
             seq=seq,
             step=v.step,

@@ -61,8 +61,9 @@ CONTINUE = Continue()
 @dataclass
 class FireContext:
     verdict: Verdict          # which concept fired, its score, the step
-    concept: Any              # the firing Concept object (carries W_raw for steering)
+    concept: Any              # the detected Concept object (the verdict's attributed concept)
     layers: list[int]         # tapped block indices
+    concepts: Any = None      # {name: Concept} -- all learned, for actions that name one
     tok: Any = None           # tokenizer (for markers / decoding)
     seq: Any = None           # token ids generated so far
     step: int = 0             # decode step (0 = prompt)
@@ -105,16 +106,19 @@ class Abort:
 
 @dataclass
 class Steer:
-    """Nudge generation along the concept's steering direction (W_raw): strength > 0 steers
-    TOWARD the concept, < 0 AWAY. `when` controls it -- ALWAYS steers unconditionally, FIRE /
+    """Nudge generation along a concept's steering direction (W_raw): strength > 0 steers
+    TOWARD the concept, < 0 AWAY. `concept` names which learned concept to steer along
+    (default: the detected one). `when` controls it -- ALWAYS steers unconditionally, FIRE /
     FIRE_OR_UNSURE only when the concept is flagged. The gate installs the returned InjectSteer
     as forward hooks for the whole generation."""
     strength: float = 8.0
     when: Trigger | str = Trigger.FIRE
+    concept: str | None = None
 
     def decide(self, ctx: FireContext) -> Decision:
         if _triggered(self.when, ctx.verdict):
-            W = ctx.concept.W_raw  # [m, d] per-layer diff-of-means (raw space)
+            c = ctx.concepts[self.concept] if self.concept else ctx.concept
+            W = c.W_raw  # [m, d] per-layer diff-of-means (raw space)
             deltas = {ctx.layers[i]: self.strength * W[i] for i in range(len(ctx.layers))}
             return InjectSteer(deltas=deltas)
         return Continue()

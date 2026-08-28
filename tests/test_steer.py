@@ -4,14 +4,18 @@ from conceptgate.actions import Continue, FireContext, InjectSteer, Steer, Trigg
 
 
 class _DummyConcept:
-    W_raw = np.ones((3, 4))  # 3 tapped layers, dim 4, unit rows
+    def __init__(self, val=1.0):
+        self.W_raw = np.full((3, 4), val)  # 3 tapped layers, dim 4
 
 
 def _ctx(fired=True, abstained=False):
+    detected = _DummyConcept(1.0)
+    food = _DummyConcept(2.0)              # a different, NAMED concept
     return FireContext(
         verdict=Verdict(fired=fired, abstained=abstained, concept="c", score=5.0),
-        concept=_DummyConcept(),
+        concept=detected,
         layers=[4, 6, 8],
+        concepts={"c": detected, "food": food},
     )
 
 
@@ -34,3 +38,9 @@ def test_steer_fire_or_unsure_acts_on_abstain():
 def test_steer_always_acts_on_pass():
     # unconditional steering: acts even when nothing fired (replaces the old generate())
     assert isinstance(Steer(when=Trigger.ALWAYS).decide(_ctx(fired=False, abstained=False)), InjectSteer)
+
+
+def test_steer_named_concept_uses_that_direction():
+    # concept="food" steers along that concept's W_raw (2), not the detected concept's (1)
+    d = Steer(strength=1.0, concept="food").decide(_ctx(fired=True))
+    assert np.allclose(d.deltas[4], np.full(4, 2.0))

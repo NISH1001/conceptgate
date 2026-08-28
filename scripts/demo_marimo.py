@@ -504,18 +504,59 @@ def _(mo):
     mo.md(r"""
     ## 4. Steer the generation
 
-    The same concept direction can *write*, not just read. Added back into the residual
-    stream while the model generates, it bends the output **toward** the concept (positive
+    A concept direction can *write*, not just read. Added back into the residual stream
+    while the model generates, it bends the output **toward** the concept (positive
     strength) or **away** (negative) — this is `run(Steer(when=ALWAYS))`, unconditional
-    steering. Strength here is a **fraction of the residual norm** (~0.03–0.10 usually works;
-    too high breaks coherence). It's the one thing a classifier can't do — it *changes*
-    behavior, few-shot, no training. (Small models steer weakly; expect a soft effect.)
+    steering. A gate can hold **many** learned concepts, so `Steer(concept="…")` names which
+    one to steer along; here we learn a few topic directions few-shot and let you pick.
+    Strength is a **fraction of the residual norm** (~0.03–0.10 usually works; too high
+    breaks coherence). It's the one thing a classifier can't do — it *changes* behavior, no
+    training. (Small models steer weakly; expect a soft effect.)
     """)
     return
 
 
 @app.cell
-def _(mo):
+def _(model, taps, tok):
+    # a SEPARATE gate sharing the same weights, with its own bank of topic concepts to steer
+    # along (kept off the detection gate above so it can't pollute those verdicts).
+    from conceptgate import ConceptGate as _CG
+
+    _NEG = [
+        "The meeting is scheduled for Monday morning.", "She wrote a letter to her friend.",
+        "The bank finally approved the loan.", "He parked the car outside the office.",
+        "The quarterly report is due next week.", "They watched a long movie last night.",
+        "The class starts at nine on weekdays.", "I still need to buy a new pair of shoes.",
+    ]
+    STEER_TOPICS = {
+        "food / cooking": [
+            "I love cooking fresh pasta for dinner.", "This recipe needs garlic and basil.",
+            "The restaurant served a delicious soup.", "She baked warm bread in the kitchen.",
+            "We shared a tasty meal together.", "Add a pinch of salt to the sauce.",
+        ],
+        "technology": [
+            "I debugged the software late into the night.", "The laptop has a fast processor.",
+            "She wrote the whole feature in Python.", "The server crashed during deployment.",
+            "He upgraded the graphics card yesterday.", "The app talks to a cloud API.",
+        ],
+        "nature / outdoors": [
+            "We hiked through the quiet green forest.", "The river flowed past the mountains.",
+            "Birds were singing in the tall trees.", "The trail led up to a waterfall.",
+            "Wildflowers bloomed across the meadow.", "The sunset glowed over the ocean.",
+        ],
+    }
+    cg_steer = _CG(model, tok, taps, device="cpu")
+    for _n, _pos in STEER_TOPICS.items():
+        cg_steer.learn(_n, _pos, _NEG)
+    return STEER_TOPICS, cg_steer
+
+
+@app.cell
+def _(STEER_TOPICS, mo):
+    steer_concept = mo.ui.dropdown(
+        options=list(STEER_TOPICS), value=next(iter(STEER_TOPICS)),
+        label="steer along concept",
+    )
     steer_prompt = mo.ui.text(
         value="The best part of the day was when",
         label="generation prompt", full_width=True,
@@ -524,25 +565,28 @@ def _(mo):
         -0.15, 0.15, value=0.06, step=0.01,
         label="steer strength (fraction of residual norm;  − away / + toward)",
     )
-    mo.vstack([steer_prompt, steer_frac])
-    return steer_frac, steer_prompt
+    mo.vstack([steer_concept, steer_prompt, steer_frac])
+    return steer_concept, steer_frac, steer_prompt
 
 
 @app.cell
-def _(Steer, Trigger, cg, concept, mo, np, steer_frac, steer_prompt, tf):
-    _ = concept  # depend on the learned+calibrated concept (ordering)
-    A = tf.read(cg.tok, [steer_prompt.value], cg.device, last_only=True)[0]
+def _(Steer, Trigger, cg_steer, mo, np, steer_concept, steer_frac, steer_prompt, tf):
+    A = tf.read(cg_steer.tok, [steer_prompt.value], cg_steer.device, last_only=True)[0]
     norm = float(np.linalg.norm(A[0], axis=1).mean())
     strength = steer_frac.value * norm
 
     def _gen(s):
-        r = cg.run(steer_prompt.value, action=Steer(strength=s, when=Trigger.ALWAYS),
-                   max_new_tokens=30, check_output=False)
+        r = cg_steer.run(
+            steer_prompt.value,
+            action=Steer(strength=s, concept=steer_concept.value, when=Trigger.ALWAYS),
+            max_new_tokens=30, check_output=False,
+        )
         return r.text[len(steer_prompt.value):].strip().replace("\n", " ")
 
     _dir = "toward" if steer_frac.value >= 0 else "away"
     mo.md(f"""
-    residual norm ≈ **{norm:.0f}** → absolute strength **{strength:+.1f}**
+    steering along **{steer_concept.value}** · residual norm ≈ **{norm:.0f}** →
+    absolute strength **{strength:+.1f}**
 
     **baseline** (no steer): {_gen(0.0)!r}
 
