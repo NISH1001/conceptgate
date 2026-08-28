@@ -26,10 +26,12 @@ from .actions import (
     Continue,
     Decision,
     FireContext,
+    InjectSteer,
     Stop,
     Verdict,
 )
 from .concept import Concept
+from .hooks import SteeringHooks
 from .taps import TapForward
 
 
@@ -207,17 +209,28 @@ class ConceptGate:
             verdict=v,
             concept=self.concepts.get(v.concept),
             layers=self.layers,
+            concepts=self.concepts,
             tok=self.tok,
             seq=seq,
             step=v.step,
         )
 
     def _dispatch(self, action: ConceptAction, v: Verdict, seq) -> Decision:
-        """Hand the verdict to the action; return its Decision. Only Stop/Continue wired."""
+        """Hand the verdict to the action; return its Decision (Stop / Continue / InjectSteer)."""
         d = action.decide(self._context(v, seq))
-        if isinstance(d, (Stop, Continue)):
+        if isinstance(d, (Stop, Continue, InjectSteer)):
             return d
         raise NotImplementedError(f"{type(d).__name__} decisions land in a later round")
+
+    def _steer_hooks(self, deltas: dict) -> SteeringHooks:
+        """Install forward hooks that add per-layer steering vectors to the residual stream."""
+        h = SteeringHooks(self.model).register(self.layers)
+        h.set_deltas({
+            int(k): torch.as_tensor(np.asarray(vec, dtype=np.float32), device=self.device)
+            for k, vec in deltas.items()
+        })
+        h.enabled = True
+        return h
 
     def _last_act(self, hidden_states) -> np.ndarray:
         chosen = [hidden_states[L + 1][0, -1] for L in self.layers]  # each [d]
@@ -231,9 +244,11 @@ class ConceptGate:
         max_new_tokens: int = 20,
         check_output: bool = True,
     ) -> RunResult:
-        """Drive M under an action. Input-side check is truncated (cheap); on a flagged
-        verdict (fire or abstain) the action decides -- if it stops, M's full forward and
-        generation never run (the compute win). Otherwise generate with per-token checks."""
+        """Drive M under an action. The action is asked on the input verdict (via a cheap
+        truncated check) and returns a Decision: Stop -> halt + marker (the full model is
+        skipped), InjectSteer -> steer the whole generation, Continue -> generate normally.
+        With check_output the completion is monitored per token (the manual loop); otherwise
+        (and always when steering) generation uses the fast KV-cached path."""
         if not isinstance(action, ConceptAction):
             raise TypeError(
                 f"action must be a ConceptAction (have a .decide(ctx) method); "
@@ -241,46 +256,50 @@ class ConceptGate:
             )
         ids = self.tok(prompt, return_tensors="pt").to(self.device).input_ids
 
-        # input-side: cheap truncated check; a stop here skips the full model entirely
+        # ask the action on the input verdict (cheap truncated check); it owns when + what
         v = self.check(prompt)
-        if v.fired or v.abstained:
-            d = self._dispatch(action, v, ids)
-            if isinstance(d, Stop):
-                text = prompt + (" " + d.emit if d.emit else "")
-                return RunResult(text=text.rstrip(), verdict=v, n_new=0, aborted=True)
+        d = self._dispatch(action, v, ids)
+        if isinstance(d, Stop):
+            text = prompt + (" " + d.emit if d.emit else "")
+            return RunResult(text=text.rstrip(), verdict=v, n_new=0, aborted=True)
+        steer = self._steer_hooks(d.deltas) if isinstance(d, InjectSteer) and d.deltas else None
 
-        # reaching here means the prompt passed input-side and we would generate
         if self.detect_only:
             raise RuntimeError(
-                "prompt passed input-side and this gate is detect-only "
-                "(load=LoadMode.UP_TO_TAPS): it has no lm_head and cannot generate. "
-                "Use check() for detection, or reload with load=LoadMode.FULL to generate."
+                "this gate is detect-only (load=LoadMode.UP_TO_TAPS): it has no lm_head and "
+                "cannot generate. Use check() for detection, or reload with load=LoadMode.FULL."
             )
 
-        # passed input-side -> generate with full forward, output-side checks per token
-        seq = ids
         n_prompt = ids.shape[1]
-        for step in range(1, max_new_tokens + 1):
-            out = self.model(input_ids=seq, output_hidden_states=True, use_cache=False)
-            if check_output:
+        try:
+            # fast path: KV-cached generate (steering hooks, if any, nudge every token)
+            if steer is not None or not check_output:
+                out = self.model.generate(
+                    ids, max_new_tokens=max_new_tokens, do_sample=False,
+                    pad_token_id=self.tok.eos_token_id,
+                )
+                return RunResult(text=self.tok.decode(out[0]), verdict=v,
+                                 n_new=out.shape[1] - n_prompt)
+            # monitored path: manual loop with an output-side check per token
+            seq = ids
+            for step in range(1, max_new_tokens + 1):
+                out = self.model(input_ids=seq, output_hidden_states=True, use_cache=False)
                 vo = self._verdict(self._last_act(out.hidden_states), step=step)
                 if vo.fired or vo.abstained:
-                    d = self._dispatch(action, vo, seq)
-                    if isinstance(d, Stop):
+                    do = self._dispatch(action, vo, seq)
+                    if isinstance(do, Stop):
                         gen = self.tok.decode(seq[0, n_prompt:])
-                        text = (prompt + gen).rstrip() + (
-                            " " + d.emit if d.emit else ""
-                        )
-                        return RunResult(
-                            text=text, verdict=vo, n_new=step - 1, aborted=True
-                        )
-            nxt = int(torch.argmax(out.logits[0, -1]))
-            seq = torch.cat([seq, torch.tensor([[nxt]], device=self.device)], dim=1)
-            if self.tok.eos_token_id is not None and nxt == self.tok.eos_token_id:
-                break
-        return RunResult(
-            text=self.tok.decode(seq[0]), verdict=v, n_new=seq.shape[1] - n_prompt
-        )
+                        text = (prompt + gen).rstrip() + (" " + do.emit if do.emit else "")
+                        return RunResult(text=text, verdict=vo, n_new=step - 1, aborted=True)
+                nxt = int(torch.argmax(out.logits[0, -1]))
+                seq = torch.cat([seq, torch.tensor([[nxt]], device=self.device)], dim=1)
+                if self.tok.eos_token_id is not None and nxt == self.tok.eos_token_id:
+                    break
+            return RunResult(text=self.tok.decode(seq[0]), verdict=v,
+                             n_new=seq.shape[1] - n_prompt)
+        finally:
+            if steer is not None:
+                steer.remove()
 
     # ---- lifecycle: use as a normal object (call unload() when done) or via `with` ----
     def unload(self) -> None:

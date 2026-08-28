@@ -6,6 +6,11 @@ decision plot that marks your prompt, and a per-prompt loudness heatmap.
 
 Run:  uv run marimo edit scripts/demo_marimo.py     # editable
   or  uv run marimo run  scripts/demo_marimo.py     # app view
+
+Pick the starting model from the command line (default gpt2); the picker still overrides:
+      uv run marimo run scripts/demo_marimo.py -- --model qwen
+      uv run marimo run scripts/demo_marimo.py -- --model gpt2
+      uv run marimo run scripts/demo_marimo.py -- --model Qwen/Qwen2.5-0.5B-Instruct
 """
 
 import marimo
@@ -74,8 +79,27 @@ def _(mo):
 
 
 @app.cell
-def _(MODELS, mo):
-    model_pick = mo.ui.dropdown(options=MODELS, value="gpt2", label="model")
+def _(mo):
+    # starting model from the command line: `marimo run demo.py -- --model qwen` (default gpt2).
+    # accepts a short alias or any full HF id; the dropdown/text box still override at runtime.
+    _ALIASES = {
+        "gpt2": "gpt2",
+        "distilgpt2": "distilgpt2",
+        "qwen": "Qwen/Qwen2.5-0.5B-Instruct",
+        "qwen2.5": "Qwen/Qwen2.5-0.5B-Instruct",
+        "smol": "HuggingFaceTB/SmolLM2-360M-Instruct",
+        "smollm2": "HuggingFaceTB/SmolLM2-360M-Instruct",
+    }
+    _raw = mo.cli_args().get("model")
+    _arg = _raw.strip() if isinstance(_raw, str) else ""
+    default_model = _ALIASES.get(_arg.lower(), _arg) if _arg else "gpt2"
+    return (default_model,)
+
+
+@app.cell
+def _(MODELS, default_model, mo):
+    _options = MODELS if default_model in MODELS else [default_model, *MODELS]
+    model_pick = mo.ui.dropdown(options=_options, value=default_model, label="model")
     model_pick
     return (model_pick,)
 
@@ -186,12 +210,12 @@ def _(model_id):
 def _(model, taps, tok):
     # cheap: re-wrap the loaded model with the current taps (no reload on tap edits)
     from conceptgate import ConceptGate
-    from conceptgate.actions import Abort
+    from conceptgate.actions import Abort, Steer, Trigger
     from conceptgate.taps import TapForward
 
     cg = ConceptGate(model, tok, taps, device="cpu")
     tf = TapForward(cg.model, taps)
-    return Abort, cg, tf
+    return Abort, Steer, Trigger, cg, tf
 
 
 @app.cell
@@ -496,6 +520,183 @@ def _(Sn, Sp, alt, cg, mo, negatives, np, positives):
         )
     )
     mo.ui.altair_chart(heat)
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    ## 4. Steer the generation
+
+    A concept direction can *write*, not just read. Added back into the residual stream
+    while the model generates, it bends the output **toward** the concept (positive
+    strength) or **away** (negative) — this is `run(Steer(when=ALWAYS))`, unconditional
+    steering. A gate can hold **many** learned concepts, so `Steer(concept="…")` names which
+    one to steer along; here we learn a few topic directions few-shot and let you pick.
+    Strength is a **fraction of the residual norm** (~0.03–0.10 usually works; too high
+    breaks coherence). It's the one thing a classifier can't do — it *changes* behavior, no
+    training. (Small models steer weakly; expect a soft effect.)
+    """)
+    return
+
+
+@app.cell
+def _(model, taps, tok):
+    # a SEPARATE gate sharing the same weights, with its own bank of topic concepts to steer
+    # along (kept off the detection gate above so it can't pollute those verdicts).
+    from conceptgate import ConceptGate as _CG
+
+    _NEG = [
+        "The meeting is scheduled for Monday morning.", "She wrote a letter to her friend.",
+        "The bank finally approved the loan.", "He parked the car outside the office.",
+        "The quarterly report is due next week.", "They watched a long movie last night.",
+        "The class starts at nine on weekdays.", "I still need to buy a new pair of shoes.",
+    ]
+    STEER_TOPICS = {
+        "food / cooking": [
+            "I love cooking fresh pasta for dinner.", "This recipe needs garlic and basil.",
+            "The restaurant served a delicious soup.", "She baked warm bread in the kitchen.",
+            "We shared a tasty meal together.", "Add a pinch of salt to the sauce.",
+        ],
+        "technology": [
+            "I debugged the software late into the night.", "The laptop has a fast processor.",
+            "She wrote the whole feature in Python.", "The server crashed during deployment.",
+            "He upgraded the graphics card yesterday.", "The app talks to a cloud API.",
+        ],
+        "nature / outdoors": [
+            "We hiked through the quiet green forest.", "The river flowed past the mountains.",
+            "Birds were singing in the tall trees.", "The trail led up to a waterfall.",
+            "Wildflowers bloomed across the meadow.", "The sunset glowed over the ocean.",
+        ],
+    }
+    cg_steer = _CG(model, tok, taps, device="cpu")
+    for _n, _pos in STEER_TOPICS.items():
+        cg_steer.learn(_n, _pos, _NEG)
+    return STEER_TOPICS, cg_steer
+
+
+@app.cell
+def _(STEER_TOPICS, mo):
+    steer_concept = mo.ui.dropdown(
+        options=list(STEER_TOPICS), value=next(iter(STEER_TOPICS)),
+        label="steer along concept",
+    )
+    steer_prompt = mo.ui.text(
+        value="The best part of the day was when",
+        label="generation prompt", full_width=True,
+    )
+    steer_frac = mo.ui.slider(
+        -0.15, 0.15, value=0.06, step=0.01,
+        label="steer strength (fraction of residual norm;  − away / + toward)",
+    )
+    mo.vstack([steer_concept, steer_prompt, steer_frac])
+    return steer_concept, steer_frac, steer_prompt
+
+
+@app.cell
+def _(Steer, Trigger, cg_steer, mo, np, steer_concept, steer_frac, steer_prompt, tf):
+    A = tf.read(cg_steer.tok, [steer_prompt.value], cg_steer.device, last_only=True)[0]
+    norm = float(np.linalg.norm(A[0], axis=1).mean())
+    strength = steer_frac.value * norm
+
+    def _gen(s):
+        r = cg_steer.run(
+            steer_prompt.value,
+            action=Steer(strength=s, concept=steer_concept.value, when=Trigger.ALWAYS),
+            max_new_tokens=30, check_output=False,
+        )
+        return r.text[len(steer_prompt.value):].strip().replace("\n", " ")
+
+    _dir = "toward" if steer_frac.value >= 0 else "away"
+    mo.md(f"""
+    steering along **{steer_concept.value}** · residual norm ≈ **{norm:.0f}** →
+    absolute strength **{strength:+.1f}**
+
+    **baseline** (no steer): {_gen(0.0)!r}
+
+    **steered** ({steer_frac.value:+.2f}, {_dir}): {_gen(strength)!r}
+    """)
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    ## 5. How cheap can the guardrail get?
+
+    Detection runs only blocks `0..tap`, so tapping **earlier** means fewer blocks per
+    prompt — a real saving on a guardrail that fires on *everything*. But an early layer may
+    not have formed the concept yet. This sweeps every layer and plots **separability**
+    (leave-one-out AUC of the same standardized diff-of-means detector ConceptGate uses,
+    held out so it can't overfit) against **cost** (fraction of the transformer you'd run to
+    tap there). The **knee** — the earliest layer that already separates — is the cheapest
+    place to gate. It's concept- and model-specific: harder concepts need to go deeper.
+    """)
+    return
+
+
+@app.cell
+def _(model, n_blocks, negatives, np, positives, tok):
+    from sklearn.metrics import roc_auc_score
+    from conceptgate.taps import TapForward as _TF
+
+    _all = _TF(model, list(range(n_blocks)))              # read every layer in one pass
+    _Ap = _all.read(tok, positives, "cpu", last_only=True)[0]   # [n_pos, L, d]
+    _An = _all.read(tok, negatives, "cpu", last_only=True)[0]
+
+    def _loo_auc(P, N):
+        # leave-one-out AUC of the standardized diff-of-means detector (held out -> honest)
+        X = np.vstack([P, N])
+        y = np.r_[np.ones(len(P)), np.zeros(len(N))]
+        s = np.empty(len(X))
+        for i in range(len(X)):
+            m = np.ones(len(X), bool)
+            m[i] = False
+            Xi, yi = X[m], y[m]
+            mu, sd = Xi.mean(0), Xi.std(0) + 1e-6
+            Z = (Xi - mu) / sd
+            w = Z[yi == 1].mean(0) - Z[yi == 0].mean(0)   # diff-of-means direction
+            s[i] = ((X[i] - mu) / sd) @ w
+        return float(roc_auc_score(y, s))
+
+    aucs = [_loo_auc(_Ap[:, L, :], _An[:, L, :]) for L in range(n_blocks)]
+    costs = [(L + 1) / n_blocks for L in range(n_blocks)]  # blocks run to tap at L
+    return aucs, costs
+
+
+@app.cell
+def _(aucs, costs, n_blocks, plt, taps):
+    _target = 0.85
+    _knee = next((L for L, a in enumerate(aucs) if a >= _target), None)
+    _xs = list(range(n_blocks))
+
+    _fig, _ax = plt.subplots(figsize=(9, 3.6))
+    _ax.plot(_xs, aucs, "o-", color="#C2402F", lw=2, label="separability (LOO AUC)")
+    _ax.axhline(_target, ls="--", lw=0.8, color="0.5")
+    _ax.set_xlabel("tap layer (block index)")
+    _ax.set_ylabel("AUC", color="#C2402F")
+    _ax.set_ylim(0.45, 1.02)
+    _ax.set_xticks(_xs)
+
+    _ax2 = _ax.twinx()
+    _ax2.plot(_xs, costs, "s-", color="#1F6FEB", lw=2, label="cost (blocks run)")
+    _ax2.set_ylabel("fraction of model run", color="#1F6FEB")
+    _ax2.set_ylim(0, 1.05)
+
+    for _L in taps:
+        _ax.axvline(_L, color="green", alpha=0.2)   # your current taps
+    if _knee is not None:
+        _ax.axvline(_knee, color="k", lw=1.5)
+        _ax.set_title(
+            f"knee: block {_knee} separates (AUC {aucs[_knee]:.2f}) at "
+            f"{costs[_knee] * 100:.0f}% of the model  ·  green = current taps"
+        )
+    else:
+        _ax.set_title("no layer clears the target AUC — concept may be too hard for this model")
+    _ax.legend(loc="lower right", fontsize=8)
+    _ax2.legend(loc="center right", fontsize=8)
+    _fig.tight_layout()
+    _fig
     return
 
 
