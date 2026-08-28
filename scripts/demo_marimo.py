@@ -186,12 +186,12 @@ def _(model_id):
 def _(model, taps, tok):
     # cheap: re-wrap the loaded model with the current taps (no reload on tap edits)
     from conceptgate import ConceptGate
-    from conceptgate.actions import Abort
+    from conceptgate.actions import Abort, Steer, Trigger
     from conceptgate.taps import TapForward
 
     cg = ConceptGate(model, tok, taps, device="cpu")
     tf = TapForward(cg.model, taps)
-    return Abort, cg, tf
+    return Abort, Steer, Trigger, cg, tf
 
 
 @app.cell
@@ -496,6 +496,58 @@ def _(Sn, Sp, alt, cg, mo, negatives, np, positives):
         )
     )
     mo.ui.altair_chart(heat)
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    ## 4. Steer the generation
+
+    The same concept direction can *write*, not just read. Added back into the residual
+    stream while the model generates, it bends the output **toward** the concept (positive
+    strength) or **away** (negative) — this is `run(Steer(when=ALWAYS))`, unconditional
+    steering. Strength here is a **fraction of the residual norm** (~0.03–0.10 usually works;
+    too high breaks coherence). It's the one thing a classifier can't do — it *changes*
+    behavior, few-shot, no training. (Small models steer weakly; expect a soft effect.)
+    """)
+    return
+
+
+@app.cell
+def _(mo):
+    steer_prompt = mo.ui.text(
+        value="The best part of the day was when",
+        label="generation prompt", full_width=True,
+    )
+    steer_frac = mo.ui.slider(
+        -0.15, 0.15, value=0.06, step=0.01,
+        label="steer strength (fraction of residual norm;  − away / + toward)",
+    )
+    mo.vstack([steer_prompt, steer_frac])
+    return steer_frac, steer_prompt
+
+
+@app.cell
+def _(Steer, Trigger, cg, concept, mo, np, steer_frac, steer_prompt, tf):
+    _ = concept  # depend on the learned+calibrated concept (ordering)
+    A = tf.read(cg.tok, [steer_prompt.value], cg.device, last_only=True)[0]
+    norm = float(np.linalg.norm(A[0], axis=1).mean())
+    strength = steer_frac.value * norm
+
+    def _gen(s):
+        r = cg.run(steer_prompt.value, action=Steer(strength=s, when=Trigger.ALWAYS),
+                   max_new_tokens=30, check_output=False)
+        return r.text[len(steer_prompt.value):].strip().replace("\n", " ")
+
+    _dir = "toward" if steer_frac.value >= 0 else "away"
+    mo.md(f"""
+    residual norm ≈ **{norm:.0f}** → absolute strength **{strength:+.1f}**
+
+    **baseline** (no steer): {_gen(0.0)!r}
+
+    **steered** ({steer_frac.value:+.2f}, {_dir}): {_gen(strength)!r}
+    """)
     return
 
 
