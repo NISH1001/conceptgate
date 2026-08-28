@@ -6,6 +6,11 @@ decision plot that marks your prompt, and a per-prompt loudness heatmap.
 
 Run:  uv run marimo edit scripts/demo_marimo.py     # editable
   or  uv run marimo run  scripts/demo_marimo.py     # app view
+
+Pick the starting model from the command line (default gpt2); the picker still overrides:
+      uv run marimo run scripts/demo_marimo.py -- --model qwen
+      uv run marimo run scripts/demo_marimo.py -- --model gpt2
+      uv run marimo run scripts/demo_marimo.py -- --model Qwen/Qwen2.5-0.5B-Instruct
 """
 
 import marimo
@@ -74,8 +79,27 @@ def _(mo):
 
 
 @app.cell
-def _(MODELS, mo):
-    model_pick = mo.ui.dropdown(options=MODELS, value="gpt2", label="model")
+def _(mo):
+    # starting model from the command line: `marimo run demo.py -- --model qwen` (default gpt2).
+    # accepts a short alias or any full HF id; the dropdown/text box still override at runtime.
+    _ALIASES = {
+        "gpt2": "gpt2",
+        "distilgpt2": "distilgpt2",
+        "qwen": "Qwen/Qwen2.5-0.5B-Instruct",
+        "qwen2.5": "Qwen/Qwen2.5-0.5B-Instruct",
+        "smol": "HuggingFaceTB/SmolLM2-360M-Instruct",
+        "smollm2": "HuggingFaceTB/SmolLM2-360M-Instruct",
+    }
+    _raw = mo.cli_args().get("model")
+    _arg = _raw.strip() if isinstance(_raw, str) else ""
+    default_model = _ALIASES.get(_arg.lower(), _arg) if _arg else "gpt2"
+    return (default_model,)
+
+
+@app.cell
+def _(MODELS, default_model, mo):
+    _options = MODELS if default_model in MODELS else [default_model, *MODELS]
+    model_pick = mo.ui.dropdown(options=_options, value=default_model, label="model")
     model_pick
     return (model_pick,)
 
