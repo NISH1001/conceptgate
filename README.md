@@ -1,5 +1,7 @@
 # Concept Spectrogram Gate (CSG)
 
+> 📄 **Interactive technical report:** **[nishparadox.com/research/conceptgate](https://nishparadox.com/research/conceptgate/)** — the full write-up, with the mathematics, experiments, and interactive figures.
+
 A lightweight, few-shot **internal concept adapter**. Given a frozen model **M**, a tiny sidekick
 **G** taps M's residual stream at several layers, builds a per-concept *spectrogram* of diff-of-means
 projections across depth, blends it with a learned **bandpass filter**, and gates on a calibrated
