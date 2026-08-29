@@ -210,12 +210,12 @@ def _(model_id):
 def _(model, taps, tok):
     # cheap: re-wrap the loaded model with the current taps (no reload on tap edits)
     from conceptgate import ConceptGate
-    from conceptgate.actions import Abort, Steer, Trigger
+    from conceptgate.actions import Abort, Emit, Steer, Trigger
     from conceptgate.taps import TapForward
 
     cg = ConceptGate(model, tok, taps, device="cpu")
     tf = TapForward(cg.model, taps)
-    return Abort, Steer, Trigger, cg, tf
+    return Abort, Emit, Steer, Trigger, cg, tf
 
 
 @app.cell
@@ -477,6 +477,21 @@ def _(Abort, cg, concept, mo, prompt, v):
     (margin {v.margin:+.2f})
 
     `run(Abort())` → `{r.text!r}`
+    """)
+    return
+
+
+@app.cell
+def _(Emit, Trigger, cg, mo, prompt, v):
+    # soft redirect: on a fire, open the completion with a refusal and let M continue from it
+    _r = cg.run(prompt.value, action=Emit(text="\nI'm sorry, but I can't help with that request.",
+                                          when=Trigger.FIRE), max_new_tokens=20, check_output=False)
+    _did = ("🔴 fired → completion **opens with the refusal**, then M continues from it"
+            if v.fired else "🟢 passed → no redirect, normal generation")
+    mo.md(f"""
+    **`Emit` — soft redirect** (vs `Abort`'s hard stop): {_did}
+
+    `run(Emit(…), when=FIRE)` → `{_r.text!r}`
     """)
     return
 

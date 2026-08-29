@@ -6,7 +6,7 @@ a Decision the gate executes. Actions never touch the gate's internals -- only t
 FireContext -- so adding an action never changes the gate. WHEN an action acts (fire /
 fire-or-unsure / always) is a general Trigger the action carries; WHAT it does is the action.
 
-Shipped: Abort (-> Stop) and Steer (-> InjectSteer). Emit (-> ForceToken) is scaffolded.
+Shipped: Abort (-> Stop), Steer (-> InjectSteer), Emit (-> ForceToken).
 """
 from __future__ import annotations
 
@@ -48,8 +48,8 @@ class InjectSteer:
 
 @dataclass(frozen=True)
 class ForceToken:
-    """Force the next token id. (scaffolded, not yet wired)"""
-    token_id: int = 0
+    """Seed these token ids into the stream, then keep generating from them."""
+    token_ids: tuple[int, ...] = ()
 
 
 Decision = Stop | Continue | InjectSteer | ForceToken
@@ -136,3 +136,20 @@ class Steer:
         W = c.W_raw  # [m, d] per-layer diff-of-means (raw space)
         deltas = {ctx.layers[i]: self.strength * W[i] for i in range(len(ctx.layers))}
         return InjectSteer(deltas=deltas)
+
+
+@dataclass
+class Emit:
+    """Seed a fixed string into the completion when the trigger fires, then let M continue
+    from it -- a soft redirect. Unlike Abort's marker (appended after decoding STOPS), the text
+    is prepended to the completion and generation goes on, conditioned on it: e.g. open with a
+    refusal on a jailbreak fire and let the model finish it in its own voice, instead of a hard
+    stop. The gate tokenizes `text` and forces those ids before generating the rest."""
+    text: str = "I can't help with that."
+    when: Trigger | str = Trigger.FIRE
+
+    def decide(self, ctx: FireContext) -> Decision:
+        if _triggered(self.when, ctx.verdict):
+            ids = ctx.tok(self.text, add_special_tokens=False).input_ids
+            return ForceToken(token_ids=tuple(int(i) for i in ids))
+        return Continue()

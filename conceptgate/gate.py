@@ -26,6 +26,7 @@ from .actions import (
     Continue,
     Decision,
     FireContext,
+    ForceToken,
     InjectSteer,
     Stop,
     Verdict,
@@ -218,7 +219,7 @@ class ConceptGate:
     def _dispatch(self, action: ConceptAction, v: Verdict, seq) -> Decision:
         """Hand the verdict to the action; return its Decision (Stop / Continue / InjectSteer)."""
         d = action.decide(self._context(v, seq))
-        if isinstance(d, (Stop, Continue, InjectSteer)):
+        if isinstance(d, (Stop, Continue, InjectSteer, ForceToken)):
             return d
         raise NotImplementedError(f"{type(d).__name__} decisions land in a later round")
 
@@ -263,6 +264,7 @@ class ConceptGate:
             text = prompt + (" " + d.emit if d.emit else "")
             return RunResult(text=text.rstrip(), verdict=v, n_new=0, aborted=True)
         steer = self._steer_hooks(d.deltas) if isinstance(d, InjectSteer) and d.deltas else None
+        forced = list(d.token_ids) if isinstance(d, ForceToken) else []
 
         if self.detect_only:
             raise RuntimeError(
@@ -271,9 +273,12 @@ class ConceptGate:
             )
 
         n_prompt = ids.shape[1]
+        if forced:  # seed the completion; M continues FROM the forced tokens
+            ids = torch.cat([ids, torch.tensor([forced], device=self.device)], dim=1)
         try:
-            # fast path: KV-cached generate (steering hooks, if any, nudge every token)
-            if steer is not None or not check_output:
+            # fast path: KV-cached generate (steering hooks nudge every token; a forced prefix
+            # is already appended to `ids`, so M just continues from it)
+            if steer is not None or forced or not check_output:
                 out = self.model.generate(
                     ids, max_new_tokens=max_new_tokens, do_sample=False,
                     pad_token_id=self.tok.eos_token_id,
