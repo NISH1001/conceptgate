@@ -95,12 +95,13 @@ classifier: it *changes* behavior, few-shot, no training.
 from conceptgate.actions import Steer, Trigger
 
 cg.learn("food", positives=[...], negatives=[...])
-cg.run(prompt, action=Steer(concept="food", strength=6.0, when=Trigger.ALWAYS))
+cg.run(prompt, action=Steer(concept="food", fraction=0.06, when=Trigger.ALWAYS))
 ```
-`strength`'s sign picks toward/away (a good range is ~3–10% of the residual norm; too high tips
-into gibberish). `concept=` names which learned concept to steer along (default: the detected one),
-and raises if that name wasn't learned. Steering needs the concept **learned** (it uses the
-diff-of-means direction `W_raw`) — not calibrated.
+Magnitude is a **`fraction` of the residual norm** by default (model-agnostic — ~0.03–0.10 is the
+coherent range, higher tips into gibberish); the sign picks toward/away. Pass `strength=` for an
+absolute value instead. `concept=` names which learned concept to steer along (default: the
+detected one), and raises if that name wasn't learned. Steering needs the concept **learned** (it
+uses the diff-of-means direction `W_raw`) — not calibrated.
 
 **`Trigger` — when an action acts** (shared by every action): `FIRE` (only on a confident fire),
 `FIRE_OR_UNSURE` (also on an abstain), `ALWAYS` (unconditional, regardless of the verdict). So

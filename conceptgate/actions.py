@@ -26,6 +26,7 @@ class Verdict:
     margin: float = 0.0             # score - tau (signed distance to the boundary)
     p_present: float = 0.5          # P(concept present): logistic of the margin
     abstained: bool = False         # inside the unsure band around tau (no decision)
+    resid_norm: float = 0.0         # mean L2 norm of the last-token residual at the taps
 
 
 # ---- Decision: what the gate should do (a Command the driver executes) ----
@@ -106,12 +107,14 @@ class Abort:
 
 @dataclass
 class Steer:
-    """Nudge generation along a concept's steering direction (W_raw): strength > 0 steers
-    TOWARD the concept, < 0 AWAY. `concept` names which learned concept to steer along
-    (default: the detected one). `when` controls it -- ALWAYS steers unconditionally, FIRE /
-    FIRE_OR_UNSURE only when the concept is flagged. The gate installs the returned InjectSteer
-    as forward hooks for the whole generation."""
-    strength: float = 8.0
+    """Nudge generation along a concept's steering direction (W_raw): magnitude > 0 steers
+    TOWARD the concept, < 0 AWAY. Magnitude is a `fraction` of the residual norm by default
+    (model-agnostic; ~0.03-0.10 is the coherent range, higher breaks it) -- set `strength` for
+    an absolute value instead. `concept` names which learned concept to steer along (default:
+    the detected one). `when` controls it -- ALWAYS steers unconditionally, FIRE / FIRE_OR_UNSURE
+    only when flagged. The gate installs the returned InjectSteer as hooks for the generation."""
+    fraction: float = 0.06           # magnitude as a fraction of the residual norm
+    strength: float | None = None    # absolute magnitude; overrides `fraction` when set
     when: Trigger | str = Trigger.FIRE
     concept: str | None = None
 
@@ -133,8 +136,10 @@ class Steer:
                 "Steer: nothing to steer along -- no concept named and none detected. "
                 "Pass Steer(concept=...) or learn a concept first."
             )
+        # absolute strength wins; otherwise scale by the measured residual norm (model-agnostic)
+        s = self.strength if self.strength is not None else self.fraction * ctx.verdict.resid_norm
         W = c.W_raw  # [m, d] per-layer diff-of-means (raw space)
-        deltas = {ctx.layers[i]: self.strength * W[i] for i in range(len(ctx.layers))}
+        deltas = {ctx.layers[i]: s * W[i] for i in range(len(ctx.layers))}
         return InjectSteer(deltas=deltas)
 
 

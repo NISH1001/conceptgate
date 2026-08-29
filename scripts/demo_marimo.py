@@ -609,27 +609,26 @@ def _(STEER_TOPICS, mo):
 
 
 @app.cell
-def _(Steer, Trigger, cg_steer, mo, np, steer_concept, steer_frac, steer_prompt, tf):
-    A = tf.read(cg_steer.tok, [steer_prompt.value], cg_steer.device, last_only=True)[0]
-    norm = float(np.linalg.norm(A[0], axis=1).mean())
-    strength = steer_frac.value * norm
+def _(Steer, Trigger, cg_steer, mo, steer_concept, steer_frac, steer_prompt):
+    # the gate measures the residual norm and Steer(fraction=) scales by it -- no manual math
+    norm = cg_steer.check(steer_prompt.value).resid_norm
 
-    def _gen(s):
+    def _gen(frac):
         r = cg_steer.run(
             steer_prompt.value,
-            action=Steer(strength=s, concept=steer_concept.value, when=Trigger.ALWAYS),
+            action=Steer(fraction=frac, concept=steer_concept.value, when=Trigger.ALWAYS),
             max_new_tokens=30, check_output=False,
         )
         return r.text[len(steer_prompt.value):].strip().replace("\n", " ")
 
     _dir = "toward" if steer_frac.value >= 0 else "away"
     mo.md(f"""
-    steering along **{steer_concept.value}** · residual norm ≈ **{norm:.0f}** →
-    absolute strength **{strength:+.1f}**
+    steering along **{steer_concept.value}** · residual norm ≈ **{norm:.0f}** ·
+    fraction **{steer_frac.value:+.2f}**
 
     **baseline** (no steer): {_gen(0.0)!r}
 
-    **steered** ({steer_frac.value:+.2f}, {_dir}): {_gen(strength)!r}
+    **steered** ({steer_frac.value:+.2f}, {_dir}): {_gen(steer_frac.value)!r}
     """)
     return
 

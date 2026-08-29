@@ -168,8 +168,9 @@ class ConceptGate:
 
         Also reports uncertainty on the attributed concept: p_present (calibrated) and an
         abstain flag (score inside the concept's unsure band around tau)."""
+        resid_norm = float(np.linalg.norm(A_last[0], axis=1).mean())  # per-tap L2, averaged
         if not self.concepts:
-            return Verdict(fired=False, step=step)
+            return Verdict(fired=False, step=step, resid_norm=resid_norm)
         scored = {
             n: (float(c.llr(A_last)[0]), int(c.decide(A_last)[0]))
             for n, c in self.concepts.items()
@@ -187,6 +188,7 @@ class ConceptGate:
             margin=float(llr - c.tau),
             p_present=float(c.p_present(A_last)[0]),
             abstained=(not firing) and dec == 0,
+            resid_norm=resid_norm,
         )
         logger.debug(
             "verdict@{}: {} -> fired={} concept={} p={:.2f} abstain={}",
