@@ -107,6 +107,18 @@ diff-of-means direction `W_raw`) — not calibrated.
 `Abort(when=Trigger.FIRE)` blocks when a concept fires; `Steer(when=Trigger.ALWAYS)` steers every
 generation. Verdict-gated triggers (`FIRE` / `FIRE_OR_UNSURE`) need `calibrate`; `ALWAYS` does not.
 
+**`Emit` — a soft redirect** (vs `Abort`'s hard stop): seed a fixed opening into the completion
+when the trigger fires, then let M continue from it in its own voice — open with a refusal on a
+jailbreak fire instead of a bracketed marker.
+```python
+from conceptgate.actions import Emit
+
+cg.run(prompt, action=Emit(text="\nI'm sorry, but I can't help with that.", when=Trigger.FIRE))
+```
+Where `Abort` appends its marker *after* decoding halts, `Emit` prepends the text to the completion
+and generation goes on, conditioned on it. (Include a leading space or newline in `text` for a
+clean break from the prompt.)
+
 **Detection direction** (opt-in): `cg.learn(..., direction=Direction.LOGISTIC)` fits a per-layer
 discriminative direction instead of the default diff-of-means — it closes the detection gap to a
 linear SVM (largest gains on weaker models), while the steering direction stays diff-of-means.
@@ -140,10 +152,10 @@ cg = ConceptGate.from_pretrained("gpt2", layers=[4,6,8], debug=True)
 ## Layout
 ```
 conceptgate/
-  __init__.py       # public surface: ConceptGate, Abort/Steer/Trigger, Direction, Verdict
+  __init__.py       # public surface: ConceptGate, Abort/Steer/Emit/Trigger, Direction, Verdict
   gate.py           # ConceptGate — facade: from_pretrained/learn/calibrate/check/run
   concept.py        # Concept (mixture LLR unit) + BandpassConcept baseline + ConceptBank
-  actions.py        # ConceptAction protocol, FireContext, Decision, Abort, Steer, Trigger  (strategy layer)
+  actions.py        # ConceptAction protocol, FireContext, Decision, Abort, Steer, Emit, Trigger  (strategy layer)
   taps.py           # TapForward — the signal listener: truncated forward (or full=True), batching
   spectral.py       # diff-of-means directions, spectrogram, bandpass filter (pure numpy)
   mixture.py        # Set((mu,Sigma)) per class: GMM (sklearn EM + BIC) on the spectrogram
@@ -192,8 +204,11 @@ uv run pytest tests/ -q              # unit tests
   direction back into the residual stream during generation, steering the output toward/away
   (validated coherent on Qwen2.5-0.5B; magnitude-sensitive). `Steer(concept=...)` picks among many
   learned concepts. Every action shares a `Trigger` (`FIRE` / `FIRE_OR_UNSURE` / `ALWAYS`), and
-  `run` is the single driver for detect-and-act and unconditional steering alike. Next:
-  `Emit`/`ForceToken` (force tokens into the stream) and the sequential per-tap early exit.
+  `run` is the single driver for detect-and-act and unconditional steering alike.
+- **Emit (done):** the soft redirect — `run(action=Emit(text=...))` seeds a fixed opening into the
+  completion when the trigger fires (`-> ForceToken`), then M continues from it; unlike `Abort`'s
+  post-stop marker, it steers the output by conditioning generation on the forced prefix. Next:
+  mid-generation token forcing and the sequential per-tap early exit.
 - **P1 (next):** Gemma-2-2B-it. Single-best-layer baseline (A); measure few-shot recall/FPR/PR.
 - **P2:** CSG depth filter vs A vs MLP (B) ablation; abort vs reroute comparison.
 - **P3:** jailbreak robustness vs a text-classifier guard; multi-concept K.
