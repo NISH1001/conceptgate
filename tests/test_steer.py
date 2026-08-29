@@ -50,3 +50,22 @@ def test_steer_named_concept_uses_that_direction():
 def test_steer_unlearned_concept_raises_with_available_names():
     with pytest.raises(KeyError, match="not a learned concept"):
         Steer(concept="missing").decide(_ctx(fired=True))
+
+
+def test_steer_fraction_scales_by_residual_norm():
+    # default magnitude is a fraction of the measured residual norm (model-agnostic)
+    ctx = FireContext(
+        verdict=Verdict(fired=True, concept="c", resid_norm=10.0),
+        concept=_DummyConcept(1.0), layers=[4, 6, 8], concepts={},
+    )
+    d = Steer(fraction=0.5).decide(ctx)               # s = 0.5 * 10 = 5.0; W_raw = 1
+    assert np.allclose(d.deltas[4], np.full(4, 5.0))
+
+
+def test_steer_strength_overrides_fraction():
+    ctx = FireContext(
+        verdict=Verdict(fired=True, concept="c", resid_norm=10.0),
+        concept=_DummyConcept(1.0), layers=[4, 6, 8], concepts={},
+    )
+    d = Steer(strength=2.0, fraction=0.5).decide(ctx)  # absolute wins -> s = 2.0
+    assert np.allclose(d.deltas[4], np.full(4, 2.0))
