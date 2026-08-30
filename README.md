@@ -173,6 +173,7 @@ scripts/
   mixture_gpt2_check.py    # mixture on real GPT-2 activations
   bake_paper_data.py  # bake real gpt2+Qwen results -> JSON embedded in the technical report
   rebake_detection.py # per-model detection blocks for the report's "trace a prompt" picker
+  eval_detection.py   # P1/P2 benchmark: ConceptGate vs single-layer/logistic across a model ladder
 ```
 
 ## Run (always via `uv run`)
@@ -182,6 +183,7 @@ uv run python scripts/toy_csg.py     # offline math check  -> VALIDATION PASS (e
 uv run python scripts/toy_csg_mixture.py       # mixture densities -> MIXTURE VALIDATION PASS
 uv run python scripts/mixture_gpt2_check.py    # mixture on real GPT-2 acts -> PASS
 uv run python scripts/demo.py        # facade end-to-end + speedup -> DEMO: PASS
+uv run --with datasets python scripts/eval_detection.py --quick   # detection benchmark smoke test
 uv run pytest tests/ -q              # unit tests
 ```
 
