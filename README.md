@@ -171,6 +171,8 @@ scripts/
   toy_csg.py        # OFFLINE math check (no model): depth filter beats single layer
   toy_csg_mixture.py # mixture validation: regression / bimodal benign / kill-shot
   mixture_gpt2_check.py    # mixture on real GPT-2 activations
+  bake_paper_data.py  # bake real gpt2+Qwen results -> JSON embedded in the technical report
+  rebake_detection.py # per-model detection blocks for the report's "trace a prompt" picker
 ```
 
 ## Run (always via `uv run`)
