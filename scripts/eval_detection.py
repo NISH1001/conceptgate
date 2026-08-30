@@ -28,9 +28,11 @@ os.environ.setdefault("HF_HUB_OFFLINE", "1")  # everything is cached; never hit 
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import average_precision_score, roc_auc_score, roc_curve
+from sklearn.svm import SVC, LinearSVC
 
 from conceptgate import ConceptGate
-from conceptgate.concept import BandpassConcept
+from conceptgate import spectral as spec
+from conceptgate.concept import BandpassConcept, Direction, _fit_directions
 
 LADDER = [
     "gpt2",                                  # 124M -- the "model is the ceiling" floor
@@ -45,25 +47,62 @@ POOL_PER_CLASS = 64      # few-shot pool drawn from train; test is the untouched
 
 
 # ----------------------------- data -----------------------------
-def load_data(seed=0):
+# Cross-distribution sources for the generalization axis. Each yields (prompt, label) with
+# label 1 = "a prompt a guardrail should flag" (jailbreak / unsafe), 0 = benign. jackhhao is
+# jailbreak *templates*; BeaverTails is plainly-asked *harmful requests* -- a real shift.
+TEST_PER_CLASS = 150   # cap on the held-out test set per class (jackhhao test is smaller, kept whole)
+
+
+def _source_rows(source):
     from datasets import load_dataset
-    ds = load_dataset(DATASET)
+    if source == "jackhhao":
+        ds = load_dataset("jackhhao/jailbreak-classification")
+        conv = lambda sp: [(r["prompt"].strip()[:CHAR_CAP], 1 if r["type"] == "jailbreak" else 0)
+                           for r in ds[sp]]
+        return conv("train"), conv("test")
+    if source == "beavertails":
+        ds = load_dataset("PKU-Alignment/BeaverTails")
 
-    def rows(split):
-        return [(r["prompt"].strip()[:CHAR_CAP], 1 if r["type"] == "jailbreak" else 0)
-                for r in ds[split]]
+        def conv(sp):  # BeaverTails repeats each prompt across responses -> dedup
+            seen, out = set(), []
+            for r in ds[sp]:
+                p = r["prompt"].strip()
+                if p in seen:
+                    continue
+                seen.add(p)
+                out.append((p[:CHAR_CAP], 0 if str(r["is_safe"]) == "True" else 1))
+            return out
+        return conv("30k_train"), conv("30k_test")
+    raise ValueError(f"unknown source {source}")
 
+
+def load_source(source, seed=0):
+    """(pool_txt, pool_y, test_txt, test_y) for one dataset: a balanced few-shot pool from train,
+    a balanced held-out test set from the official test split."""
     rng = np.random.default_rng(seed)
-    train, test = rows("train"), rows("test")
-    pos = [p for p, y in train if y == 1]
-    neg = [p for p, y in train if y == 0]
-    rng.shuffle(pos)
-    rng.shuffle(neg)
-    pool_txt = pos[:POOL_PER_CLASS] + neg[:POOL_PER_CLASS]
-    pool_y = np.r_[np.ones(POOL_PER_CLASS), np.zeros(POOL_PER_CLASS)].astype(int)
-    test_txt = [p for p, _ in test]
-    test_y = np.array([y for _, y in test])
+    train, test = _source_rows(source)
+
+    def balanced(rows, per_class):
+        pos = [p for p, y in rows if y == 1]
+        neg = [p for p, y in rows if y == 0]
+        rng.shuffle(pos)
+        rng.shuffle(neg)
+        k = min(per_class, len(pos), len(neg))
+        txt = pos[:k] + neg[:k]
+        return txt, np.r_[np.ones(k), np.zeros(k)].astype(int)
+
+    pool_txt, pool_y = balanced(train, POOL_PER_CLASS)
+    # jackhhao test is small + fixed -> keep whole; larger sets get a balanced cap
+    if source == "jackhhao":
+        test_txt = [p for p, _ in test]
+        test_y = np.array([y for _, y in test])
+    else:
+        test_txt, test_y = balanced(test, TEST_PER_CLASS)
     return pool_txt, pool_y, test_txt, test_y
+
+
+def load_data(seed=0):
+    return load_source("jackhhao", seed)
 
 
 # --------------------------- taps -------------------------------
@@ -101,13 +140,32 @@ def _metrics(s_te, y_te):
     }
 
 
+def _fit_cg(Ap, An, direction):
+    """Build a depth-bandpass gate on cached activations with a chosen detection direction.
+    Replicates BandpassConcept.fit but lets us pick DIFF_OF_MEANS vs LOGISTIC (the fit method
+    itself hardcodes diff-of-means)."""
+    c = BandpassConcept()
+    c.mu0, c.sd0, c.W, c.W_raw, S_pos, S_neg = _fit_directions(Ap, An, direction)
+    c.f = spec.fit_bandpass(S_pos, S_neg, method=c.filter_method)
+    sp, sn = spec.filtered_score(S_pos, c.f), spec.filtered_score(S_neg, c.f)
+    c.mu_pos, c.sigma_pos = float(sp.mean()), float(sp.std(ddof=1))
+    c.mu_neg, c.sigma_neg = float(sn.mean()), float(sn.std(ddof=1))
+    return c
+
+
 def det_conceptgate(Ap, An, Ate, yte):
     t = time.perf_counter()
-    c = BandpassConcept().fit(Ap, An)
+    c = _fit_cg(Ap, An, Direction.DIFF_OF_MEANS)
     learn_ms = (time.perf_counter() - t) * 1e3
     m = _metrics(c.llr(Ate), yte)
     m["learn_ms"] = learn_ms
     return m
+
+
+def det_conceptgate_log(Ap, An, Ate, yte):
+    """ConceptGate with the per-layer LOGISTIC (discriminative, covariance-aware) direction --
+    the fair, strongest-mode comparison against the joint logistic probe."""
+    return _metrics(_fit_cg(Ap, An, Direction.LOGISTIC).llr(Ate), yte)
 
 
 def det_best_layer(Ap, An, Ate, yte):
@@ -125,17 +183,31 @@ def det_best_layer(Ap, An, Ate, yte):
     return _metrics(Zte[:, best_L] @ best_w, yte)
 
 
-def det_logistic(Ap, An, Ate, yte):
+def _flat_clf(Ap, An, Ate, yte, clf):
+    """Fit a discriminative classifier on the FULL flattened+standardized activation (all taps,
+    all dims jointly) and score the test set -- the strong 'detection is a commodity' baselines."""
     Xtr = np.concatenate([Ap, An], 0).reshape(len(Ap) + len(An), -1)
     ytr = np.r_[np.ones(len(Ap)), np.zeros(len(An))]
     mu, sd = Xtr.mean(0), Xtr.std(0) + 1e-6
-    Xtr = (Xtr - mu) / sd
-    clf = LogisticRegression(max_iter=2000, C=1.0).fit(Xtr, ytr)
-    s_te = clf.decision_function((Ate.reshape(len(Ate), -1) - mu) / sd)
-    return _metrics(s_te, yte)
+    clf.fit((Xtr - mu) / sd, ytr)
+    return _metrics(clf.decision_function((Ate.reshape(len(Ate), -1) - mu) / sd), yte)
 
 
-DETECTORS = {"conceptgate": det_conceptgate, "best_layer": det_best_layer, "logistic": det_logistic}
+def det_logistic(Ap, An, Ate, yte):   # vanilla L2-logistic regression
+    return _flat_clf(Ap, An, Ate, yte, LogisticRegression(max_iter=2000, C=1.0))
+
+
+def det_svm_linear(Ap, An, Ate, yte):
+    return _flat_clf(Ap, An, Ate, yte, LinearSVC(C=1.0, max_iter=5000))
+
+
+def det_svm_rbf(Ap, An, Ate, yte):
+    return _flat_clf(Ap, An, Ate, yte, SVC(kernel="rbf", C=1.0))
+
+
+DETECTORS = {"conceptgate": det_conceptgate, "conceptgate_log": det_conceptgate_log,
+             "best_layer": det_best_layer, "logistic": det_logistic,
+             "svm_linear": det_svm_linear, "svm_rbf": det_svm_rbf}
 
 
 # --------------------------- run --------------------------------
@@ -207,13 +279,118 @@ def print_table(res):
     print(f"\n{res['model']}  |  detect {res['detect_ms_per_prompt']:.1f} ms/prompt"
           + (f"  |  trunc {res['trunc_vs_full_speedup']:.2f}x vs full" if res["trunc_vs_full_speedup"] else "")
           + (f"  |  CG learn {first['learn_ms']:.1f} ms" if first.get("learn_ms") else ""))
-    print(f"  {'N/cls':>5} | {'ConceptGate':>13} {'best-layer(A)':>13} {'logistic(B)':>13}   "
-          f"(cell = AUC  recall@5%FPR)")
+    print(f"  {'N':>3} | {'CG-diff':>8} {'CG-log':>8} {'LR':>8} {'SVM-lin':>8} {'SVM-rbf':>8} "
+          f"{'best-L':>8}   (AUC)")
     for N, r in res["rows"].items():
         def cell(n):
             d = r.get(n)
-            return f"{d['auc']:.3f} {d['r_at_5']:.2f}" if d else "    --    "
-        print(f"  {N:>5} | {cell('conceptgate'):>13} {cell('best_layer'):>13} {cell('logistic'):>13}")
+            return f"{d['auc']:.3f}" if d else "  -- "
+        print(f"  {N:>3} | {cell('conceptgate'):>8} {cell('conceptgate_log'):>8} {cell('logistic'):>8} "
+              f"{cell('svm_linear'):>8} {cell('svm_rbf'):>8} {cell('best_layer'):>8}")
+
+
+def bench_cross(model, sources, N, seeds, device):
+    """Transfer matrix: learn a concept on each source's few-shot pool, test on every source's
+    held-out split. The diagonal is in-distribution; off-diagonal is cross-distribution. The
+    value question: does CG-logistic drop LESS than the full probe when train != test?"""
+    taps, n_layers = taps_for(model)
+    print(f"\n### CROSS-DIST {model}  (taps {'/'.join(map(str, taps))} of {n_layers}, N={N})", flush=True)
+    cg = load_model(model, taps, device)
+    data = {}
+    for s in sources:
+        pool_txt, pool_y, test_txt, test_y = load_source(s, 0)
+        data[s] = {"poolA": extract(cg, pool_txt), "pool_y": pool_y,
+                   "testA": extract(cg, test_txt), "test_y": test_y}
+        print(f"   extracted {s}: pool {len(pool_txt)}, test {len(test_txt)}", flush=True)
+    cg.unload()
+
+    matrix = {}
+    for tr in sources:
+        pos = np.where(data[tr]["pool_y"] == 1)[0]
+        neg = np.where(data[tr]["pool_y"] == 0)[0]
+        for te in sources:
+            cell = {}
+            for name, fn in DETECTORS.items():
+                aucs = []
+                for sd in seeds:
+                    rng = np.random.default_rng(2000 + sd)
+                    ip = rng.choice(pos, N, replace=False)
+                    ineg = rng.choice(neg, N, replace=False)
+                    try:
+                        aucs.append(fn(data[tr]["poolA"][ip], data[tr]["poolA"][ineg],
+                                       data[te]["testA"], data[te]["test_y"])["auc"])
+                    except Exception as e:
+                        print(f"     {name} {tr}->{te} sd={sd} failed: {type(e).__name__}: {e}", flush=True)
+                if aucs:
+                    cell[name] = float(np.mean(aucs))
+            matrix[f"{tr}->{te}"] = cell
+    return {"model": model, "n_layers": n_layers, "taps": taps, "N": N,
+            "sources": sources, "matrix": matrix}
+
+
+def print_cross(res):
+    print(f"\n{res['model']}  cross-distribution AUC (N={res['N']}/class)")
+    dets = [("conceptgate_log", "CG-logistic"), ("conceptgate", "CG-diff"),
+            ("logistic", "probe"), ("best_layer", "best-layer")]
+    for key, cell in res["matrix"].items():
+        tag = "  (in-dist)" if key.split("->")[0] == key.split("->")[1] else "  (CROSS)"
+        nums = "  ".join(f"{lbl} {cell.get(k, float('nan')):.3f}" for k, lbl in dets)
+        print(f"  {key:>26} | {nums}{tag}")
+    # the headline: generalization drop (in-dist diagonal minus the mean cross for the same train)
+    print("  --- generalization drop (in-dist AUC - cross AUC, same train source; smaller = more robust) ---")
+    for tr in res["sources"]:
+        ind = res["matrix"].get(f"{tr}->{tr}", {})
+        cross = [res["matrix"][f"{tr}->{te}"] for te in res["sources"] if te != tr]
+        for k, lbl in [("conceptgate_log", "CG-logistic"), ("logistic", "probe")]:
+            if ind.get(k) is not None and cross:
+                cx = np.mean([c[k] for c in cross if c.get(k) is not None])
+                print(f"    train={tr:>12} {lbl:>11}: in-dist {ind[k]:.3f} -> cross {cx:.3f}  (drop {ind[k]-cx:+.3f})")
+
+
+def _lr_auc(Xp, Xn, Xte, yte):
+    """AUC of an L2-logistic probe on a single-layer feature block [N, d]."""
+    Xtr = np.concatenate([Xp, Xn], 0)
+    ytr = np.r_[np.ones(len(Xp)), np.zeros(len(Xn))]
+    mu, sd = Xtr.mean(0), Xtr.std(0) + 1e-6
+    clf = LogisticRegression(max_iter=2000, C=1.0).fit((Xtr - mu) / sd, ytr)
+    return float(roc_auc_score(yte, clf.decision_function((Xte - mu) / sd)))
+
+
+def bench_fullprobe(model, Ns, seeds, device):
+    """The realistic baseline: CG (few mid-taps, few-shot, closed-form) vs a linear probe on the
+    FROZEN FULL model -- swept over ALL layers (the strong standard probe) and on the last layer
+    (the naive classification head). Same N for every method, so it's a fair matched comparison."""
+    taps, n_layers = taps_for(model)
+    all_layers = list(range(n_layers))
+    print(f"\n### FULLPROBE {model}  ({n_layers} layers; CG taps {taps} vs full-model linear probe)", flush=True)
+    cg = load_model(model, all_layers, device)     # load FULL model, tap every layer
+    pool_txt, pool_y, test_txt, test_y = load_data(seed=0)
+    poolA = extract(cg, pool_txt)                   # [N, n_layers, d]
+    testA = extract(cg, test_txt)
+    cg.unload()
+    pos, neg = np.where(pool_y == 1)[0], np.where(pool_y == 0)[0]
+
+    rows = {}
+    for N in Ns:
+        acc = {"cg_log": [], "linprobe_best": [], "linprobe_last": []}
+        for sd in seeds:
+            rng = np.random.default_rng(3000 + sd)
+            ip = rng.choice(pos, N, replace=False)
+            ineg = rng.choice(neg, N, replace=False)
+            c = _fit_cg(poolA[ip][:, taps, :], poolA[ineg][:, taps, :], Direction.LOGISTIC)
+            acc["cg_log"].append(_metrics(c.llr(testA[:, taps, :]), test_y)["auc"])
+            acc["linprobe_best"].append(max(
+                _lr_auc(poolA[ip][:, L, :], poolA[ineg][:, L, :], testA[:, L, :], test_y)
+                for L in all_layers))
+            acc["linprobe_last"].append(
+                _lr_auc(poolA[ip][:, -1, :], poolA[ineg][:, -1, :], testA[:, -1, :], test_y))
+        rows[N] = {k: float(np.mean(v)) for k, v in acc.items() if v}
+
+    print(f"  {'N':>3} | {'CG-logistic (3 taps)':>20} {'linprobe-best (all L)':>22} {'linprobe-last':>14}   (AUC)")
+    for N, r in rows.items():
+        print(f"  {N:>3} | {r.get('cg_log', 0):>20.3f} {r.get('linprobe_best', 0):>22.3f} "
+              f"{r.get('linprobe_last', 0):>14.3f}")
+    return {"model": model, "n_layers": n_layers, "taps": taps, "rows": rows}
 
 
 def main():
@@ -225,6 +402,9 @@ def main():
     ap.add_argument("--out", default="scripts/eval_detection_results.json")
     ap.add_argument("--no-full-timing", action="store_true")
     ap.add_argument("--quick", action="store_true", help="Qwen-0.5B, N=8, one seed (smoke test)")
+    ap.add_argument("--cross", action="store_true", help="cross-distribution transfer matrix")
+    ap.add_argument("--sources", default="jackhhao,beavertails", help="datasets for --cross")
+    ap.add_argument("--fullprobe", action="store_true", help="CG vs full-model all-layer linear probe")
     a = ap.parse_args()
 
     if a.quick:
@@ -237,6 +417,37 @@ def main():
         models = [m.strip() for m in a.models.split(",")]
     Ns = [int(x) for x in a.ns.split(",")]
     seeds = [int(x) for x in a.seeds.split(",")]
+
+    if a.fullprobe:
+        out = "scripts/eval_fullprobe_results.json" if a.out == "scripts/eval_detection_results.json" else a.out
+        print(f"fullprobe: {len(models)} model(s), N/cls={Ns}, seeds={seeds}", flush=True)
+        results = []
+        for model in models:
+            try:
+                results.append(bench_fullprobe(model, Ns, seeds, a.device))
+            except Exception as e:
+                print(f"  SKIP {model}: {type(e).__name__}: {e}", flush=True)
+            with open(out, "w") as f:
+                json.dump({"results": results}, f, indent=1)
+        print(f"\ndone -> {out}", flush=True)
+        return
+
+    if a.cross:
+        sources = [s.strip() for s in a.sources.split(",")]
+        out = "scripts/eval_crossdist_results.json" if a.out == "scripts/eval_detection_results.json" else a.out
+        print(f"cross-dist: {len(models)} model(s), sources={sources}, N={Ns[-1]}, seeds={seeds}", flush=True)
+        results = []
+        for model in models:
+            try:
+                res = bench_cross(model, sources, Ns[-1], seeds, a.device)
+                results.append(res)
+                print_cross(res)
+            except Exception as e:
+                print(f"  SKIP {model}: {type(e).__name__}: {e}", flush=True)
+            with open(out, "w") as f:
+                json.dump({"sources": sources, "results": results}, f, indent=1)
+        print(f"\ndone -> {out}", flush=True)
+        return
 
     print(f"benchmark: {len(models)} model(s), N/cls={Ns}, seeds={seeds}, device={a.device}", flush=True)
     results = []
