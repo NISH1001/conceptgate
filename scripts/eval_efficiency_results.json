@@ -1,0 +1,268 @@
+{
+ "machine": "Apple M4",
+ "device": "mps",
+ "results": [
+  {
+   "model": "Qwen/Qwen2.5-0.5B-Instruct",
+   "n_layers": 24,
+   "d": 896,
+   "total_params_M": 494,
+   "N": 32,
+   "seeds": 3,
+   "configs": [
+    {
+     "config": "1tap@25%",
+     "layers": [
+      6
+     ],
+     "top": 6,
+     "depth_frac": 0.29,
+     "weights_frac": 0.49,
+     "learned_params": 896,
+     "auc_log": 0.968,
+     "auc_log_std": 0.008,
+     "auc_diff": 0.918,
+     "fwd_ms": 28.7,
+     "fwd_ms_std": 0.3
+    },
+    {
+     "config": "1tap@40%",
+     "layers": [
+      10
+     ],
+     "top": 10,
+     "depth_frac": 0.46,
+     "weights_frac": 0.61,
+     "learned_params": 896,
+     "auc_log": 0.97,
+     "auc_log_std": 0.011,
+     "auc_diff": 0.925,
+     "fwd_ms": 43.6,
+     "fwd_ms_std": 0.2
+    },
+    {
+     "config": "1tap@55%",
+     "layers": [
+      13
+     ],
+     "top": 13,
+     "depth_frac": 0.58,
+     "weights_frac": 0.7,
+     "learned_params": 896,
+     "auc_log": 0.978,
+     "auc_log_std": 0.01,
+     "auc_diff": 0.933,
+     "fwd_ms": 55.2,
+     "fwd_ms_std": 0.1
+    },
+    {
+     "config": "1tap@70%",
+     "layers": [
+      17
+     ],
+     "top": 17,
+     "depth_frac": 0.75,
+     "weights_frac": 0.82,
+     "learned_params": 896,
+     "auc_log": 0.979,
+     "auc_log_std": 0.01,
+     "auc_diff": 0.916,
+     "fwd_ms": 71.4,
+     "fwd_ms_std": 0.0
+    },
+    {
+     "config": "1tap@85%",
+     "layers": [
+      20
+     ],
+     "top": 20,
+     "depth_frac": 0.88,
+     "weights_frac": 0.91,
+     "learned_params": 896,
+     "auc_log": 0.982,
+     "auc_log_std": 0.005,
+     "auc_diff": 0.936,
+     "fwd_ms": 83.4,
+     "fwd_ms_std": 0.1
+    },
+    {
+     "config": "3tap",
+     "layers": [
+      8,
+      12,
+      16
+     ],
+     "top": 16,
+     "depth_frac": 0.71,
+     "weights_frac": 0.79,
+     "learned_params": 2688,
+     "auc_log": 0.973,
+     "auc_log_std": 0.009,
+     "auc_diff": 0.927,
+     "fwd_ms": 67.1,
+     "fwd_ms_std": 0.1
+    },
+    {
+     "config": "5tap",
+     "layers": [
+      7,
+      10,
+      12,
+      14,
+      17
+     ],
+     "top": 17,
+     "depth_frac": 0.75,
+     "weights_frac": 0.82,
+     "learned_params": 4480,
+     "auc_log": 0.979,
+     "auc_log_std": 0.009,
+     "auc_diff": 0.939,
+     "fwd_ms": 71.4,
+     "fwd_ms_std": 0.0
+    }
+   ],
+   "linear_probe": {
+    "config": "linear-probe",
+    "depth_frac": 1.0,
+    "weights_frac": 1.0,
+    "learned_params": 896,
+    "auc": 0.982,
+    "auc_std": 0.003,
+    "fwd_ms": 96.1,
+    "fwd_ms_std": 0.8
+   }
+  },
+  {
+   "model": "google/gemma-2-2b-it",
+   "n_layers": 26,
+   "d": 2304,
+   "total_params_M": 2660,
+   "N": 32,
+   "seeds": 3,
+   "configs": [
+    {
+     "config": "1tap@25%",
+     "layers": [
+      6
+     ],
+     "top": 6,
+     "depth_frac": 0.27,
+     "weights_frac": 0.43,
+     "learned_params": 2304,
+     "auc_log": 0.948,
+     "auc_log_std": 0.008,
+     "auc_diff": 0.92,
+     "fwd_ms": 143.6,
+     "fwd_ms_std": 1.9
+    },
+    {
+     "config": "1tap@40%",
+     "layers": [
+      10
+     ],
+     "top": 10,
+     "depth_frac": 0.42,
+     "weights_frac": 0.55,
+     "learned_params": 2304,
+     "auc_log": 0.974,
+     "auc_log_std": 0.01,
+     "auc_diff": 0.952,
+     "fwd_ms": 226.0,
+     "fwd_ms_std": 3.4
+    },
+    {
+     "config": "1tap@55%",
+     "layers": [
+      14
+     ],
+     "top": 14,
+     "depth_frac": 0.58,
+     "weights_frac": 0.67,
+     "learned_params": 2304,
+     "auc_log": 0.971,
+     "auc_log_std": 0.009,
+     "auc_diff": 0.933,
+     "fwd_ms": 328.7,
+     "fwd_ms_std": 26.1
+    },
+    {
+     "config": "1tap@70%",
+     "layers": [
+      18
+     ],
+     "top": 18,
+     "depth_frac": 0.73,
+     "weights_frac": 0.79,
+     "learned_params": 2304,
+     "auc_log": 0.97,
+     "auc_log_std": 0.006,
+     "auc_diff": 0.921,
+     "fwd_ms": 401.3,
+     "fwd_ms_std": 4.4
+    },
+    {
+     "config": "1tap@85%",
+     "layers": [
+      22
+     ],
+     "top": 22,
+     "depth_frac": 0.88,
+     "weights_frac": 0.91,
+     "learned_params": 2304,
+     "auc_log": 0.974,
+     "auc_log_std": 0.006,
+     "auc_diff": 0.925,
+     "fwd_ms": 501.6,
+     "fwd_ms_std": 28.4
+    },
+    {
+     "config": "3tap",
+     "layers": [
+      9,
+      13,
+      17
+     ],
+     "top": 17,
+     "depth_frac": 0.69,
+     "weights_frac": 0.76,
+     "learned_params": 6912,
+     "auc_log": 0.979,
+     "auc_log_std": 0.008,
+     "auc_diff": 0.958,
+     "fwd_ms": 391.7,
+     "fwd_ms_std": 7.2
+    },
+    {
+     "config": "5tap",
+     "layers": [
+      8,
+      10,
+      13,
+      16,
+      18
+     ],
+     "top": 18,
+     "depth_frac": 0.73,
+     "weights_frac": 0.79,
+     "learned_params": 11520,
+     "auc_log": 0.977,
+     "auc_log_std": 0.009,
+     "auc_diff": 0.958,
+     "fwd_ms": 401.3,
+     "fwd_ms_std": 4.4
+    }
+   ],
+   "linear_probe": {
+    "config": "linear-probe",
+    "depth_frac": 1.0,
+    "weights_frac": 1.0,
+    "learned_params": 2304,
+    "auc": 0.987,
+    "auc_std": 0.003,
+    "fwd_ms": 546.9,
+    "fwd_ms_std": 4.3
+   }
+  }
+ ]
+}

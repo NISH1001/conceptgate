@@ -1,0 +1,88 @@
+{
+ "sources": [
+  "jackhhao",
+  "beavertails"
+ ],
+ "results": [
+  {
+   "model": "Qwen/Qwen2.5-0.5B-Instruct",
+   "n_layers": 24,
+   "taps": [
+    8,
+    12,
+    16
+   ],
+   "N": 32,
+   "sources": [
+    "jackhhao",
+    "beavertails"
+   ],
+   "matrix": {
+    "jackhhao->jackhhao": {
+     "conceptgate": 0.9494453217913476,
+     "conceptgate_log": 0.9840712795617165,
+     "best_layer": 0.9519603829131816,
+     "logistic": 0.9852215788344935
+    },
+    "jackhhao->beavertails": {
+     "conceptgate": 0.4118814814814815,
+     "conceptgate_log": 0.43031111111111114,
+     "best_layer": 0.43343703703703707,
+     "logistic": 0.4478814814814815
+    },
+    "beavertails->jackhhao": {
+     "conceptgate": 0.33614084342282274,
+     "conceptgate_log": 0.5071260065118636,
+     "best_layer": 0.3198221910276657,
+     "logistic": 0.46491587218030456
+    },
+    "beavertails->beavertails": {
+     "conceptgate": 0.6760888888888889,
+     "conceptgate_log": 0.679925925925926,
+     "best_layer": 0.6645629629629629,
+     "logistic": 0.6871555555555556
+    }
+   }
+  },
+  {
+   "model": "google/gemma-2-2b-it",
+   "n_layers": 26,
+   "taps": [
+    9,
+    13,
+    17
+   ],
+   "N": 32,
+   "sources": [
+    "jackhhao",
+    "beavertails"
+   ],
+   "matrix": {
+    "jackhhao->jackhhao": {
+     "conceptgate": 0.9551188317638571,
+     "conceptgate_log": 0.9772279737185862,
+     "best_layer": 0.9522333352829931,
+     "logistic": 0.9754147901191242
+    },
+    "jackhhao->beavertails": {
+     "conceptgate": 0.5116444444444445,
+     "conceptgate_log": 0.5201037037037036,
+     "best_layer": 0.49420740740740743,
+     "logistic": 0.518474074074074
+    },
+    "beavertails->jackhhao": {
+     "conceptgate": 0.38650055565303854,
+     "conceptgate_log": 0.355754420853561,
+     "best_layer": 0.3579380398120528,
+     "logistic": 0.41079331656625917
+    },
+    "beavertails->beavertails": {
+     "conceptgate": 0.6971259259259259,
+     "conceptgate_log": 0.7201185185185186,
+     "best_layer": 0.6927407407407408,
+     "logistic": 0.7309481481481481
+    }
+   }
+  }
+ ]
+}
