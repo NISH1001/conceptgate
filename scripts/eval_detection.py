@@ -357,6 +357,16 @@ def _lr_auc(Xp, Xn, Xte, yte):
     return float(roc_auc_score(yte, clf.decision_function((Xte - mu) / sd)))
 
 
+def _svm_auc(Xp, Xn, Xte, yte):
+    """Test AUC of a linear-SVM probe (frozen base + linear-SVC head) on a feature block."""
+    Xp, Xn, Xte = Xp.reshape(len(Xp), -1), Xn.reshape(len(Xn), -1), Xte.reshape(len(Xte), -1)
+    Xtr = np.concatenate([Xp, Xn], 0)
+    ytr = np.r_[np.ones(len(Xp)), np.zeros(len(Xn))]
+    mu, sd = Xtr.mean(0), Xtr.std(0) + 1e-6
+    clf = LinearSVC(C=1.0, max_iter=5000).fit((Xtr - mu) / sd, ytr)
+    return float(roc_auc_score(yte, clf.decision_function((Xte - mu) / sd)))
+
+
 def _fullprobe_extract(cg, prompts, model, split):
     """Last-token activations [N, len(layers), d], cached to disk (keyed by the exact layer set so
     different tap configs never collide) so re-runs are instant."""
@@ -417,20 +427,23 @@ def bench_fullprobe(model, Ns, seeds, device):
     for N in Ns:
         if N > min(len(pos_i), len(neg_i)):
             continue
-        cgd, cgl, lp = [], [], []
+        cgd, cgl, lp, sv = [], [], [], []
         for sd in seeds:
             r = np.random.default_rng(3000 + sd)
             ip, ineg = r.choice(pos_i, N, replace=False), r.choice(neg_i, N, replace=False)
             Xp, Xn, Xt = A_pool[ip][:, tap_i, :], A_pool[ineg][:, tap_i, :], A_te[:, tap_i, :]
+            Fp, Fn, Ft = A_pool[ip][:, fin_i, :], A_pool[ineg][:, fin_i, :], A_te[:, fin_i, :]
             cgd.append(_metrics(_fit_cg(Xp, Xn, Direction.DIFF_OF_MEANS).llr(Xt), test_y)["auc"])
             cgl.append(_metrics(_fit_cg(Xp, Xn, Direction.LOGISTIC).llr(Xt), test_y)["auc"])
-            lp.append(_lr_auc(A_pool[ip][:, fin_i, :], A_pool[ineg][:, fin_i, :], A_te[:, fin_i, :], test_y))
+            lp.append(_lr_auc(Fp, Fn, Ft, test_y))
+            sv.append(_svm_auc(Fp, Fn, Ft, test_y))
         rows[N] = {"cg_diff": float(np.mean(cgd)), "cg_logistic": float(np.mean(cgl)),
-                   "linprobe": float(np.mean(lp))}
+                   "linprobe": float(np.mean(lp)), "linprobe_svm": float(np.mean(sv))}
 
-    print(f"  {'N':>4} | {'CG-diff (taps)':>15} {'CG-logistic (taps)':>19} {'linear probe (full)':>20}   (AUC)")
+    print(f"  {'N':>4} | {'CG-diff':>9} {'CG-log':>9} {'LR-probe':>9} {'SVM-probe':>10}   (AUC)")
     for N, r in rows.items():
-        print(f"  {N:>4} | {r['cg_diff']:>15.3f} {r['cg_logistic']:>19.3f} {r['linprobe']:>20.3f}", flush=True)
+        print(f"  {N:>4} | {r['cg_diff']:>9.3f} {r['cg_logistic']:>9.3f} {r['linprobe']:>9.3f} "
+              f"{r['linprobe_svm']:>10.3f}", flush=True)
     return {"model": model, "n_layers": n_layers, "taps": taps, "top_tap": top_tap,
             "depth_fraction": round(depth, 3), "rows": rows}
 
