@@ -1,0 +1,204 @@
+{
+ "machine": "Apple M4",
+ "device": "mps",
+ "results": [
+  {
+   "model": "Qwen/Qwen2.5-0.5B-Instruct",
+   "n_layers": 24,
+   "d": 896,
+   "total_params_M": 494,
+   "K": 14,
+   "categories": [
+    "animal_abuse",
+    "child_abuse",
+    "controversial_topics,politics",
+    "discrimination,stereotype,injustice",
+    "drug_abuse,weapons,banned_substance",
+    "financial_crime,property_crime,theft",
+    "hate_speech,offensive_language",
+    "misinformation_regarding_ethics,laws_and_safety",
+    "non_violent_unethical_behavior",
+    "privacy_violation",
+    "self_harm",
+    "sexually_explicit,adult_content",
+    "terrorism,organized_crime",
+    "violence,aiding_and_abetting,incitement"
+   ],
+   "n_fit": 32,
+   "n_pool": 1088,
+   "seeds": 3,
+   "taps": [
+    12,
+    17,
+    20
+   ],
+   "top_tap": 20,
+   "depth_frac": 0.875,
+   "weights_frac_cg": 0.909,
+   "auc": {
+    "cg": {
+     "animal_abuse": 0.9180555555555555,
+     "child_abuse": 0.9188131313131312,
+     "controversial_topics,politics": 0.8294319600499375,
+     "discrimination,stereotype,injustice": 0.7793981481481481,
+     "drug_abuse,weapons,banned_substance": 0.860601851851852,
+     "financial_crime,property_crime,theft": 0.8266898148148148,
+     "hate_speech,offensive_language": 0.8185648148148147,
+     "misinformation_regarding_ethics,laws_and_safety": 0.6969521604938272,
+     "non_violent_unethical_behavior": 0.7398379629629629,
+     "privacy_violation": 0.8505324074074073,
+     "self_harm": 0.9095486111111111,
+     "sexually_explicit,adult_content": 0.8323973429951691,
+     "terrorism,organized_crime": 0.8429093567251461,
+     "violence,aiding_and_abetting,incitement": 0.8251157407407407
+    },
+    "probe": {
+     "animal_abuse": 0.9413194444444445,
+     "child_abuse": 0.9320707070707072,
+     "controversial_topics,politics": 0.8462858926342073,
+     "discrimination,stereotype,injustice": 0.8076388888888889,
+     "drug_abuse,weapons,banned_substance": 0.931273148148148,
+     "financial_crime,property_crime,theft": 0.8545833333333333,
+     "hate_speech,offensive_language": 0.8079166666666667,
+     "misinformation_regarding_ethics,laws_and_safety": 0.7060185185185185,
+     "non_violent_unethical_behavior": 0.7248611111111112,
+     "privacy_violation": 0.8650462962962963,
+     "self_harm": 0.9190972222222222,
+     "sexually_explicit,adult_content": 0.9081823671497585,
+     "terrorism,organized_crime": 0.8929824561403509,
+     "violence,aiding_and_abetting,incitement": 0.8305787037037037
+    },
+    "lora": {
+     "animal_abuse": 0.8166666666666667,
+     "child_abuse": 0.6170454545454546,
+     "controversial_topics,politics": 0.6200374531835205
+    },
+    "mean_cg": 0.8320606327846155,
+    "mean_probe": 0.8548467683091683
+   },
+   "build": {
+    "fwd_trunc_ms": 11.08,
+    "fwd_full_ms": 12.45,
+    "cg_extract_ms": 12049.9,
+    "probe_extract_ms": 13548.5,
+    "cg_fit_ms": 6.135,
+    "probe_fit_ms": 1.63,
+    "lora_train_ms": 16721.8,
+    "lora_n_measured": 3
+   },
+   "infer": {
+    "cg_fwd_ms": 11.08,
+    "cg_read_us": 1.23,
+    "probe_fwd_ms": 12.45,
+    "probe_head_us": 0.59,
+    "lora_fwd_ms": 12.45
+   },
+   "memory": {
+    "cg_per_concept": 2688,
+    "probe_per_concept": 897,
+    "lora_per_concept": 542464,
+    "backbone_full": 493961216,
+    "backbone_cg": 449232896
+   }
+  },
+  {
+   "model": "google/gemma-2-2b-it",
+   "n_layers": 26,
+   "d": 2304,
+   "total_params_M": 2660,
+   "K": 14,
+   "categories": [
+    "animal_abuse",
+    "child_abuse",
+    "controversial_topics,politics",
+    "discrimination,stereotype,injustice",
+    "drug_abuse,weapons,banned_substance",
+    "financial_crime,property_crime,theft",
+    "hate_speech,offensive_language",
+    "misinformation_regarding_ethics,laws_and_safety",
+    "non_violent_unethical_behavior",
+    "privacy_violation",
+    "self_harm",
+    "sexually_explicit,adult_content",
+    "terrorism,organized_crime",
+    "violence,aiding_and_abetting,incitement"
+   ],
+   "n_fit": 32,
+   "n_pool": 1088,
+   "seeds": 3,
+   "taps": [
+    13,
+    18,
+    22
+   ],
+   "top_tap": 22,
+   "depth_frac": 0.885,
+   "weights_frac_cg": 0.91,
+   "auc": {
+    "cg": {
+     "animal_abuse": 0.9399305555555556,
+     "child_abuse": 0.9573232323232324,
+     "controversial_topics,politics": 0.8430087390761548,
+     "discrimination,stereotype,injustice": 0.8551620370370371,
+     "drug_abuse,weapons,banned_substance": 0.9449305555555556,
+     "financial_crime,property_crime,theft": 0.9013657407407406,
+     "hate_speech,offensive_language": 0.851273148148148,
+     "misinformation_regarding_ethics,laws_and_safety": 0.6903163580246914,
+     "non_violent_unethical_behavior": 0.7608564814814814,
+     "privacy_violation": 0.9190972222222221,
+     "self_harm": 0.9491319444444444,
+     "sexually_explicit,adult_content": 0.9489734299516908,
+     "terrorism,organized_crime": 0.9375730994152046,
+     "violence,aiding_and_abetting,incitement": 0.8359953703703704
+    },
+    "probe": {
+     "animal_abuse": 0.9424305555555555,
+     "child_abuse": 0.9549242424242425,
+     "controversial_topics,politics": 0.8487203495630462,
+     "discrimination,stereotype,injustice": 0.8495601851851852,
+     "drug_abuse,weapons,banned_substance": 0.9541435185185185,
+     "financial_crime,property_crime,theft": 0.8828935185185184,
+     "hate_speech,offensive_language": 0.8576620370370369,
+     "misinformation_regarding_ethics,laws_and_safety": 0.6375,
+     "non_violent_unethical_behavior": 0.7567129629629629,
+     "privacy_violation": 0.9231481481481483,
+     "self_harm": 0.9350694444444444,
+     "sexually_explicit,adult_content": 0.9514492753623188,
+     "terrorism,organized_crime": 0.9207602339181288,
+     "violence,aiding_and_abetting,incitement": 0.8160416666666667
+    },
+    "lora": {
+     "animal_abuse": 0.8368749999999999,
+     "child_abuse": 0.8789772727272729,
+     "controversial_topics,politics": 0.7255617977528089
+    },
+    "mean_cg": 0.8810669938818949,
+    "mean_probe": 0.8736440098789123
+   },
+   "build": {
+    "fwd_trunc_ms": 65.08,
+    "fwd_full_ms": 66.95,
+    "cg_extract_ms": 70804.8,
+    "probe_extract_ms": 72841.5,
+    "cg_fit_ms": 11.23,
+    "probe_fit_ms": 2.49,
+    "lora_train_ms": 125768.6,
+    "lora_n_measured": 3
+   },
+   "infer": {
+    "cg_fwd_ms": 65.08,
+    "cg_read_us": 3.79,
+    "probe_fwd_ms": 66.95,
+    "probe_head_us": 1.5,
+    "lora_fwd_ms": 66.95
+   },
+   "memory": {
+    "cg_per_concept": 6912,
+    "probe_per_concept": 2305,
+    "lora_per_concept": 1602048,
+    "backbone_full": 2660106240,
+    "backbone_cg": 2421227520
+   }
+  }
+ ]
+}

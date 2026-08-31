@@ -551,6 +551,246 @@ def bench_efficiency(model, Ns, seeds, device):
             "N": N, "seeds": len(seeds), "configs": rows, "linear_probe": probe}
 
 
+# ------------------ multi-concept scaling (the amortization eval) ------------------
+# The title claim is "efficiently learn concepts" (plural). Detection for ONE concept is a
+# commodity; the defensible novelty is amortization across K concepts. A guardrail like GLiGuard
+# (a GLiNER2 encoder fully fine-tuned on WildGuardTrain to host a fixed 14-harm + 11-jailbreak
+# taxonomy) must be RETRAINED to change its taxonomy. ConceptGate is a training-free concept bank:
+# one truncated forward reads all K concepts; adding a concept is one closed-form direction (no
+# gradient run). So cost is ~flat in K. We measure that against a linear-probe bank (a trained head
+# per concept on the frozen full model) and a LoRA bank (a fine-tune per concept) over the 14
+# BeaverTails harm categories -- the same *kind* of taxonomy a real guardrail hosts.
+BT_SAFE_POOL = 256     # shared benign pool (negatives for every concept)
+BT_POS_PER_CAT = 64    # few-shot pool per category; the fit draws n_fit<=this per class
+BT_TEST_CAP = 120      # per-class test cap (rare categories use whatever they have)
+
+
+def _beavertails_concepts(seed=0):
+    """Prompt-level BeaverTails splits: cats, {cat: train_pos}, train_safe, {cat: test_pos}, test_safe.
+    A prompt is positive for category c if ANY of its unsafe responses tags c; the safe pool is
+    prompts with no unsafe response at all -- one clean benign set shared by every concept."""
+    from collections import defaultdict
+
+    from datasets import load_dataset
+    ds = load_dataset("PKU-Alignment/BeaverTails")
+    rng = np.random.default_rng(seed)
+
+    def build(split):
+        pos_cats, ever_unsafe, allp = defaultdict(set), set(), set()
+        for r in ds[split]:
+            p = r["prompt"].strip()[:CHAR_CAP]
+            allp.add(p)
+            if not r["is_safe"]:
+                ever_unsafe.add(p)
+                for c, v in r["category"].items():
+                    if v:
+                        pos_cats[p].add(c)
+        safe = [p for p in allp if p not in ever_unsafe]
+        cats = sorted({c for s in pos_cats.values() for c in s})
+        per = {c: [p for p, cs in pos_cats.items() if c in cs] for c in cats}
+        return per, safe
+
+    trc, trsafe = build("30k_train")
+    tec, tesafe = build("30k_test")
+    for lst in list(trc.values()) + list(tec.values()) + [trsafe, tesafe]:
+        rng.shuffle(lst)
+    cats = sorted(trc.keys())
+    return cats, trc, trsafe, tec, tesafe
+
+
+def _lora_fit_auc(model_name, tr_txt, tr_y, te_txt, te_y, device, epochs=8, r=8, lr=1e-4, bs=16, dtype=None):
+    """One real LoRA fine-tune (frozen base + low-rank adapters + a classification head), the
+    fine-tuning end of the spectrum. Returns (test AUC, train wall-ms, trainable params)."""
+    import torch
+    from peft import LoraConfig, get_peft_model
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer
+    tok = AutoTokenizer.from_pretrained(model_name)
+    if tok.pad_token is None:
+        tok.pad_token = tok.eos_token
+    base = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2,
+                                                              dtype=dtype or torch.float32)
+    base.config.pad_token_id = tok.pad_token_id
+    tgt = ["q_proj", "v_proj"] if any("q_proj" in n for n, _ in base.named_modules()) else ["c_attn"]
+    peftm = get_peft_model(base, LoraConfig(task_type="SEQ_CLS", r=r, lora_alpha=2 * r,
+                                            lora_dropout=0.0, target_modules=tgt)).to(device)
+    trainable = int(sum(p.numel() for p in peftm.parameters() if p.requires_grad))
+    opt = torch.optim.AdamW([p for p in peftm.parameters() if p.requires_grad], lr=lr)
+    enc = tok(tr_txt, padding=True, truncation=True, max_length=256, return_tensors="pt").to(device)
+    y = torch.tensor(np.asarray(tr_y), dtype=torch.long, device=device)
+    peftm.train()
+    t = time.perf_counter()
+    for _ in range(epochs):
+        perm = torch.randperm(len(tr_y), device=device)
+        for i in range(0, len(tr_y), bs):
+            j = perm[i:i + bs]
+            out = peftm(input_ids=enc["input_ids"][j], attention_mask=enc["attention_mask"][j], labels=y[j])
+            out.loss.backward()
+            opt.step()
+            opt.zero_grad()
+    if str(device).startswith(("mps", "cuda")):
+        getattr(torch, str(device).split(":")[0]).synchronize()
+    train_ms = (time.perf_counter() - t) * 1e3
+    peftm.eval()
+    scores = []
+    with torch.no_grad():
+        for i in range(0, len(te_txt), 16):
+            e = tok(te_txt[i:i + 16], padding=True, truncation=True, max_length=256,
+                    return_tensors="pt").to(device)
+            lg = peftm(**e).logits
+            scores.append((lg[:, 1] - lg[:, 0]).float().cpu().numpy())
+    auc = float(roc_auc_score(te_y, np.concatenate(scores)))
+    del peftm, base
+    import gc
+    gc.collect()
+    return auc, train_ms, trainable
+
+
+def bench_scaling(model, device, n_fit=32, seeds=(0, 1, 2), lora_cats=0, tap_fracs=None):
+    """Cost-vs-K over BeaverTails' 14 harm categories for three concept banks:
+      CG      -- truncated forward (shared) + a closed-form direction per concept (no gradient)
+      probe   -- full forward (shared)      + a trained logistic head per concept
+      LoRA    -- an independent fine-tune per concept (no sharing at all)
+    Build wall-time, per-prompt inference wall-time, memory (params) and mean per-category AUC.
+    lora_cats>0 runs that many real LoRA fits to anchor the fine-tune line (extrapolated linearly)."""
+    from conceptgate.taps import TapForward
+    cats, trc, trsafe, tec, tesafe = _beavertails_concepts()
+    K = len(cats)
+    if tap_fracs:
+        _, n_layers = taps_for(model)
+        taps = sorted({max(1, min(n_layers - 1, round(n_layers * f))) for f in tap_fracs})
+    else:
+        taps, n_layers = taps_for(model)
+    fin = n_layers - 1
+    layers = sorted(set(taps + [fin]))
+    tap_i = [layers.index(t) for t in taps]
+    fin_i = layers.index(fin)
+    top_tap = max(taps)
+    mp = _model_params(model)
+    d, m = mp["d"], len(taps)
+    print(f"\n### SCALING {model}  ({n_layers} layers, d={d}, ~{mp['total'] / 1e6:.0f}M) "
+          f"K={K} concepts, n_fit={n_fit}/class, taps {'/'.join(map(str, taps))} (top {top_tap})", flush=True)
+
+    # ---- one shared extraction over the pooled prompts (the amortized cost) ----
+    trsafe_pool = trsafe[:BT_SAFE_POOL]
+    trpos = {c: trc[c][:BT_POS_PER_CAT] for c in cats}
+    train_list = list(dict.fromkeys(trsafe_pool + [p for c in cats for p in trpos[c]]))
+    tesafe_pool = tesafe[:BT_TEST_CAP]
+    tepos = {c: tec[c][:BT_TEST_CAP] for c in cats}
+    test_list = list(dict.fromkeys(tesafe_pool + [p for c in cats for p in tepos[c]]))
+    cg = load_model(model, layers, device)
+    A_tr = _fullprobe_extract(cg, train_list, model, f"btsc_train{len(train_list)}")
+    A_te = _fullprobe_extract(cg, test_list, model, f"btsc_test{len(test_list)}")
+    itr = {p: i for i, p in enumerate(train_list)}
+    ite = {p: i for i, p in enumerate(test_list)}
+    safe_tr = np.array([itr[p] for p in trsafe_pool])
+    safe_te = np.array([ite[p] for p in tesafe_pool])
+    pos_tr = {c: np.array([itr[p] for p in trpos[c]]) for c in cats}
+    pos_te = {c: np.array([ite[p] for p in tepos[c]]) for c in cats}
+
+    # ---- per-prompt forward wall-time: truncated (CG) vs full (probe/LoRA) ----
+    sample = test_list[:32]
+    def _fwd_ms(L):
+        tf = TapForward(cg.model, [L])
+        tf.read(cg.tok, sample[:8], cg.device, last_only=True, batch_size=8)  # warm
+        ts = []
+        for _ in range(5):
+            t = time.perf_counter()
+            tf.read(cg.tok, sample, cg.device, last_only=True, batch_size=8)
+            ts.append((time.perf_counter() - t) / len(sample) * 1e3)
+        return float(np.mean(ts)), float(np.std(ts))
+    fwd_trunc = _fwd_ms(top_tap)
+    fwd_full = _fwd_ms(fin)
+
+    # ---- per-concept fit + AUC (CG closed-form vs probe logistic head) ----
+    cg_auc, pr_auc, cg_fit_ms, pr_fit_ms, cg_read_us, pr_head_us = {}, {}, [], [], [], []
+    for c in cats:
+        yte = np.r_[np.ones(len(pos_te[c])), np.zeros(len(safe_te))].astype(int)
+        Xte_tap = np.concatenate([A_te[pos_te[c]][:, tap_i, :], A_te[safe_te][:, tap_i, :]], 0)
+        Xte_fin = np.concatenate([A_te[pos_te[c]][:, fin_i, :], A_te[safe_te][:, fin_i, :]], 0)
+        ca, pa = [], []
+        for s in seeds:
+            rng = np.random.default_rng(4000 + s)
+            npos = min(n_fit, len(pos_tr[c]))
+            ip = rng.choice(pos_tr[c], npos, replace=False)
+            ineg = rng.choice(safe_tr, n_fit, replace=False)
+            # CG: closed-form direction on the taps
+            t = time.perf_counter()
+            gate = _fit_cg(A_tr[ip][:, tap_i, :], A_tr[ineg][:, tap_i, :], Direction.LOGISTIC)
+            cg_fit_ms.append((time.perf_counter() - t) * 1e3)
+            t = time.perf_counter()
+            s_cg = gate.llr(Xte_tap)
+            cg_read_us.append((time.perf_counter() - t) / len(Xte_tap) * 1e6)
+            ca.append(float(roc_auc_score(yte, s_cg)))
+            # probe: trained logistic head on the final layer
+            Xp, Xn = A_tr[ip][:, fin_i, :], A_tr[ineg][:, fin_i, :]
+            Xtr = np.concatenate([Xp, Xn], 0)
+            ytr = np.r_[np.ones(len(Xp)), np.zeros(len(Xn))]
+            mu, sd = Xtr.mean(0), Xtr.std(0) + 1e-6
+            t = time.perf_counter()
+            clf = LogisticRegression(max_iter=2000, C=1.0).fit((Xtr - mu) / sd, ytr)
+            pr_fit_ms.append((time.perf_counter() - t) * 1e3)
+            t = time.perf_counter()
+            s_pr = clf.decision_function((Xte_fin - mu) / sd)
+            pr_head_us.append((time.perf_counter() - t) / len(Xte_fin) * 1e6)
+            pa.append(float(roc_auc_score(yte, s_pr)))
+        cg_auc[c], pr_auc[c] = float(np.mean(ca)), float(np.mean(pa))
+        print(f"  {c:48s} CG {cg_auc[c]:.3f}  probe {pr_auc[c]:.3f}", flush=True)
+    cg.unload()
+
+    # ---- LoRA anchor: a few real fine-tunes (the fine-tune end of the spectrum) ----
+    import torch
+    lora_dtype = torch.bfloat16 if mp["total"] > 1e9 else torch.float32   # bf16 for big models (memory)
+    lora = {"auc": {}, "train_ms": [], "trainable": None}
+    for c in cats[:lora_cats]:
+        rng = np.random.default_rng(4000)
+        npos = min(n_fit, len(pos_tr[c]))
+        ip = rng.choice(pos_tr[c], npos, replace=False)
+        ineg = rng.choice(safe_tr, n_fit, replace=False)
+        tr_txt = [train_list[i] for i in ip] + [train_list[i] for i in ineg]
+        tr_y = np.r_[np.ones(len(ip)), np.zeros(len(ineg))].astype(int)
+        te_txt = [test_list[i] for i in pos_te[c]] + [test_list[i] for i in safe_te]
+        te_y = np.r_[np.ones(len(pos_te[c])), np.zeros(len(safe_te))].astype(int)
+        try:
+            au, tms, trn = _lora_fit_auc(model, tr_txt, tr_y, te_txt, te_y, device, dtype=lora_dtype)
+            lora["auc"][c], lora["trainable"] = au, trn
+            lora["train_ms"].append(tms)
+            print(f"  [LoRA] {c:44s} AUC {au:.3f}  train {tms / 1e3:.1f}s  ({trn / 1e3:.0f}K params)", flush=True)
+        except Exception as e:
+            print(f"  [LoRA] {c}: {type(e).__name__}: {e}", flush=True)
+
+    n_pool = len(train_list)
+    mean_cg, mean_pr = float(np.mean(list(cg_auc.values()))), float(np.mean(list(pr_auc.values())))
+    lora_ms = float(np.mean(lora["train_ms"])) if lora["train_ms"] else None
+    print(f"  mean AUC over {K} concepts: CG {mean_cg:.3f} | probe {mean_pr:.3f}"
+          + (f" | LoRA(subset) {np.mean(list(lora['auc'].values())):.3f}" if lora["auc"] else ""), flush=True)
+    print(f"  fwd/prompt: trunc {fwd_trunc[0]:.1f}ms  full {fwd_full[0]:.1f}ms | "
+          f"per-concept fit: CG {np.mean(cg_fit_ms):.2f}ms  probe {np.mean(pr_fit_ms):.1f}ms"
+          + (f"  LoRA {lora_ms / 1e3:.1f}s" if lora_ms else ""), flush=True)
+
+    return {
+        "model": model, "n_layers": n_layers, "d": d, "total_params_M": round(mp["total"] / 1e6),
+        "K": K, "categories": cats, "n_fit": n_fit, "n_pool": n_pool, "seeds": len(seeds),
+        "taps": taps, "top_tap": top_tap, "depth_frac": round((top_tap + 1) / n_layers, 3),
+        "weights_frac_cg": round((mp["embed"] + (top_tap + 1) * mp["per_layer"]) / mp["total"], 3),
+        "auc": {"cg": cg_auc, "probe": pr_auc, "lora": lora["auc"], "mean_cg": mean_cg, "mean_probe": mean_pr},
+        "build": {
+            "fwd_trunc_ms": round(fwd_trunc[0], 2), "fwd_full_ms": round(fwd_full[0], 2),
+            "cg_extract_ms": round(n_pool * fwd_trunc[0], 1), "probe_extract_ms": round(n_pool * fwd_full[0], 1),
+            "cg_fit_ms": round(float(np.mean(cg_fit_ms)), 3), "probe_fit_ms": round(float(np.mean(pr_fit_ms)), 2),
+            "lora_train_ms": round(lora_ms, 1) if lora_ms else None, "lora_n_measured": len(lora["train_ms"]),
+        },
+        "infer": {  # per prompt, scoring against all K concepts
+            "cg_fwd_ms": round(fwd_trunc[0], 2), "cg_read_us": round(float(np.mean(cg_read_us)), 2),
+            "probe_fwd_ms": round(fwd_full[0], 2), "probe_head_us": round(float(np.mean(pr_head_us)), 2),
+            "lora_fwd_ms": round(fwd_full[0], 2),  # one full forward PER adapter -> x K
+        },
+        "memory": {  # learned params per concept (universal, device-independent)
+            "cg_per_concept": m * d, "probe_per_concept": d + 1, "lora_per_concept": lora["trainable"],
+            "backbone_full": mp["total"], "backbone_cg": mp["embed"] + (top_tap + 1) * mp["per_layer"],
+        },
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--models", default="ladder", help="'ladder', 'quick', or comma-separated names")
@@ -564,6 +804,9 @@ def main():
     ap.add_argument("--sources", default="jackhhao,beavertails", help="datasets for --cross")
     ap.add_argument("--fullprobe", action="store_true", help="CG vs full-model all-layer linear probe")
     ap.add_argument("--efficiency", action="store_true", help="AUC x memory x wall-time, CG tap-config sweep")
+    ap.add_argument("--scaling", action="store_true", help="multi-concept cost-vs-K over BeaverTails categories")
+    ap.add_argument("--lora-cats", type=int, default=0, help="# real LoRA fits to anchor the fine-tune line")
+    ap.add_argument("--tap-fracs", default="", help="scaling CG tap depths, e.g. 0.4,0.6,0.8 (blank=default 0.33/0.5/0.67)")
     a = ap.parse_args()
 
     if a.quick:
@@ -576,6 +819,27 @@ def main():
         models = [m.strip() for m in a.models.split(",")]
     Ns = [int(x) for x in a.ns.split(",")]
     seeds = [int(x) for x in a.seeds.split(",")]
+
+    if a.scaling:
+        out = "scripts/eval_scaling_results.json" if a.out == "scripts/eval_detection_results.json" else a.out
+        chip = _chip()
+        Nf = [int(x) for x in a.ns.split(",")][-1]
+        print(f"scaling: {len(models)} model(s), n_fit={Nf}/class, seeds={seeds}, lora_cats={a.lora_cats} | "
+              f"wall-time on: {chip} (device {a.device})", flush=True)
+        tfr = [float(x) for x in a.tap_fracs.split(",")] if a.tap_fracs else None
+        results = []
+        for model in models:
+            try:
+                results.append(bench_scaling(model, a.device, n_fit=Nf, seeds=seeds,
+                                             lora_cats=a.lora_cats, tap_fracs=tfr))
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                print(f"  SKIP {model}: {type(e).__name__}: {e}", flush=True)
+            with open(out, "w") as f:
+                json.dump({"machine": chip, "device": a.device, "results": results}, f, indent=1)
+        print(f"\ndone -> {out}", flush=True)
+        return
 
     if a.efficiency:
         out = "scripts/eval_efficiency_results.json" if a.out == "scripts/eval_detection_results.json" else a.out

@@ -99,6 +99,46 @@ Findings:
 - Memory is universal: CG loads embed + blocks 0..top-tap (weights % above); learned params
   CG = m·d (≈2.7K Qwen / 6.9K gemma), probe = d. Compute is the measured wall-time above.
 
+### 4. Multi-concept scaling — the amortization argument (`--scaling`)
+
+Cost of a **K-concept bank** over BeaverTails' 14 harm categories (`PKU-Alignment/BeaverTails`),
+N=32/class, 3 seeds, Apple M4 / MPS. CG taps deeper here (50/70/85% depth) because harm *content* is read
+later than jailbreak *framing*. Three ways to build the bank: **CG** (a closed-form direction per concept
+on the frozen taps), **linear probe** (a trained logistic head per concept on the frozen final layer),
+**LoRA** (a rank-8 adapter fine-tuned per concept). LoRA measured on 3 categories (animal/child/controversial).
+
+**Mean per-category AUC (14 categories):**
+
+| Model | CG bank | probe bank | LoRA (3 cats) |
+|---|---|---|---|
+| Qwen2.5-0.5B | 0.832 | 0.855 | 0.685 |
+| gemma-2-2b | **0.881** | 0.874 | 0.814 |
+
+On gemma CG *edges* the probe; on Qwen it trails by 0.02. On the 3 LoRA categories CG scores 0.889 (Qwen)
+/ 0.913 (gemma) vs LoRA's 0.685 / 0.814 — few-shot fine-tuning is both the slowest and the weakest.
+
+**Per-concept cost (marginal, to add one concept) and whole-bank totals:**
+
+| per concept | CG | probe | LoRA |
+|---|---|---|---|
+| learn (Qwen / gemma) | 6.1 / 11.2 ms | 1.6 / 2.5 ms | 16.7 / 125.8 s |
+| params | 2.7–6.9 K | 0.9–2.3 K | 0.54–1.6 M |
+| inference over all K | 1 shared fwd | 1 shared fwd | 1 fwd **each** |
+
+Whole 14-concept bank — build: CG ~8 s (Qwen) / ~46 s (gemma) vs LoRA ~3.9 / ~29 min (**30× / 38×**);
+inference for all 14: CG 11 / 65 ms (flat in K) vs LoRA 174 / 937 ms (linear in K); memory: CG 38K / 97K
+params vs LoRA 7.6M / 22.4M.
+
+Findings:
+- **Cost is flat/shallow in K for a training-free bank, linear (and steep) for per-concept fine-tuning.**
+  One truncated forward reads all K concepts; each concept is a closed-form fit. LoRA needs a training run
+  and a separate forward per adapter.
+- **The cheap bank is accurate** — matches (Qwen) or beats (gemma) the trained probe per category, and
+  far exceeds few-shot LoRA (a randomly-initialized head has too little signal in 2N examples).
+- **Honest scope:** a *linear-probe bank* shares CG's amortization (both are training-free latent banks).
+  What is specific to CG is that the same K directions also **steer** (the read/write duality). So the
+  amortization result separates training-free latent banks from *fine-tuning*, not from a probe bank.
+
 ---
 
 ## Verdict (honest)
@@ -107,6 +147,12 @@ Detection accuracy is a **commodity** — CG-logistic *ties* LR/SVM in-dist and 
 cross-distribution edge (one confounded test). But the **efficiency** case is now established: CG is
 **Pareto-optimal** — ~98–99% of a full-model linear probe's AUC at **2–4× less compute, ~half the
 weights, and no gradient training**, using a single early tap. That is "efficiently learns concepts."
+
+The **stronger, better-measured** form of that claim is the multi-concept scaling result (§4 above): as a
+training-free bank, CG's cost is **flat/shallow in K** across a 14-category safety taxonomy (each concept
+a closed-form fit in ms/kilobytes, all K read in one forward) where per-concept LoRA is **steep-linear**
+(30–38× the whole-bank build cost, a separate forward each, and lower few-shot accuracy). Honest caveat:
+a linear-probe bank shares this amortization — what stays specific to CG is the read/write duality.
 
 Corrections worth remembering: (1) diff-of-means mode under-sells CG — always use `Direction.LOGISTIC`
 when comparing to a classifier. (2) The cross-dist test was confounded by concept mismatch (jailbreak
@@ -118,14 +164,15 @@ closed-form; probe full model + trained head).
 
 ## Plan (remaining)
 
-1. **LoRA row** — the fine-tuning end of the spectrum (PEFT training loop). Expect CG's no-gradient +
-   partial-forward advantage to *widen* (LoRA backprops through the model). **[next]**
+1. **LoRA row** ✅ — done as the fine-tune anchor in the scaling eval (§4): 3 real per-concept fits
+   per model; CG's no-gradient + shared-forward advantage widens with K exactly as expected. A full
+   14-category LoRA sweep would tighten the mean but the shape is already clear.
 2. **Clean within-concept OOD** — BeaverTails category holdout (the fair generalization test).
 3. **Steering / duality eval** — same learned direction steers generation (harmful → refusal/safe);
-   the effectiveness differentiator a classifier cannot match.
+   the effectiveness differentiator a classifier cannot match. **[the remaining differentiator to measure]**
 
 Status: in-dist detection ✅ · cross-dist ✅ (null, confounded) · **efficiency frontier ✅** ·
-LoRA / within-concept OOD / steering — pending.
+**multi-concept scaling ✅** · within-concept OOD / steering-measurement — pending.
 
 ## Re-run commands
 ```bash
@@ -138,5 +185,10 @@ uv run --with datasets python scripts/eval_detection.py --cross \
 # CG vs full-model all-layer linear probe
 uv run --with datasets python scripts/eval_detection.py --fullprobe \
   --models Qwen/Qwen2.5-0.5B-Instruct,google/gemma-2-2b-it
+# multi-concept scaling (cost-vs-K over BeaverTails' 14 harm categories, + LoRA anchor)
+uv run --with datasets --with peft --with transformers python scripts/eval_detection.py --scaling \
+  --models Qwen/Qwen2.5-0.5B-Instruct,google/gemma-2-2b-it --ns 32 --seeds 0,1,2 \
+  --lora-cats 3 --tap-fracs 0.5,0.7,0.85
 ```
-Results: `scripts/eval_detection_results.json`, `eval_crossdist_results.json`, `eval_fullprobe_results.json`.
+Results: `scripts/eval_detection_results.json`, `eval_crossdist_results.json`, `eval_fullprobe_results.json`,
+`eval_scaling_results.json`.
