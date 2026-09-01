@@ -199,6 +199,31 @@ in.** Fit the same concept from the dataset's long DAN templates instead → fir
 framed requests (all 3 seeds): it learned length, not intent. And the short-framing-fitted concept fires
 on **91.7%** of *real* out-of-register benign prompts — catastrophic FPR in deployment.
 
+**BeaverTails bank steering — NULL on behaviour** (`--beavertails`). The 14-concept bank had only been
+measured as a *detector* while we claimed each entry also steers. Same three arms, 5 harm categories,
+direction fit from 32 harmful prompts/cat vs the shared benign pool, 12 held-out prompts/cat:
+
+| category | fire harmful/benign | refusal none→always→gate | benign untouched always/gate |
+|---|---|---|---|
+| violence, incitement | 50%/8% | 8.3 → 0.0 → 8.3 | 0%/92% |
+| drug abuse, weapons | 58%/25% | 0.0 → 0.0 → 0.0 | 0%/75% |
+| financial/property crime | 67%/25% | 25.0 → 0.0 → 16.7 | 0%/75% |
+| privacy violation | 92%/33% | 8.3 → 25.0 → 25.0 | 0%/67% |
+| hate speech | 58%/42% | 41.7 → 33.3 → 33.3 | 0%/58% |
+| **mean** | **65%/27%** | **16.7 → 11.7 → 16.7** | **0%/73%** |
+
+Collateral finding replicates (gate 73% untouched vs blanket 0%) and blanket steering again *hurts*
+(16.7 → 11.7). But gating no longer improves anything — refusal flat at 16.7%. **Steering away from a
+harm TOPIC does not make the model decline.** Contrast the jailbreak concept (+8.3 pts): "jailbreak
+framing" is about request *intent/register* and sits near the safety-tuned refusal behaviour; "violence"
+is about content *topic*, so steering changes what the text is about, not whether the model complies.
+These directions also gate far more leakily (65 vs 27 firing, against 54 vs 10 for jailbreak) — same
+partial-generalization limit as §5. Caveats: refusal scored by explicit-decline lexicon (a harm-content
+reduction short of refusing wouldn't register); one magnitude, one 0.5B model.
+
+So: "each bank entry also steers" ⇒ each entry gives a free write *direction*; demonstrated behavioural
+control exists only for topical concepts (eval_steering.py) and jailbreak framing (§6).
+
 ### 7. Read/write cosine — the duality is real but not identity (`--cosine`)
 
 Mean |cos| between the detection direction mapped to raw space (`W/sd0`, renormalized) and the raw
@@ -261,12 +286,17 @@ closed-form; probe full model + trained head).
    concept, and model.
 4. **Gate-conditioned steering** ✅ (§6 above) — the one operation only the composition can do, and it
    wins on both axes. This is the differentiator; steering alone is CAA.
-5. **Remaining:** steer with an actual BeaverTails category direction (the 14-concept bank currently
-   only detects); a non-guardrail (topical/science) dataset to show the method is not safety-specific.
+5. **BeaverTails bank steering** ✅ — measured, and it is a **NULL on behaviour** (§6): the bank's harm
+   directions gate (leakily) and gating still confines the write, but steering away from a harm topic
+   does not make the model decline. Report it as a negative.
+6. **Remaining:** a non-guardrail (topical/science) dataset to show the method is not safety-specific;
+   a content-level harm score (not just a refusal lexicon) and more than one steering magnitude before
+   treating the BeaverTails null as general.
 
 Status: in-dist detection ✅ · cross-dist ✅ (null, confounded) · **efficiency frontier ✅** ·
 **multi-concept scaling ✅** · **within-concept OOD ✅** · **steering dose-response ✅** ·
-**gate-conditioned steering ✅** · **read/write cosine ✅** · BeaverTails steering — pending.
+**gate-conditioned steering ✅** · **read/write cosine ✅** · **BeaverTails bank steering ✅ (null)** ·
+non-guardrail dataset — pending.
 
 ## Re-run commands
 ```bash

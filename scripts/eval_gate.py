@@ -402,15 +402,76 @@ def cosine_sweep(models, device):
     return out
 
 
+def beavertails_steer(model, taps, device, cats=None, n_fit=32, n_test=12, frac=-0.08):
+    """Steer with actual BeaverTails category directions. Section 4.8.2 claims each entry of the
+    concept bank also steers; the bank had only ever been measured as a *detector*. This fits a real
+    category direction and runs the same three arms, so the claim rests on a measurement."""
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from eval_detection import _beavertails_concepts
+
+    print(f"\n{'='*92}\n### BEAVERTAILS STEERING {model}  taps {taps}  frac {frac}  "
+          f"N_fit={n_fit}/class  {n_test} held-out prompts/category\n{'='*92}", flush=True)
+    allcats, trc, trsafe, tec, tesafe = _beavertails_concepts(seed=0)
+    cats = cats or ["violence,aiding_and_abetting,incitement", "drug_abuse,weapons,banned_substance",
+                    "financial_crime,property_crime,theft", "privacy_violation",
+                    "hate_speech,offensive_language"]
+    cats = [c for c in cats if c in allcats] or allcats[:5]
+    safe_test = tesafe[:n_test]
+    cg = ConceptGate.from_pretrained(model, layers=taps, device=device)
+    rows = []
+    for cat in cats:
+        pos = trc[cat][:n_fit]
+        neg = trsafe[:n_fit]
+        if len(pos) < 8:
+            continue
+        cg.learn(cat, pos, neg)
+        cg.calibrate(z=2.0)
+        harm_test = tec[cat][:n_test]
+        fire_h = float(np.mean([cg.check(p).fired for p in harm_test])) * 100
+        fire_s = float(np.mean([cg.check(p).fired for p in safe_test])) * 100
+        rec = {"category": cat, "n_fit": len(pos), "n_test": len(harm_test),
+               "fire_harmful": round(fire_h, 1), "fire_safe": round(fire_s, 1), "arms": {}}
+        base_safe = None
+        for arm, act in (("none", Steer(fraction=0.0, concept=cat, when=Trigger.ALWAYS)),
+                         ("always", Steer(fraction=frac, concept=cat, when=Trigger.ALWAYS)),
+                         ("gate", Steer(fraction=frac, concept=cat, when=Trigger.FIRE))):
+            h = [_gen(cg, p, act) for p in harm_test]
+            s = [_gen(cg, p, act) for p in safe_test]
+            if arm == "none":
+                base_safe = s
+            rec["arms"][arm] = {
+                "refusal": round(float(np.mean([is_refusal(t) for t in h])) * 100, 1),
+                "safety_lang": round(float(np.mean([is_safety_lang(t) for t in h])) * 100, 1),
+                "safe_identical": round(float(np.mean([a == b for a, b in zip(s, base_safe)])) * 100, 1),
+            }
+        a = rec["arms"]
+        print(f"  {cat[:38]:38s} fire {fire_h:5.1f}%/{fire_s:5.1f}%  refusal "
+              f"none {a['none']['refusal']:5.1f} always {a['always']['refusal']:5.1f} "
+              f"gate {a['gate']['refusal']:5.1f}  |  safe untouched always "
+              f"{a['always']['safe_identical']:5.1f}% gate {a['gate']['safe_identical']:5.1f}%", flush=True)
+        rows.append(rec)
+    cg.unload()
+    if rows:
+        for k in ("refusal", "safety_lang", "safe_identical"):
+            print(f"  MEAN {k:15s}: " + "  ".join(
+                f"{arm} {np.mean([r['arms'][arm][k] for r in rows]):5.1f}"
+                for arm in ("none", "always", "gate")), flush=True)
+    return {"model": model, "taps": taps, "fraction": frac, "rows": rows}
+
+
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--beavertails", action="store_true")
     ap.add_argument("--gate", action="store_true")
     ap.add_argument("--decouple", action="store_true")
     ap.add_argument("--cosine", action="store_true")
     ap.add_argument("--device", default="mps")
     a = ap.parse_args()
-    both = not (a.gate or a.decouple or a.cosine)
+    both = not (a.gate or a.decouple or a.cosine or a.beavertails)
     out = {}
+    if a.beavertails:
+        out["beavertails"] = [beavertails_steer("Qwen/Qwen2.5-0.5B-Instruct", [8, 12, 16], a.device)]
     if a.cosine or both:
         out["cosine"] = cosine_sweep([("gpt2", [4, 6, 8]),
                                       ("Qwen/Qwen2.5-0.5B-Instruct", [8, 12, 16]),
