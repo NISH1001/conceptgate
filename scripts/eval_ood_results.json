@@ -1,0 +1,246 @@
+{
+ "results": [
+  {
+   "model": "Qwen/Qwen2.5-0.5B-Instruct",
+   "n_layers": 24,
+   "taps": [
+    12,
+    17,
+    20
+   ],
+   "n_fit": 32,
+   "seeds": 3,
+   "categories": [
+    "animal_abuse",
+    "child_abuse",
+    "controversial_topics,politics",
+    "discrimination,stereotype,injustice",
+    "drug_abuse,weapons,banned_substance",
+    "financial_crime,property_crime,theft",
+    "hate_speech,offensive_language",
+    "misinformation_regarding_ethics,laws_and_safety",
+    "non_violent_unethical_behavior",
+    "privacy_violation",
+    "self_harm",
+    "sexually_explicit,adult_content",
+    "terrorism,organized_crime",
+    "violence,aiding_and_abetting,incitement"
+   ],
+   "rows": {
+    "animal_abuse": {
+     "cg_in": 0.9187500000000001,
+     "cg_ood": 0.6315277777777778,
+     "pr_in": 0.937361111111111,
+     "pr_ood": 0.5296527777777778
+    },
+    "child_abuse": {
+     "cg_in": 0.9477272727272728,
+     "cg_ood": 0.7180555555555556,
+     "pr_in": 0.9666666666666667,
+     "pr_ood": 0.6546717171717171
+    },
+    "controversial_topics,politics": {
+     "cg_in": 0.7997191011235955,
+     "cg_ood": 0.3895131086142322,
+     "pr_in": 0.8366104868913857,
+     "pr_ood": 0.3824594257178527
+    },
+    "discrimination,stereotype,injustice": {
+     "cg_in": 0.7683796296296296,
+     "cg_ood": 0.48962962962962964,
+     "pr_in": 0.8099537037037036,
+     "pr_ood": 0.46388888888888896
+    },
+    "drug_abuse,weapons,banned_substance": {
+     "cg_in": 0.8919907407407407,
+     "cg_ood": 0.741087962962963,
+     "pr_in": 0.9359722222222221,
+     "pr_ood": 0.7247685185185185
+    },
+    "financial_crime,property_crime,theft": {
+     "cg_in": 0.8427083333333333,
+     "cg_ood": 0.7818981481481481,
+     "pr_in": 0.8506712962962962,
+     "pr_ood": 0.6879398148148148
+    },
+    "hate_speech,offensive_language": {
+     "cg_in": 0.7964814814814815,
+     "cg_ood": 0.5668055555555555,
+     "pr_in": 0.7972222222222222,
+     "pr_ood": 0.5355787037037036
+    },
+    "misinformation_regarding_ethics,laws_and_safety": {
+     "cg_in": 0.6955632716049384,
+     "cg_ood": 0.6310185185185185,
+     "pr_in": 0.6527777777777778,
+     "pr_ood": 0.6200231481481482
+    },
+    "non_violent_unethical_behavior": {
+     "cg_in": 0.7162268518518519,
+     "cg_ood": 0.6698379629629629,
+     "pr_in": 0.7162731481481481,
+     "pr_ood": 0.6362731481481481
+    },
+    "privacy_violation": {
+     "cg_in": 0.853611111111111,
+     "cg_ood": 0.5637268518518518,
+     "pr_in": 0.8713194444444445,
+     "pr_ood": 0.5164814814814815
+    },
+    "self_harm": {
+     "cg_in": 0.9019097222222222,
+     "cg_ood": 0.7664930555555555,
+     "pr_in": 0.9276041666666667,
+     "pr_ood": 0.7409722222222221
+    },
+    "sexually_explicit,adult_content": {
+     "cg_in": 0.7592693236714977,
+     "cg_ood": 0.5840579710144927,
+     "pr_in": 0.8415760869565219,
+     "pr_ood": 0.5343900966183575
+    },
+    "terrorism,organized_crime": {
+     "cg_in": 0.8557017543859647,
+     "cg_ood": 0.7444444444444445,
+     "pr_in": 0.8916666666666666,
+     "pr_ood": 0.7599415204678364
+    },
+    "violence,aiding_and_abetting,incitement": {
+     "cg_in": 0.8327546296296297,
+     "cg_ood": 0.7753935185185185,
+     "pr_in": 0.8225694444444445,
+     "pr_ood": 0.7514120370370371
+    }
+   },
+   "summary": {
+    "cg_in": 0.8271995159652334,
+    "cg_ood": 0.6466778615078718,
+    "pr_in": 0.8470174603013054,
+    "pr_ood": 0.6098895357654647,
+    "cg_drop": 0.181,
+    "pr_drop": 0.237
+   }
+  },
+  {
+   "model": "google/gemma-2-2b-it",
+   "n_layers": 26,
+   "taps": [
+    13,
+    18,
+    22
+   ],
+   "n_fit": 32,
+   "seeds": 3,
+   "categories": [
+    "animal_abuse",
+    "child_abuse",
+    "controversial_topics,politics",
+    "discrimination,stereotype,injustice",
+    "drug_abuse,weapons,banned_substance",
+    "financial_crime,property_crime,theft",
+    "hate_speech,offensive_language",
+    "misinformation_regarding_ethics,laws_and_safety",
+    "non_violent_unethical_behavior",
+    "privacy_violation",
+    "self_harm",
+    "sexually_explicit,adult_content",
+    "terrorism,organized_crime",
+    "violence,aiding_and_abetting,incitement"
+   ],
+   "rows": {
+    "animal_abuse": {
+     "cg_in": 0.9318749999999999,
+     "cg_ood": 0.5909722222222221,
+     "pr_in": 0.9379861111111111,
+     "pr_ood": 0.5645833333333333
+    },
+    "child_abuse": {
+     "cg_in": 0.9731060606060605,
+     "cg_ood": 0.6391414141414141,
+     "pr_in": 0.9564393939393939,
+     "pr_ood": 0.6380050505050505
+    },
+    "controversial_topics,politics": {
+     "cg_in": 0.8259675405742821,
+     "cg_ood": 0.46560549313358307,
+     "pr_in": 0.844725343320849,
+     "pr_ood": 0.4726903870162298
+    },
+    "discrimination,stereotype,injustice": {
+     "cg_in": 0.8456481481481481,
+     "cg_ood": 0.5207638888888888,
+     "pr_in": 0.8468749999999999,
+     "pr_ood": 0.5013657407407408
+    },
+    "drug_abuse,weapons,banned_substance": {
+     "cg_in": 0.940324074074074,
+     "cg_ood": 0.7431481481481482,
+     "pr_in": 0.9510879629629629,
+     "pr_ood": 0.7499537037037037
+    },
+    "financial_crime,property_crime,theft": {
+     "cg_in": 0.8932407407407408,
+     "cg_ood": 0.7351388888888888,
+     "pr_in": 0.877337962962963,
+     "pr_ood": 0.6944675925925926
+    },
+    "hate_speech,offensive_language": {
+     "cg_in": 0.8262962962962962,
+     "cg_ood": 0.544699074074074,
+     "pr_in": 0.8321064814814814,
+     "pr_ood": 0.4990972222222223
+    },
+    "misinformation_regarding_ethics,laws_and_safety": {
+     "cg_in": 0.6602623456790123,
+     "cg_ood": 0.6434799382716049,
+     "pr_in": 0.6538966049382715,
+     "pr_ood": 0.612962962962963
+    },
+    "non_violent_unethical_behavior": {
+     "cg_in": 0.7298611111111111,
+     "cg_ood": 0.6540740740740741,
+     "pr_in": 0.7186111111111111,
+     "pr_ood": 0.6088425925925925
+    },
+    "privacy_violation": {
+     "cg_in": 0.9262962962962963,
+     "cg_ood": 0.5263194444444445,
+     "pr_in": 0.9297453703703704,
+     "pr_ood": 0.5609490740740741
+    },
+    "self_harm": {
+     "cg_in": 0.8894097222222221,
+     "cg_ood": 0.7088541666666668,
+     "pr_in": 0.8973958333333334,
+     "pr_ood": 0.7123263888888888
+    },
+    "sexually_explicit,adult_content": {
+     "cg_in": 0.9311896135265701,
+     "cg_ood": 0.43233695652173915,
+     "pr_in": 0.9312499999999999,
+     "pr_ood": 0.4622282608695652
+    },
+    "terrorism,organized_crime": {
+     "cg_in": 0.931359649122807,
+     "cg_ood": 0.7521929824561403,
+     "pr_in": 0.9279970760233919,
+     "pr_ood": 0.7751461988304094
+    },
+    "violence,aiding_and_abetting,incitement": {
+     "cg_in": 0.8453240740740741,
+     "cg_ood": 0.6726851851851853,
+     "pr_in": 0.8152777777777778,
+     "pr_ood": 0.681574074074074
+    }
+   },
+   "summary": {
+    "cg_in": 0.867868619462264,
+    "cg_ood": 0.6163865626512196,
+    "pr_in": 0.8657665735237872,
+    "pr_ood": 0.6095851844576029,
+    "cg_drop": 0.251,
+    "pr_drop": 0.256
+   }
+  }
+ ]
+}

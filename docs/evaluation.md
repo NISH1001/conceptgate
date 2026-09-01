@@ -139,6 +139,33 @@ Findings:
   What is specific to CG is that the same K directions also **steer** (the read/write duality). So the
   amortization result separates training-free latent banks from *fine-tuning*, not from a probe bank.
 
+### 5. Within-concept generalization — leave-one-category-out (`--ood`)
+
+Fixes the confound in the cross-distribution test (§2): instead of jailbreak-*framing* vs harmful-*content*
+(different concepts), this holds the **concept fixed** (harmfulness) and varies the surface **category**.
+For each of the 14 BeaverTails categories c, learn the harmful direction from the OTHER 13 categories
+(+ a shared benign pool, N=32/class) and score the held-out category c; compare to the in-distribution
+reference that trains on c itself. Same N, same test set. CG (logistic taps) vs full-model linear probe,
+3 seeds, Qwen + gemma. Reuses the scaling activation cache.
+
+| Model | CG in→OOD (drop) | probe in→OOD (drop) |
+|---|---|---|
+| Qwen2.5-0.5B | 0.827→**0.647** (0.181) | 0.847→0.610 (0.237) |
+| gemma-2-2b | 0.868→**0.616** (0.251) | 0.866→0.610 (0.256) |
+
+Findings:
+- **Partial generalization.** A harmfulness direction trained on 13 categories detects an unseen 14th at
+  ~0.61–0.65 AUC — above chance, well below in-distribution (~0.83–0.87). Not a collapse (unlike the
+  confounded cross-dist null in §2), not free transfer either.
+- **CG generalizes at least as well as the probe** — a smaller drop on Qwen (0.181 vs 0.237; OOD 0.647 vs
+  0.610) and tied on gemma (0.251 vs 0.256). The mid-layer tapped direction is at least as
+  category-transferable as the final-layer head, so the OOD story is not a CG weakness.
+- **"Harm" is not monolithic.** Per-category OOD ranges widely: violence / self-harm / drugs / terrorism /
+  financial transfer well (~0.77–0.81), while controversial-politics (~0.29, *below* chance) and
+  discrimination (~0.39) barely transfer — those categories read differently in the residual stream.
+
+This is the clean generalization test the cross-distribution transfer could not give.
+
 ---
 
 ## Verdict (honest)
@@ -167,12 +194,13 @@ closed-form; probe full model + trained head).
 1. **LoRA row** ✅ — done as the fine-tune anchor in the scaling eval (§4): 3 real per-concept fits
    per model; CG's no-gradient + shared-forward advantage widens with K exactly as expected. A full
    14-category LoRA sweep would tighten the mean but the shape is already clear.
-2. **Clean within-concept OOD** — BeaverTails category holdout (the fair generalization test).
+2. **Clean within-concept OOD** ✅ — BeaverTails leave-one-category-out (§5 above): partial
+   generalization, CG at least as robust as the probe.
 3. **Steering / duality eval** — same learned direction steers generation (harmful → refusal/safe);
    the effectiveness differentiator a classifier cannot match. **[the remaining differentiator to measure]**
 
 Status: in-dist detection ✅ · cross-dist ✅ (null, confounded) · **efficiency frontier ✅** ·
-**multi-concept scaling ✅** · within-concept OOD / steering-measurement — pending.
+**multi-concept scaling ✅** · **within-concept OOD ✅** · steering-measurement — pending.
 
 ## Re-run commands
 ```bash
@@ -189,6 +217,9 @@ uv run --with datasets python scripts/eval_detection.py --fullprobe \
 uv run --with datasets --with peft --with transformers python scripts/eval_detection.py --scaling \
   --models Qwen/Qwen2.5-0.5B-Instruct,google/gemma-2-2b-it --ns 32 --seeds 0,1,2 \
   --lora-cats 3 --tap-fracs 0.5,0.7,0.85
+# within-concept OOD (leave-one-category-out over BeaverTails; reuses the scaling cache)
+uv run --with datasets python scripts/eval_detection.py --ood \
+  --models Qwen/Qwen2.5-0.5B-Instruct,google/gemma-2-2b-it --ns 32 --seeds 0,1,2 --tap-fracs 0.5,0.7,0.85
 ```
 Results: `scripts/eval_detection_results.json`, `eval_crossdist_results.json`, `eval_fullprobe_results.json`,
-`eval_scaling_results.json`.
+`eval_scaling_results.json`, `eval_ood_results.json`.
