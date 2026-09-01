@@ -427,7 +427,7 @@ def bench_fullprobe(model, Ns, seeds, device):
     for N in Ns:
         if N > min(len(pos_i), len(neg_i)):
             continue
-        cgd, cgl, lp, sv = [], [], [], []
+        cgd, cgl, lp, sv, lpt = [], [], [], [], []
         for sd in seeds:
             r = np.random.default_rng(3000 + sd)
             ip, ineg = r.choice(pos_i, N, replace=False), r.choice(neg_i, N, replace=False)
@@ -435,15 +435,19 @@ def bench_fullprobe(model, Ns, seeds, device):
             Fp, Fn, Ft = A_pool[ip][:, fin_i, :], A_pool[ineg][:, fin_i, :], A_te[:, fin_i, :]
             cgd.append(_metrics(_fit_cg(Xp, Xn, Direction.DIFF_OF_MEANS).llr(Xt), test_y)["auc"])
             cgl.append(_metrics(_fit_cg(Xp, Xn, Direction.LOGISTIC).llr(Xt), test_y)["auc"])
-            lp.append(_lr_auc(Fp, Fn, Ft, test_y))
+            lp.append(_lr_auc(Fp, Fn, Ft, test_y))       # probe on the FINAL layer (full forward)
+            lpt.append(_lr_auc(Xp, Xn, Xt, test_y))      # DEPTH-MATCHED probe: same taps as CG, same compute
             sv.append(_svm_auc(Fp, Fn, Ft, test_y))
+        sd_ = lambda a: round(float(np.std(a)), 3)
         rows[N] = {"cg_diff": float(np.mean(cgd)), "cg_logistic": float(np.mean(cgl)),
-                   "linprobe": float(np.mean(lp)), "linprobe_svm": float(np.mean(sv))}
+                   "linprobe": float(np.mean(lp)), "linprobe_svm": float(np.mean(sv)),
+                   "linprobe_tap": float(np.mean(lpt)),
+                   "std": {"cg_logistic": sd_(cgl), "linprobe": sd_(lp), "linprobe_tap": sd_(lpt)}}
 
-    print(f"  {'N':>4} | {'CG-diff':>9} {'CG-log':>9} {'LR-probe':>9} {'SVM-probe':>10}   (AUC)")
+    print(f"  {'N':>4} | {'CG-log':>8} {'probe@tap':>10} {'probe@final':>12} {'SVM@final':>10}   (AUC; probe@tap = depth-matched)")
     for N, r in rows.items():
-        print(f"  {N:>4} | {r['cg_diff']:>9.3f} {r['cg_logistic']:>9.3f} {r['linprobe']:>9.3f} "
-              f"{r['linprobe_svm']:>10.3f}", flush=True)
+        print(f"  {N:>4} | {r['cg_logistic']:>8.3f} {r['linprobe_tap']:>10.3f} "
+              f"{r['linprobe']:>12.3f} {r['linprobe_svm']:>10.3f}", flush=True)
     return {"model": model, "n_layers": n_layers, "taps": taps, "top_tap": top_tap,
             "depth_fraction": round(depth, 3), "rows": rows}
 
@@ -528,25 +532,31 @@ def bench_efficiency(model, Ns, seeds, device):
     for name, layers in configs:
         top = max(layers)
         loaded = mp["embed"] + (top + 1) * mp["per_layer"]
-        al, sl = cg_auc([idx[L] for L in layers], Direction.LOGISTIC)
-        ad, sd_ = cg_auc([idx[L] for L in layers], Direction.DIFF_OF_MEANS)
+        li = [idx[L] for L in layers]
+        al, sl = cg_auc(li, Direction.LOGISTIC)
+        ad, sd_ = cg_auc(li, Direction.DIFF_OF_MEANS)
+        apt, spt = pr_auc(li)   # DEPTH-MATCHED probe: LR on the SAME taps -> same truncated forward as CG
+        m_ = len(layers)
         rows.append({"config": name, "layers": layers, "top": top, "depth_frac": round((top + 1) / n, 2),
-                     "weights_frac": round(loaded / mp["total"], 2), "learned_params": len(layers) * d,
+                     "weights_frac": round(loaded / mp["total"], 2),
+                     "learned_params": 4 * m_ * d + m_,   # full stored state: detect+steer dirs (2md) + standardization (2md) + filter (m)
+                     "learned_params_detect": 3 * m_ * d + m_,  # detection-only state (no steering vector)
                      "auc_log": round(al, 3), "auc_log_std": round(sl, 3), "auc_diff": round(ad, 3),
+                     "auc_probe_tap": round(apt, 3), "auc_probe_tap_std": round(spt, 3),
                      "fwd_ms": round(wt[top][0], 1), "fwd_ms_std": round(wt[top][1], 1)})
     apr, spr = pr_auc([idx[fin]])
-    probe = {"config": "linear-probe", "depth_frac": 1.0, "weights_frac": 1.0, "learned_params": d,
+    probe = {"config": "probe@final", "depth_frac": 1.0, "weights_frac": 1.0, "learned_params": d + 1,
              "auc": round(apr, 3), "auc_std": round(spr, 3),
              "fwd_ms": round(wt[fin][0], 1), "fwd_ms_std": round(wt[fin][1], 1)}
 
-    print(f"  {'config':>11} {'depth':>6} {'weights':>8} {'params':>7} {'AUC-log':>9} {'AUC-diff':>9} "
+    print(f"  {'config':>11} {'depth':>6} {'weights':>8} {'CG-log':>13} {'probe@tap':>13} {'AUC-diff':>9} "
           f"{'fwd ms/prompt':>15}", flush=True)
     for r in rows:
-        print(f"  {r['config']:>11} {r['depth_frac']:>5.0%} {r['weights_frac']:>7.0%} {r['learned_params']:>7} "
-              f"{r['auc_log']:>7.3f}±{r['auc_log_std']:.2f} {r['auc_diff']:>9.3f} "
-              f"{r['fwd_ms']:>9.1f}±{r['fwd_ms_std']:.1f}", flush=True)
-    print(f"  {'lin-probe':>11} {1.0:>5.0%} {1.0:>7.0%} {d:>7} {apr:>7.3f}±{spr:.2f} {'--':>9} "
-          f"{probe['fwd_ms']:>9.1f}±{probe['fwd_ms_std']:.1f}", flush=True)
+        print(f"  {r['config']:>11} {r['depth_frac']:>5.0%} {r['weights_frac']:>7.0%} "
+              f"{r['auc_log']:>8.3f}±{r['auc_log_std']:.2f} {r['auc_probe_tap']:>8.3f}±{r['auc_probe_tap_std']:.2f} "
+              f"{r['auc_diff']:>9.3f} {r['fwd_ms']:>9.1f}±{r['fwd_ms_std']:.1f}", flush=True)
+    print(f"  {'probe@final':>11} {1.0:>5.0%} {1.0:>7.0%} {apr:>8.3f}±{spr:.2f} {'--':>13} {'--':>9} "
+          f"{probe['fwd_ms']:>9.1f}±{probe['fwd_ms_std']:.1f}   (full-model reference)", flush=True)
     return {"model": model, "n_layers": n, "d": d, "total_params_M": round(mp["total"] / 1e6),
             "N": N, "seeds": len(seeds), "configs": rows, "linear_probe": probe}
 
