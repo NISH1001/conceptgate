@@ -5,8 +5,10 @@ efficiently** (the title claim). "Efficient" = matches strong baselines on the t
 **fraction of the memory + compute**, few-shot and closed-form, *and* is steerable (a classifier
 is not). In-distribution detection AUC alone is a commodity and does NOT establish value.
 
-**Branch:** all this work lives on `feature/detection-benchmark` (NOT main). Harness:
-`scripts/eval_detection.py`. Run everything with `uv run --with datasets python ...`.
+**Where this lives:** all of it is merged to `main`. Harnesses: `scripts/eval_detection.py` (detection,
+efficiency, multi-concept scaling, OOD), `scripts/eval_steering.py` (steering dose-response), and
+`scripts/eval_gate.py` (gate-conditioned steering, read/write cosine, decoupling). Run everything with
+`uv run --with datasets python ...`.
 
 **Data (public, cached):** `jackhhao/jailbreak-classification` (jailbreak *templates* vs benign;
 train/test 1044/262), `PKU-Alignment/BeaverTails` (harmful *requests* vs safe). Prompts capped at

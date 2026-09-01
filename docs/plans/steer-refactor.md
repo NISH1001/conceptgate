@@ -1,6 +1,6 @@
 # Plan: unify interventions under `run` + strategy (Steer refactor)
 
-Branch: `feature/steer`.  Date: 2026-08-18.
+Date: 2026-08-18. Written on `feature/steer`; since merged — the code is on `main`.
 
 ## State (what's already done)
 - `Steer` action built and **validated on 3 models** (GPT-2 124M / Qwen-0.5B / SmolLM2-1.7B):
