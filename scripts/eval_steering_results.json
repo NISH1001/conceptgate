@@ -1,0 +1,406 @@
+{
+ "results": [
+  {
+   "model": "Qwen/Qwen2.5-0.5B-Instruct",
+   "taps": [
+    8,
+    12,
+    16
+   ],
+   "resid_norm": 17.9,
+   "prompts": [
+    "The best part of the day was when",
+    "I opened the door and",
+    "She looked around and saw",
+    "Later that afternoon, we",
+    "The first thing I noticed was"
+   ],
+   "max_new_tokens": 40,
+   "fractions": [
+    -0.16,
+    -0.1,
+    -0.06,
+    -0.03,
+    0.0,
+    0.03,
+    0.06,
+    0.1,
+    0.16
+   ],
+   "concepts": {
+    "food": {
+     "frac": [
+      -0.16,
+      -0.1,
+      -0.06,
+      -0.03,
+      0.0,
+      0.03,
+      0.06,
+      0.1,
+      0.16
+     ],
+     "llr": [
+      460.22,
+      536.29,
+      490.89,
+      508.67,
+      646.42,
+      711.2,
+      854.65,
+      967.23,
+      1088.87
+     ],
+     "lex": [
+      1.7,
+      0.0,
+      0.6,
+      2.4,
+      0.6,
+      0.6,
+      0.6,
+      5.4,
+      6.5
+     ],
+     "ppl": [
+      6.4,
+      5.0,
+      3.7,
+      5.8,
+      4.5,
+      4.5,
+      4.8,
+      5.1,
+      6.7
+     ],
+     "example": {
+      "-0.16": "I got home. The only thing that made me feel sad was that I had to go to work.  A) yesterday B) tomorrow C) today D) next week  Wh",
+      "-0.1": "I got home from work. The house was quiet, and I had a good chance to catch up on my reading. I decided to read a book about the h",
+      "-0.06": "I got to see my friend's birthday party. The party was held at a local park, and it was filled with lots of fun activities for eve",
+      "-0.03": "I got to see my friend's wedding. It was a beautiful, romantic event with lots of flowers and pretty decorations. The food was als",
+      "0.0": "I got to see my friend's family. It was a nice surprise, and it made me feel happy. A. surprised B. excited C. disappointed D. ple",
+      "0.03": "I got to see my daughter, who is 10 years old, at the zoo. She had a great time and it made me feel good about myself. Does this n",
+      "0.06": "I got to see my son's first ever performance at the 2017 New York City Ballet. It was a very special experience for me and my husb",
+      "0.1": "I got to see the kids at the park. The kids are so much fun and they make you smile. They love to play with each other, and it's a",
+      "0.16": "you get to make your own food. I love making homemade salsa, and this is a great way to use up some of the veggies that are in my "
+     }
+    },
+    "nature": {
+     "frac": [
+      -0.16,
+      -0.1,
+      -0.06,
+      -0.03,
+      0.0,
+      0.03,
+      0.06,
+      0.1,
+      0.16
+     ],
+     "llr": [
+      -39.76,
+      -34.22,
+      0.22,
+      9.97,
+      -20.22,
+      -3.67,
+      16.69,
+      42.36,
+      50.93
+     ],
+     "lex": [
+      0.0,
+      0.0,
+      0.5,
+      0.0,
+      0.0,
+      3.5,
+      2.9,
+      8.2,
+      8.7
+     ],
+     "ppl": [
+      5.8,
+      6.5,
+      6.2,
+      4.3,
+      4.5,
+      4.1,
+      3.9,
+      4.9,
+      5.0
+     ],
+     "example": {
+      "-0.16": "I got a new job offer. It's been 10 days since I received it, and I'm still not sure if I should accept it or not.  I have to deci",
+      "-0.1": "I got to go to work. The worst part is when I get home and it's already 10:30 PM.  I'm a full-time student at a university in the ",
+      "-0.06": "I got to see my friend's birthday party. It was a surprise, and it was a great surprise. The party was held at a local restaurant ",
+      "-0.03": "I got to see my friend's wedding. It was a beautiful, romantic event that made me feel like I had been invited to a private party.",
+      "0.0": "I got to see my friend's family. It was a nice surprise, and it made me feel happy. A. surprised B. excited C. disappointed D. ple",
+      "0.03": "I got to see the sun rise over the mountains. The view from the top of the mountain is breathtaking, and it's a place that I've al",
+      "0.06": "I got to see the sun rise over the mountains. The view from the top of the mountain is breathtaking, and it's a place where you ca",
+      "0.1": "I saw a group of people in the park. The sun was shining and the birds were singing. It was peaceful, like nothing else. I felt so",
+      "0.16": "I saw a group of people playing with a giant boulder. The sun was shining and the air was crisp, and it was like nothing else in t"
+     }
+    },
+    "technology": {
+     "frac": [
+      -0.16,
+      -0.1,
+      -0.06,
+      -0.03,
+      0.0,
+      0.03,
+      0.06,
+      0.1,
+      0.16
+     ],
+     "llr": [
+      17.0,
+      46.37,
+      46.76,
+      43.24,
+      48.83,
+      62.32,
+      56.38,
+      90.02,
+      90.43
+     ],
+     "lex": [
+      0.0,
+      0.8,
+      0.0,
+      0.6,
+      1.4,
+      0.5,
+      1.6,
+      1.2,
+      3.0
+     ],
+     "ppl": [
+      9.3,
+      6.1,
+      5.6,
+      4.2,
+      4.5,
+      5.4,
+      5.4,
+      6.8,
+      7.5
+     ],
+     "example": {
+      "-0.16": "I got home. It's a Sunday, and it's my mother's birthday. A. get B. gets C. getting D. to get  Answer: C  ( )",
+      "-0.1": "I got home from work. It was a beautiful Sunday morning, and I had been looking forward to it all week. I had just finished my fir",
+      "-0.06": "I got to see my friend's wedding. It was a beautiful, romantic event with lots of people and lots of fun activities for everyone. ",
+      "-0.03": "I got to see my friend's wedding. It was a beautiful, romantic event with lots of flowers and pretty decorations. The food was als",
+      "0.0": "I got to see my friend's family. It was a nice surprise, and it made me feel happy. A. surprised B. excited C. disappointed D. ple",
+      "0.03": "I got to see the new movie \"The Last Jedi\" at the Hollywood Fringe Festival. It's a very good film, and it has some really cool vi",
+      "0.06": "I got to see the new 3D movie \"The Dark Knight Rises\" at the New York City Comic Con. The movie is a very well made film that has ",
+      "0.1": "I got to see the new 3D technology in action. The first time I saw it, I thought it was a bit too much for my eyes and brain but a",
+      "0.16": "I could see my own brain working. It\u2019s a bit like being able to see through your own body, and it\u2019s amazing how much more you can "
+     }
+    }
+   }
+  },
+  {
+   "model": "gpt2",
+   "taps": [
+    4,
+    6,
+    8
+   ],
+   "resid_norm": 96.0,
+   "prompts": [
+    "The best part of the day was when",
+    "I opened the door and",
+    "She looked around and saw",
+    "Later that afternoon, we",
+    "The first thing I noticed was"
+   ],
+   "max_new_tokens": 40,
+   "fractions": [
+    -0.16,
+    -0.1,
+    -0.06,
+    -0.03,
+    0.0,
+    0.03,
+    0.06,
+    0.1,
+    0.16
+   ],
+   "concepts": {
+    "food": {
+     "frac": [
+      -0.16,
+      -0.1,
+      -0.06,
+      -0.03,
+      0.0,
+      0.03,
+      0.06,
+      0.1,
+      0.16
+     ],
+     "llr": [
+      -4.26,
+      -2.23,
+      -0.33,
+      -3.6,
+      1.99,
+      4.22,
+      2.76,
+      6.51,
+      5.76
+     ],
+     "lex": [
+      1.9,
+      0.7,
+      0.7,
+      0.0,
+      0.0,
+      0.7,
+      5.0,
+      6.1,
+      17.7
+     ],
+     "ppl": [
+      6.4,
+      6.1,
+      4.9,
+      4.2,
+      3.4,
+      4.3,
+      5.8,
+      5.5,
+      6.6
+     ],
+     "example": {
+      "-0.16": "the FBI said it would not release any information about the investigation.  The FBI said it will not release any information about",
+      "-0.1": "the FBI announced that it had arrested a man who had been in custody for more than a year.  The FBI said it had arrested a man who",
+      "-0.06": "I got to the office and I was like, 'Oh my God, I'm so sorry.' I was like, 'I'm sorry, I'm sorry.' I was like, 'I'm",
+      "-0.03": "I got to the airport and I was told that I had to go to the airport and I was told that I had to go to the airport and I was told ",
+      "0.0": "I got to the airport and I was greeted by a guy who was a little older than me. He was a guy who was a little older than me. He wa",
+      "0.03": "I got to the kitchen and I was like, \"Oh my God, I'm so happy!\" I was like, \"Oh my God, I'm so happy!\" I was like, \"Oh",
+      "0.06": "I was able to get my hands on some of the best vegan food I've ever had. I love the taste of the vegan cheese and the fresh herbs ",
+      "0.1": "I was able to eat a little bit of the meat and veggies. I also used a little bit of the cheese and a little bit of the mushrooms. ",
+      "0.16": "you could use a little bit of the spice of the day. I used a little bit of the day.  I used a little bit of the day.  I used a lit"
+     }
+    },
+    "nature": {
+     "frac": [
+      -0.16,
+      -0.1,
+      -0.06,
+      -0.03,
+      0.0,
+      0.03,
+      0.06,
+      0.1,
+      0.16
+     ],
+     "llr": [
+      -81.86,
+      -130.43,
+      -115.08,
+      -98.22,
+      -40.94,
+      -47.2,
+      -37.25,
+      -14.03,
+      -14.68
+     ],
+     "lex": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      1.9,
+      9.1,
+      23.0
+     ],
+     "ppl": [
+      4.0,
+      5.6,
+      4.4,
+      4.4,
+      3.4,
+      5.3,
+      5.1,
+      4.5,
+      2.9
+     ],
+     "example": {
+      "-0.16": "he said he will be back.  \"I'm going to be back,\" he said.  \"I'm going to be back,\" he said.  \"I'm going to",
+      "-0.1": "I got back to work. I'm going to be back in the office for a couple of weeks. I'm going to be back in the office for a couple of w",
+      "-0.06": "I got home from work and I was like, \"Oh my God, I'm so excited to be here.\" I was like, \"Oh my God, I'm so excited to be here.\"",
+      "-0.03": "I got home and I was like, \"Oh my God, I'm so excited to be here.\" I was like, \"Oh my God, I'm so excited to be here.\" I was",
+      "0.0": "I got to the airport and I was greeted by a guy who was a little older than me. He was a guy who was a little older than me. He wa",
+      "0.03": "I was able to get my hands on a few of the new features. I was able to get a few of the new features, but I was also able to get a",
+      "0.06": "I saw the sun rise over the horizon. I was so happy to see the sun rise over the horizon. I was so happy to see the sun rise over ",
+      "0.1": "the sun was shining through the trees and the trees were covered with the leaves of the trees. The sun was shining through the tre",
+      "0.16": "the sun shone on the mountains, and the moon shone on the mountains, and the moon shone on the mountains, and the moon shone on th"
+     }
+    },
+    "technology": {
+     "frac": [
+      -0.16,
+      -0.1,
+      -0.06,
+      -0.03,
+      0.0,
+      0.03,
+      0.06,
+      0.1,
+      0.16
+     ],
+     "llr": [
+      10.57,
+      3.61,
+      8.1,
+      9.21,
+      10.79,
+      16.77,
+      15.66,
+      14.39,
+      17.46
+     ],
+     "lex": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      2.3,
+      6.8,
+      11.6
+     ],
+     "ppl": [
+      5.2,
+      5.0,
+      3.8,
+      3.7,
+      3.4,
+      5.5,
+      5.4,
+      6.9,
+      7.8
+     ],
+     "example": {
+      "-0.16": "the mayor said he was going to be in the mayor's office.  \"I'm going to be in the mayor's office,\" said Mayor Rob Ford.  \"I'm goin",
+      "-0.1": "I got home and I was like, 'I'm going to be here for a while.' I was like, 'I'm going to be here for a while.' I was like, 'I",
+      "-0.06": "I got home and I was like, 'Oh my God, I'm so sorry.' I was like, 'I'm so sorry.' I was like, 'I'm so sorry.' I was",
+      "-0.03": "I got home and I was like, \"Oh my God, I'm so sorry.\" I was like, \"I'm so sorry.\" I was like, \"I'm so sorry.\" I was",
+      "0.0": "I got to the airport and I was greeted by a guy who was a little older than me. He was a guy who was a little older than me. He wa",
+      "0.03": "I was able to get my hands on a few of the new features. I was able to get a few of the new features, but I was also able to get a",
+      "0.06": "I was able to get my hands on a new version of the game. I was able to play it on my own, and I was able to play it with my friend",
+      "0.1": "I could see the screen and the screen was very clear. I could see the screen and the screen was very clear.  I could see the scree",
+      "0.16": "you could see the screen on the screen, and you could see the screen on the screen.  The best part of the day was when you could s"
+     }
+    }
+   }
+  }
+ ]
+}
