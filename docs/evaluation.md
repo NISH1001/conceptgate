@@ -88,16 +88,23 @@ full model, final-layer head fit on the same N examples. fwd = per-prompt forwar
 | 5tap | 73% | 79% | 0.977 | 401.3 | 1.4× faster |
 
 Findings:
-- **CG is Pareto-efficient.** The full-model linear probe has the highest AUC (it uses the whole
-  model), but CG reaches **~98–99% of it at 2–4× less compute + ~half the weights loaded + no
-  gradient training** (closed-form learn+calibrate).
-- **A single early tap is the sweet spot** (Qwen 1tap@25% 0.968 @ 3.3×; gemma 1tap@40% 0.974 @ 2.4×):
-  the concept is linearly readable at ~⅓–⅖ depth, so the top half of the model is skipped.
-- **Depth-fusion barely helps** on real detection: 3/5-tap ≈ best single tap (the synthetic
-  depth-fusion win does not transfer).
-- CG-diff is the weaker mode (~0.92–0.96); logistic is the one to report.
-- Memory is universal: CG loads embed + blocks 0..top-tap (weights % above); learned params
-  CG = m·d (≈2.7K Qwen / 6.9K gemma), probe = d. Compute is the measured wall-time above.
+- **CG's single-concept efficiency is NOT a CG advantage — it is the truncated forward.** A
+  **depth-matched probe** (logistic regression on the SAME tapped activations, same truncated forward)
+  EQUALS CG-logistic at every depth (Qwen 0.968=0.968 … 0.982=0.982; gemma 0.948=0.948 … 0.974=0.974)
+  and on multi-tap slightly BEATS CG's bandpass fusion (Qwen 3tap 0.973 vs 0.978). So the "2–4× less
+  compute" is only vs the FULL-MODEL probe; a fair depth-matched baseline gets CG's number at CG's
+  compute. Do NOT frame single-concept efficiency as a ConceptGate contribution. [added `auc_probe_tap`
+  to `bench_efficiency`/`bench_fullprobe`]
+- **A single early tap suffices** (Qwen 1tap@40% 0.970; gemma 1tap@40% 0.974): the concept is linearly
+  readable at ~⅖ depth — a fact about the MODEL (how early the abstraction forms), shared by any probe.
+- **Depth fusion does not transfer**: 3/5-tap ≈ best single tap, and the depth-matched probe on the
+  concatenated taps beats the bandpass fusion. The synthetic §4.1 win is on data matched to its own
+  assumptions.
+- CG-diff is the weaker mode (~0.92–0.96); logistic is the one to report — and CG-logistic on one tap
+  IS logistic regression on that tap.
+- Learned params: CG's full read+write state ≈ 4md (detect + steer directions + standardization),
+  ~11K Qwen / ~28K gemma — an order of magnitude above the probe's d, both kilobytes; the reviewer
+  correctly flagged the earlier m·d count as omitting the steering vector.
 
 ### 4. Multi-concept scaling — the amortization argument (`--scaling`)
 
@@ -168,18 +175,96 @@ This is the clean generalization test the cross-distribution transfer could not 
 
 ---
 
+### 6. Gate-conditioned steering — what the gate is actually for (`scripts/eval_gate.py`)
+
+The steering rule is plain CAA: direction + magnitude, no spectrogram, no depth filter, no threshold.
+So the read side's contribution to the write side is **not** the direction — it's deciding *when* to
+write (`Steer(when=Trigger.FIRE)`). That is the only operation no probe and no external guard can do,
+and it had no measurement. Qwen-0.5B, taps 8/12/16, frac −0.08, 32 held-out jailbreak + 32 benign
+prompts, concept fit 8+8 from short override framings, 3 few-shot resamples:
+
+| arm | jailbreak refusal | benign over-refusal | benign ppl | benign byte-identical to baseline |
+|---|---|---|---|---|
+| no steer | 46.9 ± 0.0% | 0% | 1.98 ± 0.00 | 100% |
+| always steer | 49.0 ± 3.0% | 0% | 2.17 ± 0.01 | **4.2 ± 1.5%** |
+| **gate-conditioned** | **55.2 ± 1.5%** | 0% | 2.03 ± 0.04 | **89.6 ± 9.0%** |
+
+**Gating wins on BOTH axes** — not a collateral/suppression trade: +8.3 pts refusal vs +2.1, and 90%
+of benign generation untouched vs 4%. Blanket steering is worse at suppression *because* it also writes
+to prompts where the concept doesn't register, perturbing them without steering them anywhere useful.
+
+Two honest limits: (1) small effect sizes, 0.5B model, one magnitude, 32 prompts — establishes gated >
+blanket, NOT that this is a deployable defense. (2) **The gate is only sharp in the register it was fit
+in.** Fit the same concept from the dataset's long DAN templates instead → fires on **0.0%** of short
+framed requests (all 3 seeds): it learned length, not intent. And the short-framing-fitted concept fires
+on **91.7%** of *real* out-of-register benign prompts — catastrophic FPR in deployment.
+
+**BeaverTails bank steering — NULL on behaviour** (`--beavertails`). The 14-concept bank had only been
+measured as a *detector* while we claimed each entry also steers. Same three arms, 5 harm categories,
+direction fit from 32 harmful prompts/cat vs the shared benign pool, 12 held-out prompts/cat:
+
+| category | fire harmful/benign | refusal none→always→gate | benign untouched always/gate |
+|---|---|---|---|
+| violence, incitement | 50%/8% | 8.3 → 0.0 → 8.3 | 0%/92% |
+| drug abuse, weapons | 58%/25% | 0.0 → 0.0 → 0.0 | 0%/75% |
+| financial/property crime | 67%/25% | 25.0 → 0.0 → 16.7 | 0%/75% |
+| privacy violation | 92%/33% | 8.3 → 25.0 → 25.0 | 0%/67% |
+| hate speech | 58%/42% | 41.7 → 33.3 → 33.3 | 0%/58% |
+| **mean** | **65%/27%** | **16.7 → 11.7 → 16.7** | **0%/73%** |
+
+Collateral finding replicates (gate 73% untouched vs blanket 0%) and blanket steering again *hurts*
+(16.7 → 11.7). But gating no longer improves anything — refusal flat at 16.7%. **Steering away from a
+harm TOPIC does not make the model decline.** Contrast the jailbreak concept (+8.3 pts): "jailbreak
+framing" is about request *intent/register* and sits near the safety-tuned refusal behaviour; "violence"
+is about content *topic*, so steering changes what the text is about, not whether the model complies.
+These directions also gate far more leakily (65 vs 27 firing, against 54 vs 10 for jailbreak) — same
+partial-generalization limit as §5. Caveats: refusal scored by explicit-decline lexicon (a harm-content
+reduction short of refusing wouldn't register); one magnitude, one 0.5B model.
+
+So: "each bank entry also steers" ⇒ each entry gives a free write *direction*; demonstrated behavioural
+control exists only for topical concepts (eval_steering.py) and jailbreak framing (§6).
+
+### 7. Read/write cosine — the duality is real but not identity (`--cosine`)
+
+Mean |cos| between the detection direction mapped to raw space (`W/sd0`, renormalized) and the raw
+steering direction `W_raw`, over 3 taps × 4 concepts:
+
+| mode | gpt2 (d=768) | Qwen-0.5B (d=896) | gemma-2-2b (d=2304) |
+|---|---|---|---|
+| diff-of-means | 0.79 ± 0.06 | 0.65 ± 0.07 | 0.75 ± 0.07 |
+| logistic | 0.68 ± 0.11 | 0.59 ± 0.09 | 0.71 ± 0.09 |
+| logistic · jailbreak from 32 real prompts/class | 0.52 | 0.45 | 0.57 |
+
+It is **not one number** — it depends on mode, concept, and model (range 0.45–0.83). Logistic is always
+lower than diff-of-means (logistic rotates away from the class-mean difference by design — better
+detector, worse proxy for the steering vector). Chance is 1/√d = 0.036/0.033/0.021, so every value is
+13–36σ above chance *and* 38–63° off identity. Quote the range, not a point.
+
+**`--decouple` refutes the "GPT-2 is decoupled" hypothesis.** The worry: if the write direction sits
+~60° off the read direction, the detector would fail to register its own steered output on *any* model,
+so §4.6's GPT-2 observation might be a geometric artifact rather than a capability ceiling. Tested by
+steering, re-reading, and projecting onto both directions: the detection score moves *with* the steering
+(gpt2 LLR +21, Qwen +48), and GPT-2 has the **highest** cosine of the three models in every mode. Were
+decoupling the cause, GPT-2 would be worst-aligned, not best. The capability-ceiling reading stands.
+
 ## Verdict (honest)
 
 Detection accuracy is a **commodity** — CG-logistic *ties* LR/SVM in-dist and shows no
-cross-distribution edge (one confounded test). But the **efficiency** case is now established: CG is
-**Pareto-optimal** — ~98–99% of a full-model linear probe's AUC at **2–4× less compute, ~half the
-weights, and no gradient training**, using a single early tap. That is "efficiently learns concepts."
+cross-distribution edge (one confounded test). **Single-concept efficiency is NOT a CG contribution**:
+a depth-matched probe (LR on the same taps, same truncated forward) equals CG-logistic at every depth,
+so the "2–4× less compute" is only vs the full-model probe — the saving is the truncation, generic to any
+latent probe. Do not frame it as CG's.
 
-The **stronger, better-measured** form of that claim is the multi-concept scaling result (§4 above): as a
-training-free bank, CG's cost is **flat/shallow in K** across a 14-category safety taxonomy (each concept
-a closed-form fit in ms/kilobytes, all K read in one forward) where per-concept LoRA is **steep-linear**
-(30–38× the whole-bank build cost, a separate forward each, and lower few-shot accuracy). Honest caveat:
-a linear-probe bank shares this amortization — what stays specific to CG is the read/write duality.
+The efficiency claim that survives is at the **bank** level, and only vs *fine-tuning*: as a training-free
+bank CG's cost is **flat/shallow in K** across a 14-category safety taxonomy (each concept a closed-form
+fit in ms/kilobytes, all K read in one forward) where per-concept LoRA is **steep-linear** (30–38× the
+whole-bank build, a separate forward each, lower few-shot accuracy). Honest caveat: a linear-probe bank
+shares this amortization too — the **only** thing unique to CG is the read/write duality (steering).
+
+Sharper, post-§6: even *steering* is not unique — the write rule is CAA, which needs none of CG's
+machinery. What is unique is **gate-conditioned** steering: using the calibrated read to decide *when*
+to write. That is measured (§6) and it beats blanket steering on both suppression and collateral. Frame
+the contribution there, not on steering per se.
 
 Corrections worth remembering: (1) diff-of-means mode under-sells CG — always use `Direction.LOGISTIC`
 when comparing to a classifier. (2) The cross-dist test was confounded by concept mismatch (jailbreak
@@ -196,11 +281,22 @@ closed-form; probe full model + trained head).
    14-category LoRA sweep would tighten the mean but the shape is already clear.
 2. **Clean within-concept OOD** ✅ — BeaverTails leave-one-category-out (§5 above): partial
    generalization, CG at least as robust as the probe.
-3. **Steering / duality eval** — same learned direction steers generation (harmful → refusal/safe);
-   the effectiveness differentiator a classifier cannot match. **[the remaining differentiator to measure]**
+3. **Steering / duality eval** ✅ — dose-response measured (`scripts/eval_steering.py`), and the
+   read/write geometry measured (`--cosine`): related but NOT identical, 0.45–0.83 depending on mode,
+   concept, and model.
+4. **Gate-conditioned steering** ✅ (§6 above) — the one operation only the composition can do, and it
+   wins on both axes. This is the differentiator; steering alone is CAA.
+5. **BeaverTails bank steering** ✅ — measured, and it is a **NULL on behaviour** (§6): the bank's harm
+   directions gate (leakily) and gating still confines the write, but steering away from a harm topic
+   does not make the model decline. Report it as a negative.
+6. **Remaining:** a non-guardrail (topical/science) dataset to show the method is not safety-specific;
+   a content-level harm score (not just a refusal lexicon) and more than one steering magnitude before
+   treating the BeaverTails null as general.
 
 Status: in-dist detection ✅ · cross-dist ✅ (null, confounded) · **efficiency frontier ✅** ·
-**multi-concept scaling ✅** · **within-concept OOD ✅** · steering-measurement — pending.
+**multi-concept scaling ✅** · **within-concept OOD ✅** · **steering dose-response ✅** ·
+**gate-conditioned steering ✅** · **read/write cosine ✅** · **BeaverTails bank steering ✅ (null)** ·
+non-guardrail dataset — pending.
 
 ## Re-run commands
 ```bash
@@ -220,6 +316,9 @@ uv run --with datasets --with peft --with transformers python scripts/eval_detec
 # within-concept OOD (leave-one-category-out over BeaverTails; reuses the scaling cache)
 uv run --with datasets python scripts/eval_detection.py --ood \
   --models Qwen/Qwen2.5-0.5B-Instruct,google/gemma-2-2b-it --ns 32 --seeds 0,1,2 --tap-fracs 0.5,0.7,0.85
+# gate-conditioned steering (3 arms) + read/write cosine sweep + the decoupling test
+uv run --with datasets python scripts/eval_gate.py            # all three
+uv run --with datasets python scripts/eval_gate.py --cosine   # just the cosine table
 ```
 Results: `scripts/eval_detection_results.json`, `eval_crossdist_results.json`, `eval_fullprobe_results.json`,
-`eval_scaling_results.json`, `eval_ood_results.json`.
+`eval_scaling_results.json`, `eval_ood_results.json`, `eval_gate_results.json`.
