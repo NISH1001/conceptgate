@@ -541,7 +541,8 @@ def bench_efficiency(model, Ns, seeds, device):
                      "weights_frac": round(loaded / mp["total"], 2),
                      "learned_params": 4 * m_ * d + m_,   # full stored state: detect+steer dirs (2md) + standardization (2md) + filter (m)
                      "learned_params_detect": 3 * m_ * d + m_,  # detection-only state (no steering vector)
-                     "auc_log": round(al, 3), "auc_log_std": round(sl, 3), "auc_diff": round(ad, 3),
+                     "auc_log": round(al, 3), "auc_log_std": round(sl, 3),
+                     "auc_diff": round(ad, 3), "auc_diff_std": round(sd_, 3),
                      "auc_probe_tap": round(apt, 3), "auc_probe_tap_std": round(spt, 3),
                      "fwd_ms": round(wt[top][0], 1), "fwd_ms_std": round(wt[top][1], 1)})
     apr, spr = pr_auc([idx[fin]])
@@ -554,7 +555,8 @@ def bench_efficiency(model, Ns, seeds, device):
     for r in rows:
         print(f"  {r['config']:>11} {r['depth_frac']:>5.0%} {r['weights_frac']:>7.0%} "
               f"{r['auc_log']:>8.3f}±{r['auc_log_std']:.2f} {r['auc_probe_tap']:>8.3f}±{r['auc_probe_tap_std']:.2f} "
-              f"{r['auc_diff']:>9.3f} {r['fwd_ms']:>9.1f}±{r['fwd_ms_std']:.1f}", flush=True)
+              f"{r['auc_diff']:>6.3f}±{r['auc_diff_std']:.2f} {r['fwd_ms']:>9.1f}±{r['fwd_ms_std']:.1f}",
+              flush=True)
     print(f"  {'probe@final':>11} {1.0:>5.0%} {1.0:>7.0%} {apr:>8.3f}±{spr:.2f} {'--':>13} {'--':>9} "
           f"{probe['fwd_ms']:>9.1f}±{probe['fwd_ms_std']:.1f}   (full-model reference)", flush=True)
     return {"model": model, "n_layers": n, "d": d, "total_params_M": round(mp["total"] / 1e6),

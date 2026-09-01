@@ -23,10 +23,11 @@
      "auc_log": 0.968,
      "auc_log_std": 0.008,
      "auc_diff": 0.918,
+     "auc_diff_std": 0.015,
      "auc_probe_tap": 0.968,
      "auc_probe_tap_std": 0.008,
-     "fwd_ms": 28.1,
-     "fwd_ms_std": 0.9
+     "fwd_ms": 60.1,
+     "fwd_ms_std": 1.7
     },
     {
      "config": "1tap@40%",
@@ -41,10 +42,11 @@
      "auc_log": 0.97,
      "auc_log_std": 0.011,
      "auc_diff": 0.925,
+     "auc_diff_std": 0.017,
      "auc_probe_tap": 0.97,
      "auc_probe_tap_std": 0.011,
-     "fwd_ms": 43.3,
-     "fwd_ms_std": 0.2
+     "fwd_ms": 98.1,
+     "fwd_ms_std": 3.2
     },
     {
      "config": "1tap@55%",
@@ -59,10 +61,11 @@
      "auc_log": 0.978,
      "auc_log_std": 0.01,
      "auc_diff": 0.933,
+     "auc_diff_std": 0.018,
      "auc_probe_tap": 0.978,
      "auc_probe_tap_std": 0.01,
-     "fwd_ms": 56.5,
-     "fwd_ms_std": 0.6
+     "fwd_ms": 114.8,
+     "fwd_ms_std": 18.6
     },
     {
      "config": "1tap@70%",
@@ -77,10 +80,11 @@
      "auc_log": 0.979,
      "auc_log_std": 0.01,
      "auc_diff": 0.916,
+     "auc_diff_std": 0.019,
      "auc_probe_tap": 0.979,
      "auc_probe_tap_std": 0.01,
-     "fwd_ms": 71.6,
-     "fwd_ms_std": 0.5
+     "fwd_ms": 142.1,
+     "fwd_ms_std": 2.8
     },
     {
      "config": "1tap@85%",
@@ -95,10 +99,11 @@
      "auc_log": 0.982,
      "auc_log_std": 0.005,
      "auc_diff": 0.936,
+     "auc_diff_std": 0.025,
      "auc_probe_tap": 0.982,
      "auc_probe_tap_std": 0.005,
-     "fwd_ms": 83.1,
-     "fwd_ms_std": 0.6
+     "fwd_ms": 179.2,
+     "fwd_ms_std": 11.9
     },
     {
      "config": "3tap",
@@ -115,10 +120,11 @@
      "auc_log": 0.973,
      "auc_log_std": 0.009,
      "auc_diff": 0.927,
+     "auc_diff_std": 0.017,
      "auc_probe_tap": 0.978,
      "auc_probe_tap_std": 0.01,
-     "fwd_ms": 68.4,
-     "fwd_ms_std": 0.3
+     "fwd_ms": 137.9,
+     "fwd_ms_std": 2.4
     },
     {
      "config": "5tap",
@@ -137,10 +143,11 @@
      "auc_log": 0.979,
      "auc_log_std": 0.009,
      "auc_diff": 0.939,
+     "auc_diff_std": 0.02,
      "auc_probe_tap": 0.981,
      "auc_probe_tap_std": 0.009,
-     "fwd_ms": 71.6,
-     "fwd_ms_std": 0.5
+     "fwd_ms": 142.1,
+     "fwd_ms_std": 2.8
     }
    ],
    "linear_probe": {
@@ -150,8 +157,8 @@
     "learned_params": 897,
     "auc": 0.982,
     "auc_std": 0.003,
-    "fwd_ms": 99.5,
-    "fwd_ms_std": 2.2
+    "fwd_ms": 201.7,
+    "fwd_ms_std": 9.2
    }
   },
   {
@@ -175,10 +182,11 @@
      "auc_log": 0.948,
      "auc_log_std": 0.008,
      "auc_diff": 0.92,
+     "auc_diff_std": 0.014,
      "auc_probe_tap": 0.948,
      "auc_probe_tap_std": 0.008,
-     "fwd_ms": 118.1,
-     "fwd_ms_std": 1.1
+     "fwd_ms": 251.0,
+     "fwd_ms_std": 19.9
     },
     {
      "config": "1tap@40%",
@@ -193,10 +201,11 @@
      "auc_log": 0.974,
      "auc_log_std": 0.01,
      "auc_diff": 0.952,
+     "auc_diff_std": 0.017,
      "auc_probe_tap": 0.974,
      "auc_probe_tap_std": 0.01,
-     "fwd_ms": 187.8,
-     "fwd_ms_std": 2.0
+     "fwd_ms": 390.2,
+     "fwd_ms_std": 55.3
     },
     {
      "config": "1tap@55%",
@@ -211,10 +220,11 @@
      "auc_log": 0.971,
      "auc_log_std": 0.009,
      "auc_diff": 0.933,
+     "auc_diff_std": 0.018,
      "auc_probe_tap": 0.971,
      "auc_probe_tap_std": 0.009,
-     "fwd_ms": 258.3,
-     "fwd_ms_std": 2.1
+     "fwd_ms": 519.1,
+     "fwd_ms_std": 57.1
     },
     {
      "config": "1tap@70%",
@@ -229,10 +239,11 @@
      "auc_log": 0.97,
      "auc_log_std": 0.006,
      "auc_diff": 0.921,
+     "auc_diff_std": 0.021,
      "auc_probe_tap": 0.97,
      "auc_probe_tap_std": 0.006,
-     "fwd_ms": 384.2,
-     "fwd_ms_std": 9.3
+     "fwd_ms": 567.0,
+     "fwd_ms_std": 48.2
     },
     {
      "config": "1tap@85%",
@@ -247,10 +258,11 @@
      "auc_log": 0.974,
      "auc_log_std": 0.006,
      "auc_diff": 0.925,
+     "auc_diff_std": 0.021,
      "auc_probe_tap": 0.974,
      "auc_probe_tap_std": 0.006,
-     "fwd_ms": 515.0,
-     "fwd_ms_std": 29.5
+     "fwd_ms": 774.4,
+     "fwd_ms_std": 19.3
     },
     {
      "config": "3tap",
@@ -267,10 +279,11 @@
      "auc_log": 0.979,
      "auc_log_std": 0.008,
      "auc_diff": 0.958,
+     "auc_diff_std": 0.017,
      "auc_probe_tap": 0.978,
      "auc_probe_tap_std": 0.007,
-     "fwd_ms": 341.8,
-     "fwd_ms_std": 6.2
+     "fwd_ms": 524.0,
+     "fwd_ms_std": 8.9
     },
     {
      "config": "5tap",
@@ -289,10 +302,11 @@
      "auc_log": 0.977,
      "auc_log_std": 0.009,
      "auc_diff": 0.958,
+     "auc_diff_std": 0.017,
      "auc_probe_tap": 0.979,
      "auc_probe_tap_std": 0.008,
-     "fwd_ms": 384.2,
-     "fwd_ms_std": 9.3
+     "fwd_ms": 567.0,
+     "fwd_ms_std": 48.2
     }
    ],
    "linear_probe": {
@@ -302,8 +316,8 @@
     "learned_params": 2305,
     "auc": 0.987,
     "auc_std": 0.003,
-    "fwd_ms": 566.4,
-    "fwd_ms_std": 31.7
+    "fwd_ms": 809.3,
+    "fwd_ms_std": 67.4
    }
   }
  ]
