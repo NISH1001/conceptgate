@@ -791,6 +791,77 @@ def bench_scaling(model, device, n_fit=32, seeds=(0, 1, 2), lora_cats=0, tap_fra
     }
 
 
+def bench_ood(model, device, n_fit=32, seeds=(0, 1, 2), tap_fracs=None):
+    """Within-concept (harmfulness) generalization: leave-one-category-out over BeaverTails' 14 harm
+    categories. For each category c, learn the harmful direction from the OTHER 13 categories (+ a shared
+    benign pool) and score the held-out category c; compare to the in-distribution reference that trains on
+    c itself. Same N, same test set -- the only variable is whether the test category was seen. This is the
+    clean generalization test the confounded cross-distribution transfer (jailbreak framing vs harmful
+    content, section 2) could not give. Detectors: ConceptGate (logistic taps) vs the full-model probe."""
+    cats, trc, trsafe, tec, tesafe = _beavertails_concepts()
+    if tap_fracs:
+        _, n_layers = taps_for(model)
+        taps = sorted({max(1, min(n_layers - 1, round(n_layers * f))) for f in tap_fracs})
+    else:
+        taps, n_layers = taps_for(model)
+    fin = n_layers - 1
+    layers = sorted(set(taps + [fin]))
+    tap_i = [layers.index(t) for t in taps]
+    fin_i = layers.index(fin)
+    print(f"\n### OOD {model}  ({n_layers} layers, taps {'/'.join(map(str, taps))}) "
+          f"leave-one-category-out over {len(cats)} categories, N={n_fit}/class", flush=True)
+
+    # same pooled prompts + cache key as the scaling eval (activations are a cache hit if that ran)
+    trsafe_pool = trsafe[:BT_SAFE_POOL]
+    trpos = {c: trc[c][:BT_POS_PER_CAT] for c in cats}
+    train_list = list(dict.fromkeys(trsafe_pool + [p for c in cats for p in trpos[c]]))
+    tesafe_pool = tesafe[:BT_TEST_CAP]
+    tepos = {c: tec[c][:BT_TEST_CAP] for c in cats}
+    test_list = list(dict.fromkeys(tesafe_pool + [p for c in cats for p in tepos[c]]))
+    cg = load_model(model, layers, device)
+    A_tr = _fullprobe_extract(cg, train_list, model, f"btsc_train{len(train_list)}")
+    A_te = _fullprobe_extract(cg, test_list, model, f"btsc_test{len(test_list)}")
+    cg.unload()
+    itr = {p: i for i, p in enumerate(train_list)}
+    ite = {p: i for i, p in enumerate(test_list)}
+    safe_tr = np.array([itr[p] for p in trsafe_pool])
+    safe_te = np.array([ite[p] for p in tesafe_pool])
+    pos_tr = {c: np.array([itr[p] for p in trpos[c]]) for c in cats}
+    pos_te = {c: np.array([ite[p] for p in tepos[c]]) for c in cats}
+
+    rows = {}
+    for c in cats:
+        others = np.concatenate([pos_tr[x] for x in cats if x != c])
+        yte = np.r_[np.ones(len(pos_te[c])), np.zeros(len(safe_te))].astype(int)
+        Xte_tap = np.concatenate([A_te[pos_te[c]][:, tap_i, :], A_te[safe_te][:, tap_i, :]], 0)
+        Xte_fin = np.concatenate([A_te[pos_te[c]][:, fin_i, :], A_te[safe_te][:, fin_i, :]], 0)
+        cin, cood, pin, pood = [], [], [], []
+        for s in seeds:
+            rng = np.random.default_rng(5000 + s)
+            ineg = rng.choice(safe_tr, n_fit, replace=False)
+            ip_in = rng.choice(pos_tr[c], min(n_fit, len(pos_tr[c])), replace=False)   # train on c
+            ip_ood = rng.choice(others, n_fit, replace=False)                           # train on the rest
+            cin.append(roc_auc_score(yte, _fit_cg(A_tr[ip_in][:, tap_i, :], A_tr[ineg][:, tap_i, :],
+                                                  Direction.LOGISTIC).llr(Xte_tap)))
+            cood.append(roc_auc_score(yte, _fit_cg(A_tr[ip_ood][:, tap_i, :], A_tr[ineg][:, tap_i, :],
+                                                   Direction.LOGISTIC).llr(Xte_tap)))
+            pin.append(_lr_auc(A_tr[ip_in][:, fin_i, :], A_tr[ineg][:, fin_i, :], Xte_fin, yte))
+            pood.append(_lr_auc(A_tr[ip_ood][:, fin_i, :], A_tr[ineg][:, fin_i, :], Xte_fin, yte))
+        rows[c] = {"cg_in": float(np.mean(cin)), "cg_ood": float(np.mean(cood)),
+                   "pr_in": float(np.mean(pin)), "pr_ood": float(np.mean(pood))}
+        print(f"  {c:48s} CG {rows[c]['cg_in']:.3f}->{rows[c]['cg_ood']:.3f}  "
+              f"probe {rows[c]['pr_in']:.3f}->{rows[c]['pr_ood']:.3f}", flush=True)
+
+    _m = lambda k: float(np.mean([r[k] for r in rows.values()]))
+    summ = {k: _m(k) for k in ("cg_in", "cg_ood", "pr_in", "pr_ood")}
+    summ["cg_drop"] = round(summ["cg_in"] - summ["cg_ood"], 3)
+    summ["pr_drop"] = round(summ["pr_in"] - summ["pr_ood"], 3)
+    print(f"  MEAN  CG {summ['cg_in']:.3f}->{summ['cg_ood']:.3f} (drop {summ['cg_drop']:.3f}) | "
+          f"probe {summ['pr_in']:.3f}->{summ['pr_ood']:.3f} (drop {summ['pr_drop']:.3f})", flush=True)
+    return {"model": model, "n_layers": n_layers, "taps": taps, "n_fit": n_fit, "seeds": len(seeds),
+            "categories": cats, "rows": rows, "summary": summ}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--models", default="ladder", help="'ladder', 'quick', or comma-separated names")
@@ -807,6 +878,7 @@ def main():
     ap.add_argument("--scaling", action="store_true", help="multi-concept cost-vs-K over BeaverTails categories")
     ap.add_argument("--lora-cats", type=int, default=0, help="# real LoRA fits to anchor the fine-tune line")
     ap.add_argument("--tap-fracs", default="", help="scaling CG tap depths, e.g. 0.4,0.6,0.8 (blank=default 0.33/0.5/0.67)")
+    ap.add_argument("--ood", action="store_true", help="within-concept OOD: leave-one-category-out over BeaverTails")
     a = ap.parse_args()
 
     if a.quick:
@@ -819,6 +891,24 @@ def main():
         models = [m.strip() for m in a.models.split(",")]
     Ns = [int(x) for x in a.ns.split(",")]
     seeds = [int(x) for x in a.seeds.split(",")]
+
+    if a.ood:
+        out = "scripts/eval_ood_results.json" if a.out == "scripts/eval_detection_results.json" else a.out
+        Nf = [int(x) for x in a.ns.split(",")][-1]
+        tfr = [float(x) for x in a.tap_fracs.split(",")] if a.tap_fracs else None
+        print(f"ood: {len(models)} model(s), leave-one-category-out, N={Nf}/class, seeds={seeds}", flush=True)
+        results = []
+        for model in models:
+            try:
+                results.append(bench_ood(model, a.device, n_fit=Nf, seeds=seeds, tap_fracs=tfr))
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                print(f"  SKIP {model}: {type(e).__name__}: {e}", flush=True)
+            with open(out, "w") as f:
+                json.dump({"results": results}, f, indent=1)
+        print(f"\ndone -> {out}", flush=True)
+        return
 
     if a.scaling:
         out = "scripts/eval_scaling_results.json" if a.out == "scripts/eval_detection_results.json" else a.out
