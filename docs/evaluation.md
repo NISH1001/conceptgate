@@ -88,16 +88,23 @@ full model, final-layer head fit on the same N examples. fwd = per-prompt forwar
 | 5tap | 73% | 79% | 0.977 | 401.3 | 1.4× faster |
 
 Findings:
-- **CG is Pareto-efficient.** The full-model linear probe has the highest AUC (it uses the whole
-  model), but CG reaches **~98–99% of it at 2–4× less compute + ~half the weights loaded + no
-  gradient training** (closed-form learn+calibrate).
-- **A single early tap is the sweet spot** (Qwen 1tap@25% 0.968 @ 3.3×; gemma 1tap@40% 0.974 @ 2.4×):
-  the concept is linearly readable at ~⅓–⅖ depth, so the top half of the model is skipped.
-- **Depth-fusion barely helps** on real detection: 3/5-tap ≈ best single tap (the synthetic
-  depth-fusion win does not transfer).
-- CG-diff is the weaker mode (~0.92–0.96); logistic is the one to report.
-- Memory is universal: CG loads embed + blocks 0..top-tap (weights % above); learned params
-  CG = m·d (≈2.7K Qwen / 6.9K gemma), probe = d. Compute is the measured wall-time above.
+- **CG's single-concept efficiency is NOT a CG advantage — it is the truncated forward.** A
+  **depth-matched probe** (logistic regression on the SAME tapped activations, same truncated forward)
+  EQUALS CG-logistic at every depth (Qwen 0.968=0.968 … 0.982=0.982; gemma 0.948=0.948 … 0.974=0.974)
+  and on multi-tap slightly BEATS CG's bandpass fusion (Qwen 3tap 0.973 vs 0.978). So the "2–4× less
+  compute" is only vs the FULL-MODEL probe; a fair depth-matched baseline gets CG's number at CG's
+  compute. Do NOT frame single-concept efficiency as a ConceptGate contribution. [added `auc_probe_tap`
+  to `bench_efficiency`/`bench_fullprobe`]
+- **A single early tap suffices** (Qwen 1tap@40% 0.970; gemma 1tap@40% 0.974): the concept is linearly
+  readable at ~⅖ depth — a fact about the MODEL (how early the abstraction forms), shared by any probe.
+- **Depth fusion does not transfer**: 3/5-tap ≈ best single tap, and the depth-matched probe on the
+  concatenated taps beats the bandpass fusion. The synthetic §4.1 win is on data matched to its own
+  assumptions.
+- CG-diff is the weaker mode (~0.92–0.96); logistic is the one to report — and CG-logistic on one tap
+  IS logistic regression on that tap.
+- Learned params: CG's full read+write state ≈ 4md (detect + steer directions + standardization),
+  ~11K Qwen / ~28K gemma — an order of magnitude above the probe's d, both kilobytes; the reviewer
+  correctly flagged the earlier m·d count as omitting the steering vector.
 
 ### 4. Multi-concept scaling — the amortization argument (`--scaling`)
 
@@ -171,15 +178,16 @@ This is the clean generalization test the cross-distribution transfer could not 
 ## Verdict (honest)
 
 Detection accuracy is a **commodity** — CG-logistic *ties* LR/SVM in-dist and shows no
-cross-distribution edge (one confounded test). But the **efficiency** case is now established: CG is
-**Pareto-optimal** — ~98–99% of a full-model linear probe's AUC at **2–4× less compute, ~half the
-weights, and no gradient training**, using a single early tap. That is "efficiently learns concepts."
+cross-distribution edge (one confounded test). **Single-concept efficiency is NOT a CG contribution**:
+a depth-matched probe (LR on the same taps, same truncated forward) equals CG-logistic at every depth,
+so the "2–4× less compute" is only vs the full-model probe — the saving is the truncation, generic to any
+latent probe. Do not frame it as CG's.
 
-The **stronger, better-measured** form of that claim is the multi-concept scaling result (§4 above): as a
-training-free bank, CG's cost is **flat/shallow in K** across a 14-category safety taxonomy (each concept
-a closed-form fit in ms/kilobytes, all K read in one forward) where per-concept LoRA is **steep-linear**
-(30–38× the whole-bank build cost, a separate forward each, and lower few-shot accuracy). Honest caveat:
-a linear-probe bank shares this amortization — what stays specific to CG is the read/write duality.
+The efficiency claim that survives is at the **bank** level, and only vs *fine-tuning*: as a training-free
+bank CG's cost is **flat/shallow in K** across a 14-category safety taxonomy (each concept a closed-form
+fit in ms/kilobytes, all K read in one forward) where per-concept LoRA is **steep-linear** (30–38× the
+whole-bank build, a separate forward each, lower few-shot accuracy). Honest caveat: a linear-probe bank
+shares this amortization too — the **only** thing unique to CG is the read/write duality (steering).
 
 Corrections worth remembering: (1) diff-of-means mode under-sells CG — always use `Direction.LOGISTIC`
 when comparing to a classifier. (2) The cross-dist test was confounded by concept mismatch (jailbreak
