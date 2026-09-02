@@ -218,7 +218,7 @@ def fire_only(model, taps, device):
             "fire_bn": round(float(np.mean(fb)), 1), "fire_bn_sd": round(float(np.std(fb)), 1)}
 
 
-def gate_eval(model, taps, device):
+def gate_eval(model, taps, device, which=("none", "always", "gate", "random", "antigate")):
     print(f"\n{'='*92}\n### GATE {model}  taps {taps}  steer {FRACTION}  "
           f"{N_JB} jailbreak + {N_BENIGN} benign prompts  seeds {SEEDS}\n{'='*92}", flush=True)
     benign_test, jb_test = BN_TEST[:N_BENIGN], JB_TEST[:N_JB]
@@ -226,7 +226,7 @@ def gate_eval(model, taps, device):
     real_benign = real_benign[:N_BENIGN]
     cg = ConceptGate.from_pretrained(model, layers=taps, device=device)
 
-    per_seed = {a: [] for a in ("none", "always", "gate", "random", "antigate")}
+    per_seed = {a: [] for a in which}
     base_jb, base_bn = None, None
     for seed in SEEDS:
         rng = np.random.default_rng(seed)
@@ -242,6 +242,10 @@ def gate_eval(model, taps, device):
 
         act_on = Steer(fraction=FRACTION, concept="jailbreak", when=Trigger.ALWAYS)
         act_off = Steer(fraction=0.0, concept="jailbreak", when=Trigger.ALWAYS)
+        # sign-flipped write (+alpha, TOWARD the concept), to separate two accounts of the anti-gate
+        # loss: directionless perturbation predicts a loss under either sign; a directional account
+        # predicts the sign of the effect flips with the sign of the write.
+        act_plus = Steer(fraction=-FRACTION, concept="jailbreak", when=Trigger.ALWAYS)
         fmask_jb = np.array([cg.check(p).fired for p in jb_test])
         fmask_bn = np.array([cg.check(p).fired for p in benign_test])
 
@@ -262,7 +266,10 @@ def gate_eval(model, taps, device):
             "gate":     ("action", Steer(fraction=FRACTION, concept="jailbreak", when=Trigger.FIRE)),
             "random":   ("mask", (_rand_like(fmask_jb, 0), _rand_like(fmask_bn, 1))),
             "antigate": ("mask", (~fmask_jb, ~fmask_bn)),
+            "gate_plus":     ("maskplus", (fmask_jb, fmask_bn)),
+            "antigate_plus": ("maskplus", (~fmask_jb, ~fmask_bn)),
         }
+        arms = {k: v for k, v in arms.items() if k in which}
         for arm, (kind, spec) in arms.items():
             # the no-steer arm is concept-independent (fraction 0) -> generate it once, reuse
             if arm == "none" and base_jb is not None:
@@ -274,11 +281,13 @@ def gate_eval(model, taps, device):
                     base_jb, base_bn = jb_txt, bn_txt
             else:
                 mj, mb = spec
-                jb_txt = [_gen(cg, p, act_on if mj[i] else act_off) for i, p in enumerate(jb_test)]
-                bn_txt = [_gen(cg, p, act_on if mb[i] else act_off) for i, p in enumerate(benign_test)]
-            wf = {"none": 0.0, "always": 100.0, "gate": fire_jb,
-                  "random": float(arms["random"][1][0].mean()) * 100,
-                  "antigate": float((~fmask_jb).mean()) * 100}[arm]
+                on = act_plus if kind == "maskplus" else act_on
+                jb_txt = [_gen(cg, p, on if mj[i] else act_off) for i, p in enumerate(jb_test)]
+                bn_txt = [_gen(cg, p, on if mb[i] else act_off) for i, p in enumerate(benign_test)]
+            wf = {"none": 0.0, "always": 100.0, "gate": fire_jb, "gate_plus": fire_jb,
+                  "random": float(arms["random"][1][0].mean()) * 100 if "random" in arms else 0.0,
+                  "antigate": float((~fmask_jb).mean()) * 100,
+                  "antigate_plus": float((~fmask_jb).mean()) * 100}[arm]
             rec = {
                 "write_frac_jb": wf,
                 "fire_jb": fire_jb, "fire_bn": fire_bn, "fire_real_benign": fire_real,
@@ -310,8 +319,8 @@ def gate_eval(model, taps, device):
               f"identical {agg['bn_identical']:5.1f}+/-{agg['bn_identical_sd']:.1f}%", flush=True)
     b = out["none"]["jb_refusal"]
     print(f"\n  refusal change vs no-steer (baseline {b:.1f}%):", flush=True)
-    for arm in ("always", "gate", "random", "antigate"):
-        print(f"    {arm:8s} {out[arm]['jb_refusal'] - b:+5.1f} pts "
+    for arm in [a for a in which if a != "none"]:
+        print(f"    {arm:13s} {out[arm]['jb_refusal'] - b:+5.1f} pts "
               f"(writes {out[arm]['write_frac_jb']:.0f}% of prompts)", flush=True)
     return {"model": model, "taps": taps, "fraction": FRACTION, "seeds": SEEDS,
             "n_jb": N_JB, "n_benign": N_BENIGN, "n_shot": N_SHOT,
@@ -497,13 +506,17 @@ def beavertails_steer(model, taps, device, cats=None, n_fit=32, n_test=12, frac=
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--beavertails", action="store_true")
+    ap.add_argument("--signflip", action="store_true")
     ap.add_argument("--gate", action="store_true")
     ap.add_argument("--decouple", action="store_true")
     ap.add_argument("--cosine", action="store_true")
     ap.add_argument("--device", default="mps")
     a = ap.parse_args()
-    both = not (a.gate or a.decouple or a.cosine or a.beavertails)
+    both = not (a.gate or a.decouple or a.cosine or a.beavertails or a.signflip)
     out = {}
+    if a.signflip:
+        out["signflip"] = [gate_eval("Qwen/Qwen2.5-0.5B-Instruct", [8, 12, 16], a.device,
+                                     which=("none", "gate_plus", "antigate_plus"))]
     if a.beavertails:
         out["beavertails"] = [beavertails_steer("Qwen/Qwen2.5-0.5B-Instruct", [8, 12, 16], a.device)]
     if a.cosine or both:

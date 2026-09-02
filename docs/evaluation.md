@@ -170,7 +170,7 @@ Findings:
   0.610) and tied on gemma (0.251 vs 0.256). The mid-layer tapped direction is at least as
   category-transferable as the final-layer head, so the OOD story is not a CG weakness.
 - **"Harm" is not monolithic.** Per-category OOD ranges widely: violence / self-harm / drugs / terrorism /
-  financial transfer well (~0.77–0.81), while controversial-politics (~0.29, *below* chance) and
+  financial transfer well (~0.74–0.78 Qwen / 0.67–0.75 gemma), while controversial-politics (~0.39–0.47, below chance) and
   discrimination (~0.39) barely transfer — those categories read differently in the residual stream.
 
 This is the clean generalization test the cross-distribution transfer could not give.
@@ -202,13 +202,29 @@ three cannot separate *which* prompts get the write from *how many* do:
   *that* half is.
 - **Writing where the concept is ABSENT actively suppresses refusal** (anti-gate −6.2, negative in all
   3 seeds). So blanket steering's flat result is a real gain cancelling a real loss.
-- Two parameters fit from gate + anti-gate (+15.3 pts where it registers, −13.5 where it doesn't)
-  reproduce the other two arms: always predicted +2.1 (measured +2.1), random +1.1 (measured +1.0).
-  Per-prompt effects are additive; this is not a saturation artifact.
+- Two parameters fit from gate + anti-gate (+15.3 pts where it registers, −13.5 where it doesn't). CAUTION: "blanket = gate + antigate − none" is an exact IDENTITY under greedy decoding (fired/passed partition the set, prompts are generated independently) — it holds to the decimal every seed and is NOT a test. The only genuine check is the random arm (predicted +1.1, measured +1.0), and with sd 3.9 that agreement is luck. Say "consistent with additivity", never "reproduces".
 
 Precision: 32 prompts → 1 prompt = 3.1 pts, so +8.3 is 2.7 prompts and −6.2 is 2.0. sd is across 3
 few-shot resamples, not prompts; error bars overlap. What carries it is that the ordering repeats every
 seed and four arms fit one two-parameter account. A decisive version needs hundreds of prompts.
+
+**Sign-flip arms (`--signflip`): the off-target loss is PERTURBATION, and the gate finds where the write is a lever.**
+Same masks, write +α instead of −α:
+
+| Δ refusal (pts) | write −α (away) | write +α (toward) |
+|---|---|---|
+| gate fires (54%) | **+8.3** ± 1.5 | **−11.5** ± 5.3 |
+| gate passes (46%) | **−6.2** ± 2.6 | **−12.5** ± 4.4 |
+
+Every cell keeps its sign in all 3 seeds. Fired row: sign flips → the direction is a causal LEVER there.
+Passed row: both signs hurt → the direction is NOISE there. So the gate is locating the prompts on which
+the write is *interpretable at all* — that is why selection beats dosage. A reviewer proposed a
+"directional" account of the −6.2 (−α pushes passed attacks toward benign → comply); it predicts +α on
+passed prompts would HELP. It hurt more (−12.5). Not supported. Deployment lesson is about UNGATED CAA:
+blanket safety steering degrades safety wherever the concept isn't registered, in either direction. A
+gated system leaves those prompts untouched, so a gate that misses an attack does not assist it.
++α arms are the noisiest (sd 5.3/4.4); sizes loose, signs not. Benign ppl under +α on passed prompts: 2.47
+(vs 2.12 for −α, 1.98 unsteered).
 
 Two honest limits: (1) small effect sizes, 0.5B model, one magnitude, 32 prompts — establishes gated >
 blanket, NOT that this is a deployable defense. (2) **The gate is only sharp in the register it was fit
@@ -261,8 +277,7 @@ detector, worse proxy for the steering vector). Chance is 1/√d = 0.036/0.033/0
 ~60° off the read direction, the detector would fail to register its own steered output on *any* model,
 so §4.6's GPT-2 observation might be a geometric artifact rather than a capability ceiling. Tested by
 steering, re-reading, and projecting onto both directions: the detection score moves *with* the steering
-(gpt2 LLR +21, Qwen +48), and GPT-2 has the **highest** cosine of the three models in every mode. Were
-decoupling the cause, GPT-2 would be worst-aligned, not best. The capability-ceiling reading stands.
+(gpt2 LLR +21, Qwen +48), and GPT-2 is NOT the worst-aligned model in any mode — Qwen is, every time (N32-logistic: Qwen 0.45 < gpt2 0.52 < gemma 0.57), and Qwen's read tracks its write fine. Were decoupling the cause of a weak read it would show on the worst-aligned model, and it does not. (An earlier version of this note said gpt2 was the *highest* in every mode — false: gemma is higher in 2 of 3 rows.) The capability-ceiling reading stands.
 
 ## Verdict (honest)
 
