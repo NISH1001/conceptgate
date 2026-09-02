@@ -226,7 +226,7 @@ def gate_eval(model, taps, device):
     real_benign = real_benign[:N_BENIGN]
     cg = ConceptGate.from_pretrained(model, layers=taps, device=device)
 
-    per_seed = {a: [] for a in ("none", "always", "gate")}
+    per_seed = {a: [] for a in ("none", "always", "gate", "random", "antigate")}
     base_jb, base_bn = None, None
     for seed in SEEDS:
         rng = np.random.default_rng(seed)
@@ -240,19 +240,47 @@ def gate_eval(model, taps, device):
         print(f"\n  seed {seed}: gate fires on {fire_jb:.0f}% of jailbreak / {fire_bn:.0f}% of benign "
               f"(and {fire_real:.0f}% of real out-of-register benign prompts)", flush=True)
 
-        arms = {"none":   Steer(fraction=0.0,      concept="jailbreak", when=Trigger.ALWAYS),
-                "always": Steer(fraction=FRACTION, concept="jailbreak", when=Trigger.ALWAYS),
-                "gate":   Steer(fraction=FRACTION, concept="jailbreak", when=Trigger.FIRE)}
-        for arm, act in arms.items():
+        act_on = Steer(fraction=FRACTION, concept="jailbreak", when=Trigger.ALWAYS)
+        act_off = Steer(fraction=0.0, concept="jailbreak", when=Trigger.ALWAYS)
+        fmask_jb = np.array([cg.check(p).fired for p in jb_test])
+        fmask_bn = np.array([cg.check(p).fired for p in benign_test])
+
+        def _rand_like(mask, salt):
+            """A random subset of the SAME SIZE as the gate's fired set -- this is what separates
+            *selection* (which prompts get the write) from *dosage* (how many do)."""
+            r = np.random.default_rng(9000 + seed + salt)
+            m = np.zeros(len(mask), bool)
+            m[r.permutation(len(mask))[:int(mask.sum())]] = True
+            return m
+
+        # "gate" uses the library's own Trigger.FIRE path; random/antigate need per-prompt control.
+        # antigate writes ONLY where the concept does not register -- it measures directly what the
+        # blanket arm's shortfall implies indirectly.
+        arms = {
+            "none":     ("action", act_off),
+            "always":   ("action", act_on),
+            "gate":     ("action", Steer(fraction=FRACTION, concept="jailbreak", when=Trigger.FIRE)),
+            "random":   ("mask", (_rand_like(fmask_jb, 0), _rand_like(fmask_bn, 1))),
+            "antigate": ("mask", (~fmask_jb, ~fmask_bn)),
+        }
+        for arm, (kind, spec) in arms.items():
             # the no-steer arm is concept-independent (fraction 0) -> generate it once, reuse
             if arm == "none" and base_jb is not None:
                 jb_txt, bn_txt = base_jb, base_bn
-            else:
-                jb_txt = [_gen(cg, p, act) for p in jb_test]
-                bn_txt = [_gen(cg, p, act) for p in benign_test]
+            elif kind == "action":
+                jb_txt = [_gen(cg, p, spec) for p in jb_test]
+                bn_txt = [_gen(cg, p, spec) for p in benign_test]
                 if arm == "none":
                     base_jb, base_bn = jb_txt, bn_txt
+            else:
+                mj, mb = spec
+                jb_txt = [_gen(cg, p, act_on if mj[i] else act_off) for i, p in enumerate(jb_test)]
+                bn_txt = [_gen(cg, p, act_on if mb[i] else act_off) for i, p in enumerate(benign_test)]
+            wf = {"none": 0.0, "always": 100.0, "gate": fire_jb,
+                  "random": float(arms["random"][1][0].mean()) * 100,
+                  "antigate": float((~fmask_jb).mean()) * 100}[arm]
             rec = {
+                "write_frac_jb": wf,
                 "fire_jb": fire_jb, "fire_bn": fire_bn, "fire_real_benign": fire_real,
                 "jb_refusal": float(np.mean([is_refusal(t) for t in jb_txt])) * 100,
                 "jb_safety_lang": float(np.mean([is_safety_lang(t) for t in jb_txt])) * 100,
@@ -262,10 +290,10 @@ def gate_eval(model, taps, device):
                 "bn_identical": float(np.mean([a == b for a, b in zip(bn_txt, base_bn)])) * 100,
             }
             per_seed[arm].append(rec)
-            print(f"    {arm:7s}: jb refusal {rec['jb_refusal']:5.1f}% (safety-lang "
-                  f"{rec['jb_safety_lang']:5.1f}%)  |  benign: over-refusal "
+            print(f"    {arm:8s} (writes {wf:5.1f}% of jb): refusal {rec['jb_refusal']:5.1f}% "
+                  f"(safety-lang {rec['jb_safety_lang']:5.1f}%)  |  benign: over-refusal "
                   f"{rec['bn_refusal']:5.1f}%  ppl {rec['bn_ppl']:6.2f}  "
-                  f"byte-identical to baseline {rec['bn_identical']:5.1f}%", flush=True)
+                  f"byte-identical {rec['bn_identical']:5.1f}%", flush=True)
 
     print(f"\n  {'-'*88}\n  MEAN +/- SD over {len(SEEDS)} few-shot resamples", flush=True)
     out = {}
@@ -276,9 +304,15 @@ def gate_eval(model, taps, device):
             agg[k] = round(float(np.mean(v)), 2)
             agg[k + "_sd"] = round(float(np.std(v)), 2)
         out[arm] = agg
-        print(f"    {arm:7s}: jb refusal {agg['jb_refusal']:5.1f}+/-{agg['jb_refusal_sd']:.1f}%  |  "
+        print(f"    {arm:8s} (writes {agg['write_frac_jb']:5.1f}%): jb refusal "
+              f"{agg['jb_refusal']:5.1f}+/-{agg['jb_refusal_sd']:.1f}%  |  "
               f"benign ppl {agg['bn_ppl']:5.2f}+/-{agg['bn_ppl_sd']:.2f}  "
               f"identical {agg['bn_identical']:5.1f}+/-{agg['bn_identical_sd']:.1f}%", flush=True)
+    b = out["none"]["jb_refusal"]
+    print(f"\n  refusal change vs no-steer (baseline {b:.1f}%):", flush=True)
+    for arm in ("always", "gate", "random", "antigate"):
+        print(f"    {arm:8s} {out[arm]['jb_refusal'] - b:+5.1f} pts "
+              f"(writes {out[arm]['write_frac_jb']:.0f}% of prompts)", flush=True)
     return {"model": model, "taps": taps, "fraction": FRACTION, "seeds": SEEDS,
             "n_jb": N_JB, "n_benign": N_BENIGN, "n_shot": N_SHOT,
             "arms": out, "per_seed": per_seed}

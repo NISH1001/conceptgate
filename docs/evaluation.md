@@ -185,15 +185,30 @@ write (`Steer(when=Trigger.FIRE)`). That is the only operation no probe and no e
 and it had no measurement. Qwen-0.5B, taps 8/12/16, frac −0.08, 32 held-out jailbreak + 32 benign
 prompts, concept fit 8+8 from short override framings, 3 few-shot resamples:
 
-| arm | jailbreak refusal | benign over-refusal | benign ppl | benign byte-identical to baseline |
-|---|---|---|---|---|
-| no steer | 46.9 ± 0.0% | 0% | 1.98 ± 0.00 | 100% |
-| always steer | 49.0 ± 3.0% | 0% | 2.17 ± 0.01 | **4.2 ± 1.5%** |
-| **gate-conditioned** | **55.2 ± 1.5%** | 0% | 2.03 ± 0.04 | **89.6 ± 9.0%** |
+Gate fires on **54.2%** of held-out jailbreak prompts, 10.4% of in-register benign. Five arms, because
+three cannot separate *which* prompts get the write from *how many* do:
 
-**Gating wins on BOTH axes** — not a collateral/suppression trade: +8.3 pts refusal vs +2.1, and 90%
-of benign generation untouched vs 4%. Blanket steering is worse at suppression *because* it also writes
-to prompts where the concept doesn't register, perturbing them without steering them anywhere useful.
+| arm | writes | jb refusal | Δ vs none (paired) | benign ppl | benign byte-identical |
+|---|---|---|---|---|---|
+| no steer | 0% | 46.9 ± 0.0% | — | 1.98 | 100% |
+| always | 100% | 49.0 ± 3.0% | +2.1 ± 2.9 | 2.17 | **4.2 ± 1.5%** |
+| **gate** | 54% | **55.2 ± 1.5%** | **+8.3 ± 1.5** | 2.03 | **89.6 ± 9.0%** |
+| random (size-matched) | 54% | 47.9 ± 3.9% | +1.0 ± 3.9 | 2.01 | 89.6 ± 9.0% |
+| anti-gate (complement) | 46% | 40.6 ± 2.5% | **−6.2 ± 2.6** | 2.12 | 14.6 ± 7.8% |
+
+**Gating wins on BOTH axes**, and the two control arms give the mechanism:
+- **Selection, not dosage.** Random-54% adds +1.0 vs gate's +8.3; paired by seed gate − random =
+  **+7.3 ± 5.3**, non-negative in all 3 seeds. Writing to half the prompts is worth nothing; writing to
+  *that* half is.
+- **Writing where the concept is ABSENT actively suppresses refusal** (anti-gate −6.2, negative in all
+  3 seeds). So blanket steering's flat result is a real gain cancelling a real loss.
+- Two parameters fit from gate + anti-gate (+15.3 pts where it registers, −13.5 where it doesn't)
+  reproduce the other two arms: always predicted +2.1 (measured +2.1), random +1.1 (measured +1.0).
+  Per-prompt effects are additive; this is not a saturation artifact.
+
+Precision: 32 prompts → 1 prompt = 3.1 pts, so +8.3 is 2.7 prompts and −6.2 is 2.0. sd is across 3
+few-shot resamples, not prompts; error bars overlap. What carries it is that the ordering repeats every
+seed and four arms fit one two-parameter account. A decisive version needs hundreds of prompts.
 
 Two honest limits: (1) small effect sizes, 0.5B model, one magnitude, 32 prompts — establishes gated >
 blanket, NOT that this is a deployable defense. (2) **The gate is only sharp in the register it was fit
