@@ -183,7 +183,7 @@ This is the clean generalization test the cross-distribution transfer could not 
 
 ---
 
-### 6. Gate-conditioned steering — what the gate is actually for (`scripts/eval_gate.py`)
+### 6. Gate-conditioned steering — SUPERSEDED by §8 (these numbers ran WITHOUT the chat template)
 
 The steering rule is plain CAA: direction + magnitude, no spectrogram, no depth filter, no threshold.
 So the read side's contribution to the write side is **not** the direction — it's deciding *when* to
@@ -284,6 +284,57 @@ detector, worse proxy for the steering vector). Chance is 1/√d = 0.036/0.033/0
 so §4.6's GPT-2 observation might be a geometric artifact rather than a capability ceiling. Tested by
 steering, re-reading, and projecting onto both directions: the detection score moves *with* the steering
 (gpt2 LLR +21, Qwen +48), and GPT-2 is NOT the worst-aligned model in any mode — Qwen is, every time (N32-logistic: Qwen 0.45 < gpt2 0.52 < gemma 0.57), and Qwen's read tracks its write fine. Were decoupling the cause of a weak read it would show on the worst-aligned model, and it does not. (An earlier version of this note said gpt2 was the *highest* in every mode — false: gemma is higher in 2 of 3 rows.) The capability-ceiling reading stands.
+
+### 8. CORRECTED RUNS (chat template on) — §6 and §7 above are SUPERSEDED
+
+An independent code audit (2026-09-03) found `apply_chat_template` was never called: every steering/gate
+number in §6–7 came from Qwen2.5-0.5B-**Instruct** run as a raw completer. `ConceptGate.from_pretrained(...,
+chat_template=True)` now formats prompts as a user turn + generation prompt for reading AND generation.
+Re-run (`--gate --signflip --beavertails --logit`, gate in `Direction.LOGISTIC`, n=32+32, 3 seeds):
+
+| arm (template on) | writes | jb refusal | Δ vs none | benign untouched |
+|---|---|---|---|---|
+| none | 0% | **93.8%** | — | 100% |
+| always −α | 100% | 71.9% | **−21.9 ± 5.1** | 0% |
+| gate −α | 97% | 75.0% | −18.8 ± 4.4 | 82% |
+| random −α (same size) | 97% | 71.9% | −21.9 ± 5.1 | 82% |
+| antigate −α | 3% | 90.6% | −3.1 ± 2.6 | 18% |
+| gate +α | 97% | 96.9% | +3.1 | 82% |
+| antigate +α | 3% | 93.8% | +0.0 (benign over-refusal 7.3%) | 18% |
+
+- **Baseline refusal 93.8%** (was 46.9%) → two prompts of headroom; a refusal RATE is saturated.
+- **THE SIGN REVERSES.** −α ("away", the old "safety write") LOWERS refusal by 22 pts. +α raises it (at
+  ceiling on attacks; 0→7% over-refusal on benign). The old +8.3 was the raw-completer regime's artifact.
+- **Gate fires on 96.9±2.6% of attacks** (was 54%) → gate ≈ random ≈ blanket; NOTHING to select. The
+  "selection not dosage" result is gone. Gate still confines benign collateral (82% vs 0%) = CAST Table 3.
+- Register: fires 17.7% in-register benign, **95.8%** real out-of-register benign. Template-fit concept
+  (`fire_only`) now fires 77%/34% on short attacks/benign (was 0/0).
+- **BeaverTails corrected:** refusal 80.0 → 65.0 (blanket) → 68.3 (gate); gates fire 42–100% on SAFE
+  prompts; safe untouched 3% vs 33%. Same reversal; harm-topic lever weaker (15 vs 22 pts) — Zhao 2507.11878.
+
+**`--logit` (continuous first-token refusal logit, one forward/arm, random-direction floor of matched norm):**
+
+| Δ refusal logit | base | concept −α | +α | lever | random −α | +α | lever |
+|---|---|---|---|---|---|---|---|
+| fired attacks (n=93) | +2.94 | −1.63 | +0.89 | **−1.26** | −0.56 | +0.28 | −0.42 |
+| benign (n=96) | −2.21 | −0.77 | +1.21 | **−0.99** | −0.21 | +0.33 | −0.27 |
+
+The few-shot direction is a **lever everywhere** (same sign on attacks and benign, fired or passed), **~3×
+a random direction** of the same norm (|lever| 1.26 vs 0.45; concept > random on 91% of prompts). No
+lever/perturbation dissociation. = Arditi's refusal direction recovered few-shot + Safety Pitfalls. NOT new.
+The random direction is not inert (Rogue Scalpel).
+
+**Prior art the paper had missed:** CAST 2409.05907 (conditional steering), DSAS 2512.03661 (few-shot
+logistic gate), Arditi 2406.11717, Rogue Scalpel 2509.22067, Safety Pitfalls 2603.24543, AlphaSteer
+2506.07022 (CAST detector fires on ~all math), Zhao 2507.11878, Billa 2604.15557, Residual Paving
+2605.20262, LAD 2604.28129. Report refs 15–24.
+
+**Open question (running, `--steerability`):** does the few-shot concept read predict PER PROMPT how much
+a write moves the model? Needs attacks that succeed (template + request), continuous outcome, random floor,
+and an outcome-fitted gate vs the concept gate. Two lit checks found nobody has done it. Result pending.
+
+**Lessons:** audit the CODE path, not just the paper (7 reviews missed it; 1 code read found it); never
+report a binary outcome at a ceiling; always include a matched-norm random direction.
 
 ## Verdict (honest)
 
