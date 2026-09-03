@@ -336,6 +336,42 @@ and an outcome-fitted gate vs the concept gate. Two lit checks found nobody has 
 **Lessons:** audit the CODE path, not just the paper (7 reviews missed it; 1 code read found it); never
 report a binary outcome at a ceiling; always include a matched-norm random direction.
 
+### 9. STEERABILITY PREDICTION — the one thing that looks new (`--steerability`)
+
+Different question from §6–8. Not "is the concept present?" (on formatted attacks: always yes, useless for
+the write) but **"how far will a write move THIS prompt?"** Needs attacks with headroom, so: 120 held-out
+jailbreak templates + a harmful request each, 32 short framings, 12 bare requests (164 attacks, 15% lean
+comply), 48 real benign. Outcome = first-token refusal logit; 5 forwards/prompt (none, ±α concept, ±α
+random of matched norm); no generation. **Lever** = ½(Δ₋α − Δ₊α), the sign-reversible half. 3 concept
+resamples (prompts fixed, so spread = sensitivity to the 8 fitting examples).
+
+| predictor of the per-prompt lever | Spearman |
+|---|---|
+| gate LLR (the concept read), all attacks | +0.51 ± 0.11 |
+| gate LLR, within the 120 templates only | +0.40 ± 0.18 |
+| **ridge fit to the outcome, 5-fold CV** | **+0.81 ± 0.03** |
+| same, folds grouped by harmful request | +0.79 ± 0.02 |
+| same, templates only, grouped | +0.70 ± 0.07 |
+| fit on templates → test short+bare | +0.88 ± 0.02 |
+| fit on short+bare → test templates | +0.72 ± 0.03 |
+
+**The outcome direction is NOT the concept direction:** mean |cos| 0.09 vs chance 1/√d = 0.033 (~85° apart).
+**Nor a refusal-disposition direction:** a ridge on the *unsteered* logit hits +0.86 CV but sits |cos| 0.07
+from the outcome direction. **Projecting BOTH out still gives +0.81 ± 0.04.**
+
+Confounds ruled out: residual norm (norm→lever +0.20; per-unit-write CV +0.81), baseline refusal
+(−0.01; residualized CV +0.79), distance to boundary (|base|→|lever| −0.01). Concept lever 1.28 ± 0.02 vs
+random-direction 0.51 ± 0.20 (~2.5× the perturbation floor).
+
+Two lit checks found no prior art: closest is Billa 2604.15557 (aggregate, one sign, no gate), ASTEER
+2606.11599 (post-steering states, 1.4M generations, GBDT), Braun 2505.22637 (dataset-level). Self-estimated
+P(already published) ≈ 1/3. **Limits:** one model, one concept, one α, 164 attacks, ridge in 2688 dims on
+n=164 (grouped CV + cross-family transfer are the reason to believe it), labels cost 2 forwards/prompt,
+correlational.
+
+**Next if pursued:** several α, several concepts, 2B/7B, and a held-out MODEL not just a held-out fold.
+Report §4.11 + Figure 16. Numbers all from `scripts/analyze_steerability.py`.
+
 ## Verdict (honest)
 
 Detection accuracy is a **commodity** — CG-logistic *ties* LR/SVM in-dist and shows no
@@ -350,7 +386,11 @@ fit in ms/kilobytes, all K read in one forward) where per-concept LoRA is **stee
 whole-bank build, a separate forward each, lower few-shot accuracy). Honest caveat: a linear-probe bank
 shares this amortization too — the **only** thing unique to CG is the read/write duality (steering).
 
-Sharper, post-§6: even *steering* is not unique — the write rule is CAA, which needs none of CG's
+Sharper still, post-§9: the composition has no novel *method*, but asking a different question of the same
+harness produced one candidate finding — per-prompt steerability is linearly decodable from the prompt, and
+from a direction ~85° off the concept's. That is what to build on, not the gate.
+
+Post-§6: even *steering* is not unique — the write rule is CAA, which needs none of CG's
 machinery. What is unique is **gate-conditioned** steering: using the calibrated read to decide *when*
 to write. That is measured (§6) and it beats blanket steering on both suppression and collateral. Frame
 the contribution there, not on steering per se.

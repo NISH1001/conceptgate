@@ -122,6 +122,12 @@ def main():
             v = unit((dv * sd.reshape(m, dd)).reshape(-1))
             Y = Y - np.outer(Y @ v, v)
         r["outcome_cv_after_projecting_out_both"] = _cv(Y, ya, seed)
+        if si == 1:   # keep one seed's per-prompt values so the report figure is reproducible
+            pcv = np.zeros_like(ya)
+            for tr, te in KFold(5, shuffle=True, random_state=seed).split(Xs):
+                pcv[te] = Ridge(alpha=ALPHA_RIDGE).fit(Xs[tr], ya[tr]).predict(Xs[te])
+            r["plot"] = {"llr": llr[atk].tolist(), "lever": ya.tolist(), "cv_pred": pcv.tolist(),
+                         "kind": ka.tolist()}
         out.append(r)
         print(f"seed {seed}: |lever| concept {r['lever_concept']:.2f} vs random {r['lever_random']:.2f}")
         print(f"  LLR->lever: all attacks {r['llr_vs_lever_all_attacks']:+.2f}, template-only {r['llr_template_only']:+.2f}")
