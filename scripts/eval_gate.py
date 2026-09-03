@@ -2,7 +2,8 @@
 
 Two experiments, both aimed at claims the report cannot currently support.
 
-GATE (--gate). The steering rule itself is CAA; a probe bank cannot do it, but neither does it need
+GATE (--gate). Prompts are formatted with the model's chat template (refusal is a chat behaviour;
+running an instruct model as a raw completer measures something else). The steering rule itself is CAA; a probe bank cannot do it, but neither does it need
 ConceptGate. What no probe and no external classifier can do is decide *when* to write. Three arms --
 no steer / always steer-away / gate-conditioned steer-away (Trigger.FIRE) -- on jailbreak prompts
 (refusal = suppression) and real benign prompts (perplexity + byte-identity = collateral). The concept
@@ -33,6 +34,7 @@ import torch
 import torch.nn.functional as F
 
 from conceptgate import ConceptGate, Steer, Trigger
+from conceptgate.concept import Direction
 
 DATASET = "jackhhao/jailbreak-classification"
 CHAR_CAP = 1200
@@ -165,8 +167,9 @@ def is_safety_lang(text):
 def _ppl(cg, prompt, cont):
     if not cont.strip():
         return float("nan")
-    ids = cg.tok(prompt + " " + cont, return_tensors="pt").input_ids.to(cg.device)
-    plen = cg.tok(prompt, return_tensors="pt").input_ids.shape[1]
+    fp = cg._format(prompt)   # score the continuation after the prompt exactly as it was presented
+    ids = cg.tok(fp + cont, return_tensors="pt").input_ids.to(cg.device)
+    plen = cg.tok(fp, return_tensors="pt").input_ids.shape[1]
     if ids.shape[1] <= plen + 1:
         return float("nan")
     with torch.no_grad():
@@ -188,8 +191,7 @@ def _pools():
 
 
 def _gen(cg, prompt, act):
-    return cg.run(prompt, action=act, max_new_tokens=MAX_NEW,
-                  check_output=False).text[len(prompt):].strip()
+    return cg.run(prompt, action=act, max_new_tokens=MAX_NEW, check_output=False).continuation.strip()
 
 
 def fire_only(model, taps, device):
@@ -198,13 +200,14 @@ def fire_only(model, taps, device):
     print(f"\n{'='*92}\n### FIRE-ONLY (dataset-fitted concept) {model}  taps {taps}\n{'='*92}", flush=True)
     pos_pool, neg_pool, _ = _pools()
     benign_test, jb_test = BN_TEST[:N_BENIGN], JB_TEST[:N_JB]
-    cg = ConceptGate.from_pretrained(model, layers=taps, device=device)
+    cg = ConceptGate.from_pretrained(model, layers=taps, device=device, chat_template=True)
     fj, fb = [], []
     for seed in SEEDS:
         rng = np.random.default_rng(seed)
         cg.learn("jailbreak",
                  [pos_pool[i] for i in rng.permutation(len(pos_pool))[:N_SHOT]],
-                 [neg_pool[i] for i in rng.permutation(len(neg_pool))[:N_SHOT]])
+                 [neg_pool[i] for i in rng.permutation(len(neg_pool))[:N_SHOT]],
+                 direction=Direction.LOGISTIC)
         cg.calibrate(z=2.0)
         fj.append(float(np.mean([cg.check(p).fired for p in jb_test])) * 100)
         fb.append(float(np.mean([cg.check(p).fired for p in benign_test])) * 100)
@@ -224,7 +227,7 @@ def gate_eval(model, taps, device, which=("none", "always", "gate", "random", "a
     benign_test, jb_test = BN_TEST[:N_BENIGN], JB_TEST[:N_JB]
     _, _, real_benign = _pools()          # real benign prompts, for an out-of-register FPR check
     real_benign = real_benign[:N_BENIGN]
-    cg = ConceptGate.from_pretrained(model, layers=taps, device=device)
+    cg = ConceptGate.from_pretrained(model, layers=taps, device=device, chat_template=True)
 
     per_seed = {a: [] for a in which}
     base_jb, base_bn = None, None
@@ -232,7 +235,8 @@ def gate_eval(model, taps, device, which=("none", "always", "gate", "random", "a
         rng = np.random.default_rng(seed)
         p_idx = rng.permutation(len(FIT_POS))[:N_SHOT]
         n_idx = rng.permutation(len(FIT_NEG))[:N_SHOT]
-        cg.learn("jailbreak", [FIT_POS[i] for i in p_idx], [FIT_NEG[i] for i in n_idx])
+        cg.learn("jailbreak", [FIT_POS[i] for i in p_idx], [FIT_NEG[i] for i in n_idx],
+                 direction=Direction.LOGISTIC)   # the paper's detection convention, stated in 4.10
         cg.calibrate(z=2.0)
         fire_jb = float(np.mean([cg.check(p).fired for p in jb_test])) * 100
         fire_bn = float(np.mean([cg.check(p).fired for p in benign_test])) * 100
@@ -252,7 +256,7 @@ def gate_eval(model, taps, device, which=("none", "always", "gate", "random", "a
         def _rand_like(mask, salt):
             """A random subset of the SAME SIZE as the gate's fired set -- this is what separates
             *selection* (which prompts get the write) from *dosage* (how many do)."""
-            r = np.random.default_rng(9000 + seed + salt)
+            r = np.random.default_rng([9000, seed, salt])   # SeedSequence: no stream collisions across seeds
             m = np.zeros(len(mask), bool)
             m[r.permutation(len(mask))[:int(mask.sum())]] = True
             return m
@@ -461,14 +465,14 @@ def beavertails_steer(model, taps, device, cats=None, n_fit=32, n_test=12, frac=
                     "hate_speech,offensive_language"]
     cats = [c for c in cats if c in allcats] or allcats[:5]
     safe_test = tesafe[:n_test]
-    cg = ConceptGate.from_pretrained(model, layers=taps, device=device)
+    cg = ConceptGate.from_pretrained(model, layers=taps, device=device, chat_template=True)
     rows = []
     for cat in cats:
         pos = trc[cat][:n_fit]
         neg = trsafe[:n_fit]
         if len(pos) < 8:
             continue
-        cg.learn(cat, pos, neg)
+        cg.learn(cat, pos, neg, direction=Direction.LOGISTIC)
         cg.calibrate(z=2.0)
         harm_test = tec[cat][:n_test]
         fire_h = float(np.mean([cg.check(p).fired for p in harm_test])) * 100

@@ -54,9 +54,23 @@ class RunResult:
     verdict: Verdict
     n_new: int = 0
     aborted: bool = False
+    continuation: str = ""   # the generated tokens only, decoded without special tokens
 
 
 class ConceptGate:
+    # Format prompts with the tokenizer's chat template (user turn + generation prompt) before
+    # reading OR generating. Off by default for reproducibility of the raw-prompt detection
+    # benchmarks; turn on for instruct models whenever the behaviour measured is a chat behaviour
+    # (refusal), otherwise an instruct model is being run as a raw completer.
+    chat_template: bool = False
+
+    def _format(self, prompt: str) -> str:
+        if self.chat_template and getattr(self.tok, "chat_template", None):
+            return self.tok.apply_chat_template(
+                [{"role": "user", "content": prompt}], tokenize=False, add_generation_prompt=True
+            )
+        return prompt
+
     def __init__(
         self,
         model,
@@ -85,6 +99,7 @@ class ConceptGate:
         load: LoadMode | str = LoadMode.FULL,
         device: str | None = None,
         debug: bool = False,
+        chat_template: bool = False,
     ) -> ConceptGate:
         from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 
@@ -108,6 +123,7 @@ class ConceptGate:
             detect_only = False
         model = model.to(device).eval()
         gate = cls(model, tok, layers, device, detect_only=detect_only, debug=debug)
+        gate.chat_template = chat_template
         logger.debug(
             "loaded {} on {}: load={}, taps={}, blocks_run<={}, detect_only={}",
             name,
@@ -136,7 +152,7 @@ class ConceptGate:
         per-forward overhead, mostly a GPU / many-prompts win.
         """
         read = lambda ps: self._taps.read(  # noqa: E731
-            self.tok, list(ps), self.device, last_only=True, batch_size=batch_size
+            self.tok, [self._format(p) for p in ps], self.device, last_only=True, batch_size=batch_size
         )[0]
         c = Concept(name=name, **concept_kw).fit(read(positives), read(negatives))
         self.concepts[name] = c
@@ -203,7 +219,7 @@ class ConceptGate:
 
     def check(self, prompt: str) -> Verdict:
         """Detection only, via truncated forward (runs only blocks 0..max(layers))."""
-        A_last = self._taps.read(self.tok, [prompt], self.device, last_only=True)[0]
+        A_last = self._taps.read(self.tok, [self._format(prompt)], self.device, last_only=True)[0]
         return self._verdict(A_last, step=0)
 
     # ---- act ----
@@ -257,14 +273,16 @@ class ConceptGate:
                 f"action must be a ConceptAction (have a .decide(ctx) method); "
                 f"got {type(action).__name__}"
             )
-        ids = self.tok(prompt, return_tensors="pt").to(self.device).input_ids
+        fprompt = self._format(prompt)
+        ids = self.tok(fprompt, return_tensors="pt").to(self.device).input_ids
 
         # ask the action on the input verdict (cheap truncated check); it owns when + what
         v = self.check(prompt)
         d = self._dispatch(action, v, ids)
         if isinstance(d, Stop):
-            text = prompt + (" " + d.emit if d.emit else "")
-            return RunResult(text=text.rstrip(), verdict=v, n_new=0, aborted=True)
+            text = fprompt + (" " + d.emit if d.emit else "")
+            return RunResult(text=text.rstrip(), verdict=v, n_new=0, aborted=True,
+                             continuation=(d.emit or ""))
         steer = self._steer_hooks(d.deltas) if isinstance(d, InjectSteer) and d.deltas else None
         forced = list(d.token_ids) if isinstance(d, ForceToken) else []
 
@@ -286,7 +304,8 @@ class ConceptGate:
                     pad_token_id=self.tok.eos_token_id,
                 )
                 return RunResult(text=self.tok.decode(out[0]), verdict=v,
-                                 n_new=out.shape[1] - n_prompt)
+                                 n_new=out.shape[1] - n_prompt,
+                                 continuation=self.tok.decode(out[0, n_prompt:], skip_special_tokens=True))
             # monitored path: manual loop with an output-side check per token
             seq = ids
             for step in range(1, max_new_tokens + 1):
@@ -296,14 +315,16 @@ class ConceptGate:
                     do = self._dispatch(action, vo, seq)
                     if isinstance(do, Stop):
                         gen = self.tok.decode(seq[0, n_prompt:])
-                        text = (prompt + gen).rstrip() + (" " + do.emit if do.emit else "")
-                        return RunResult(text=text, verdict=vo, n_new=step - 1, aborted=True)
+                        text = (fprompt + gen).rstrip() + (" " + do.emit if do.emit else "")
+                        return RunResult(text=text, verdict=vo, n_new=step - 1, aborted=True,
+                                         continuation=self.tok.decode(seq[0, n_prompt:], skip_special_tokens=True))
                 nxt = int(torch.argmax(out.logits[0, -1]))
                 seq = torch.cat([seq, torch.tensor([[nxt]], device=self.device)], dim=1)
                 if self.tok.eos_token_id is not None and nxt == self.tok.eos_token_id:
                     break
             return RunResult(text=self.tok.decode(seq[0]), verdict=v,
-                             n_new=seq.shape[1] - n_prompt)
+                             n_new=seq.shape[1] - n_prompt,
+                             continuation=self.tok.decode(seq[0, n_prompt:], skip_special_tokens=True))
         finally:
             if steer is not None:
                 steer.remove()

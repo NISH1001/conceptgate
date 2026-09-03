@@ -126,7 +126,7 @@ def steering_eval(model, taps, device, fractions=FRACTIONS, max_new=MAX_NEW, con
             for pi, p in enumerate(PROMPTS):
                 r = cg.run(p, action=Steer(fraction=f, concept=nm, when=Trigger.ALWAYS),
                            max_new_tokens=max_new, check_output=False)
-                cont = r.text[len(p):].strip().replace("\n", " ")
+                cont = r.continuation.strip().replace("\n", " ")   # completion stems: no chat template by design
                 if pi == 0:
                     ex = cont[:130]
                 if cont:
