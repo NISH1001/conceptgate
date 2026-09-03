@@ -621,11 +621,7 @@ def steerability_eval(model, taps, device, n_templates=120, n_benign=48, seeds=S
     from sklearn.linear_model import Ridge
     from sklearn.model_selection import KFold
     print(f"\n{'='*92}\n### STEERABILITY {model}  taps {taps}  |frac| {abs(frac)}  seeds {list(seeds)}\n{'='*92}", flush=True)
-    templates = _test_templates(n_templates)
-    attacks_t = [t + "\n\n" + HARM_REQUESTS[i % len(HARM_REQUESTS)] for i, t in enumerate(templates)]
-    _, _, real_benign = _pools()
-    prompts = ([("template", p) for p in attacks_t] + [("short", p) for p in JB_TEST]
-               + [("request", p) for p in HARM_REQUESTS] + [("benign", p) for p in real_benign[:n_benign]])
+    prompts, attacks_t = _steer_prompts(n_templates, n_benign)
     print(f"  {len(attacks_t)} template+request attacks, {len(JB_TEST)} short framed, {len(HARM_REQUESTS)} bare requests, "
           f"{min(n_benign, len(real_benign))} real benign", flush=True)
     cg = ConceptGate.from_pretrained(model, layers=taps, device=device, chat_template=True)
@@ -703,19 +699,113 @@ def steerability_eval(model, taps, device, n_templates=120, n_benign=48, seeds=S
             "harm_requests": HARM_REQUESTS, "summary": summary, "rows": all_rows}
 
 
+def _steer_prompts(n_templates, n_benign):
+    """The steerability prompt set: jailbreak templates carrying a real harmful request (attacks the
+    model may actually comply with, i.e. with headroom), the short framed attacks, the bare requests,
+    and real benign prompts. Returns [(kind, prompt)], plus the template list."""
+    templates = _test_templates(n_templates)
+    attacks_t = [t + "\n\n" + HARM_REQUESTS[i % len(HARM_REQUESTS)] for i, t in enumerate(templates)]
+    _, _, real_benign = _pools()
+    return ([("template", p) for p in attacks_t] + [("short", p) for p in JB_TEST]
+            + [("request", p) for p in HARM_REQUESTS]
+            + [("benign", p) for p in real_benign[:n_benign]]), attacks_t
+
+
+def scaleup_eval(model, taps, device, alphas=(0.04, 0.08, 0.12), n_templates=120, n_benign=48,
+                 seeds=SEEDS, acts_path=None):
+    """The single-magnitude steerability result, swept over write magnitude and run on a second model.
+    Two questions the single-alpha run could not ask: does the prediction hold at other magnitudes, and
+    is the outcome DIRECTION the same across magnitudes (a property of the prompt) or does it change
+    with the write size? The unsteered logit and the tapped activations do not depend on alpha, so they
+    are computed once per prompt per seed; each alpha costs four more forwards."""
+    print(f"\n{'='*92}\n### SCALEUP {model}  taps {taps}  alphas {list(alphas)}  seeds {list(seeds)}\n{'='*92}", flush=True)
+    prompts, _ = _steer_prompts(n_templates, n_benign)
+    cg = ConceptGate.from_pretrained(model, layers=taps, device=device, chat_template=True)
+    R, C = _first_ids(cg.tok, REFUSAL_FIRST), _first_ids(cg.tok, COMPLY_FIRST)
+    n_att = sum(1 for k, _ in prompts if k != "benign")
+    print(f"  {len(prompts)} prompts ({n_att} attacks, {len(prompts)-n_att} benign); "
+          f"{len(prompts)*(1+4*len(alphas))} forwards/seed", flush=True)
+
+    def score(prompt, deltas):
+        h = cg._steer_hooks(deltas) if deltas else None
+        try:
+            ids = cg.tok(cg._format(prompt), return_tensors="pt").input_ids.to(cg.device)
+            with torch.no_grad():
+                lg = cg.model(input_ids=ids).logits[0, -1].float()
+            return float(torch.logsumexp(lg[R], 0) - torch.logsumexp(lg[C], 0))
+        finally:
+            if h is not None:
+                h.remove()
+
+    per_seed, acts = [], []
+    for seed in seeds:
+        rng = np.random.default_rng(seed)
+        cg.learn("jailbreak", [FIT_POS[i] for i in rng.permutation(len(FIT_POS))[:N_SHOT]],
+                 [FIT_NEG[i] for i in rng.permutation(len(FIT_NEG))[:N_SHOT]], direction=Direction.LOGISTIC)
+        cg.calibrate(z=2.0)
+        W_raw = np.asarray(cg.concepts["jailbreak"].W_raw)
+        rr = np.random.default_rng([7000, seed])
+        U = rr.normal(size=W_raw.shape); U /= np.linalg.norm(U, axis=-1, keepdims=True)
+        L = cg.layers
+        rows = []
+        for i, (kind, pr) in enumerate(prompts):
+            v = cg.check(pr)
+            row = {"kind": kind, "fired": bool(v.fired), "llr": float(v.score),
+                   "resid_norm": float(v.resid_norm), "none": score(pr, None), "a": {}}
+            for al in alphas:
+                mag = al * float(v.resid_norm)
+                row["a"][f"{al:g}"] = {
+                    "minus": score(pr, {L[j]: -mag * W_raw[j] for j in range(len(L))}),
+                    "plus": score(pr, {L[j]: +mag * W_raw[j] for j in range(len(L))}),
+                    "rand_minus": score(pr, {L[j]: -mag * U[j] for j in range(len(L))}),
+                    "rand_plus": score(pr, {L[j]: +mag * U[j] for j in range(len(L))})}
+            rows.append(row)
+            acts.append(cg._taps.read(cg.tok, [cg._format(pr)], cg.device, last_only=True)[0][0])
+            if (i + 1) % 40 == 0:
+                print(f"    seed {seed}: {i+1}/{len(prompts)} prompts", flush=True)
+        per_seed.append({"seed": int(seed), "rows": rows, "W_raw": W_raw.tolist()})
+        A = [r for r in rows if r["kind"] != "benign"]
+        for al in alphas:
+            k = f"{al:g}"
+            odd = np.array([(r["a"][k]["minus"] - r["a"][k]["plus"]) / 2 for r in A])
+            oddr = np.array([(r["a"][k]["rand_minus"] - r["a"][k]["rand_plus"]) / 2 for r in A])
+            llr = np.array([r["llr"] for r in A])
+            from scipy.stats import spearmanr
+            print(f"    seed {seed} alpha {k}: |lever| concept {np.abs(odd).mean():.2f} random {np.abs(oddr).mean():.2f}  "
+                  f"Spearman(LLR, lever) {spearmanr(llr, odd).correlation:+.2f}", flush=True)
+    cg.unload()
+    if acts_path:
+        np.save(acts_path, np.array(acts, dtype=np.float32))
+        print(f"  activations -> {acts_path}", flush=True)
+    return {"model": model, "taps": list(taps), "alphas": [float(a) for a in alphas],
+            "n_templates": n_templates, "n_benign": n_benign, "seeds": list(seeds),
+            "prompt_kinds": [k for k, _ in prompts], "per_seed": per_seed, "acts": acts_path}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--beavertails", action="store_true")
     ap.add_argument("--signflip", action="store_true")
     ap.add_argument("--logit", action="store_true")
     ap.add_argument("--steerability", action="store_true")
+    ap.add_argument("--scaleup", default="", help="comma-separated models for the magnitude sweep")
     ap.add_argument("--gate", action="store_true")
     ap.add_argument("--decouple", action="store_true")
     ap.add_argument("--cosine", action="store_true")
     ap.add_argument("--device", default="mps")
     a = ap.parse_args()
-    both = not (a.gate or a.decouple or a.cosine or a.beavertails or a.signflip or a.logit or a.steerability)
+    both = not (a.gate or a.decouple or a.cosine or a.beavertails or a.signflip or a.logit or a.steerability or a.scaleup)
     out = {}
+    if a.scaleup:
+        # taps at 33/50/67% of depth for any model -- reproduces the hand-picked (8,12,16) for
+        # Qwen2.5-0.5B and (9,13,17) for gemma-2-2b exactly, so earlier runs stay comparable
+        from eval_detection import taps_for
+        res = []
+        for mn in [x for x in a.scaleup.split(",") if x]:
+            tap, _ = taps_for(mn)
+            tag = mn.replace("/", "__")
+            res.append(scaleup_eval(mn, tuple(tap), a.device, acts_path=f"scripts/scaleup_acts__{tag}.npy"))
+        out["scaleup"] = res
     if a.steerability:
         out["steerability"] = [steerability_eval("Qwen/Qwen2.5-0.5B-Instruct", [8, 12, 16], a.device)]
     if a.logit:
