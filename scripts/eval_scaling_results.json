@@ -94,7 +94,7 @@
     "lora_fwd_ms": 12.45
    },
    "memory": {
-    "cg_per_concept": 2688,
+    "cg_per_concept": 10755,
     "probe_per_concept": 897,
     "lora_per_concept": 542464,
     "backbone_full": 493961216,
@@ -193,7 +193,7 @@
     "lora_fwd_ms": 66.95
    },
    "memory": {
-    "cg_per_concept": 6912,
+    "cg_per_concept": 27651,
     "probe_per_concept": 2305,
     "lora_per_concept": 1602048,
     "backbone_full": 2660106240,

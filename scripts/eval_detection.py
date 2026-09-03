@@ -797,7 +797,8 @@ def bench_scaling(model, device, n_fit=32, seeds=(0, 1, 2), lora_cats=0, tap_fra
             "lora_fwd_ms": round(fwd_full[0], 2),  # one full forward PER adapter -> x K
         },
         "memory": {  # learned params per concept (universal, device-independent)
-            "cg_per_concept": m * d, "probe_per_concept": d + 1, "lora_per_concept": lora["trainable"],
+            "cg_per_concept": 4 * m * d + m,  # detect+steer dirs (2md) + standardization (2md) + filter (m)
+            "probe_per_concept": d + 1, "lora_per_concept": lora["trainable"],
             "backbone_full": mp["total"], "backbone_cg": mp["embed"] + (top_tap + 1) * mp["per_layer"],
         },
     }
