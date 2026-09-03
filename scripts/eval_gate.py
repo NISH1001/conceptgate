@@ -532,9 +532,9 @@ def logit_eval(model, taps, device, n_jb=N_JB, n_bn=N_BENIGN, seeds=SEEDS, frac=
     own confidence rather than a threshold. Everything is stored per prompt for later analysis."""
     print(f"\n{'='*92}\n### LOGIT {model}  taps {taps}  |frac| {abs(frac)}  {n_jb} jailbreak + {n_bn} benign  seeds {list(seeds)}\n{'='*92}", flush=True)
     jb_test, bn_test = JB_TEST[:n_jb], BN_TEST[:n_bn]
-    cg = ConceptGate.from_pretrained(model, layers=taps, device=device, chat_template=True)
+    cg = ConceptGate.from_pretrained(model, layers=taps, device=device, chat_template=True, dtype=dtype)
     R, C = _first_ids(cg.tok, REFUSAL_FIRST), _first_ids(cg.tok, COMPLY_FIRST)
-    print(f"  refusal-first ids {len(R)}, compliance-first ids {len(C)}", flush=True)
+    print(f"  refusal-first ids {len(R)}, compliance-first ids {len(C)}  dtype {dtype or 'float32'}", flush=True)
 
     def score(prompt, deltas):
         h = cg._steer_hooks(deltas) if deltas else None
@@ -608,7 +608,8 @@ def _test_templates(n):
     return t[:n]
 
 
-def steerability_eval(model, taps, device, n_templates=120, n_benign=48, seeds=SEEDS, frac=FRACTION):
+def steerability_eval(model, taps, device, n_templates=120, n_benign=48, seeds=SEEDS, frac=FRACTION,
+                      dtype=None, acts_path="scripts/steerability_acts.npy"):
     """Does a few-shot concept read predict, per prompt and BEFORE generation, how much a steering write
     along that concept will move the model's refusal? Nobody we could find has asked this with the
     controls it needs (two independent literature checks). Attacks are real jailbreak templates with a
@@ -694,9 +695,10 @@ def steerability_eval(model, taps, device, n_templates=120, n_benign=48, seeds=S
         print(f"    outcome-fitted gate (ridge, 5-fold CV) Spearman {sp_outcome:+.2f};  cos(outcome dir, W_raw) per tap "
               f"{[round(c, 2) for c in cos_out]}  (chance {rec['chance_cos']:.3f})", flush=True)
     cg.unload()
-    np.save("scripts/steerability_acts.npy", np.array(all_acts, dtype=np.float32))
+    np.save(acts_path, np.array(all_acts, dtype=np.float32))
     return {"model": model, "taps": taps, "frac": frac, "n_templates": len(attacks_t), "n_benign": n_benign,
-            "harm_requests": HARM_REQUESTS, "summary": summary, "rows": all_rows}
+            "harm_requests": HARM_REQUESTS, "summary": summary, "rows": all_rows,
+            "acts": acts_path, "dtype": dtype or "float32"}
 
 
 def _steer_prompts(n_templates, n_benign):
@@ -789,13 +791,26 @@ def main():
     ap.add_argument("--logit", action="store_true")
     ap.add_argument("--steerability", action="store_true")
     ap.add_argument("--scaleup", default="", help="comma-separated models for the magnitude sweep")
+    ap.add_argument("--steer-models", default="", help="comma-separated models for the steerability replication")
+    ap.add_argument("--steer-seeds", default="0", help="seeds for --steer-models")
+    ap.add_argument("--dtype", default="", help="e.g. bfloat16, for models that do not fit at fp32")
     ap.add_argument("--gate", action="store_true")
     ap.add_argument("--decouple", action="store_true")
     ap.add_argument("--cosine", action="store_true")
     ap.add_argument("--device", default="mps")
     a = ap.parse_args()
-    both = not (a.gate or a.decouple or a.cosine or a.beavertails or a.signflip or a.logit or a.steerability or a.scaleup)
+    both = not (a.gate or a.decouple or a.cosine or a.beavertails or a.signflip or a.logit or a.steerability or a.scaleup or a.steer_models)
     out = {}
+    if a.steer_models:
+        from eval_detection import taps_for
+        sd = [int(x) for x in a.steer_seeds.split(",")]
+        res = []
+        for mn in [x for x in a.steer_models.split(",") if x]:
+            tap, _ = taps_for(mn)
+            tag = mn.replace("/", "__")
+            res.append(steerability_eval(mn, tuple(tap), a.device, seeds=tuple(sd),
+                                         dtype=(a.dtype or None), acts_path=f"scripts/steer_acts__{tag}.npy"))
+        out["steerability_replication"] = res
     if a.scaleup:
         # taps at 33/50/67% of depth for any model -- reproduces the hand-picked (8,12,16) for
         # Qwen2.5-0.5B and (9,13,17) for gemma-2-2b exactly, so earlier runs stay comparable

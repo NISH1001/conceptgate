@@ -100,6 +100,7 @@ class ConceptGate:
         device: str | None = None,
         debug: bool = False,
         chat_template: bool = False,
+        dtype: str | None = None,
     ) -> ConceptGate:
         from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 
@@ -112,14 +113,18 @@ class ConceptGate:
             else:
                 device = "cpu"
         tok = AutoTokenizer.from_pretrained(name)
+        # dtype: when unset, transformers >=5 honours the checkpoint's own dtype, so the instruct
+        # models here load in bfloat16 and gpt2 (which declares none) in float32. Pass an explicit
+        # dtype only to override that; state it wherever such a run is reported.
+        kw = {"dtype": getattr(torch, dtype)} if dtype else {}
         if load is LoadMode.UP_TO_TAPS:
             # base model, truncated to max(tap)+1 blocks: the tail (later blocks, final
             # norm, lm_head) is never materialized. Read taps via hooks, never
             # output_hidden_states (which would ln_f the last block).
-            model = AutoModel.from_pretrained(name, num_hidden_layers=max(layers) + 1)
+            model = AutoModel.from_pretrained(name, num_hidden_layers=max(layers) + 1, **kw)
             detect_only = True
         else:
-            model = AutoModelForCausalLM.from_pretrained(name)
+            model = AutoModelForCausalLM.from_pretrained(name, **kw)
             detect_only = False
         model = model.to(device).eval()
         gate = cls(model, tok, layers, device, detect_only=detect_only, debug=debug)

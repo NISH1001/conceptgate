@@ -14,3 +14,4 @@ docs/superpowers/
 demo_concept.png
 scripts/steerability_acts.npy
 scaleup_acts__*.npy
+steer_acts__*.npy
