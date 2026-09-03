@@ -118,12 +118,18 @@ on the frozen taps), **linear probe** (a trained logistic head per concept on th
 
 **Mean per-category AUC (14 categories):**
 
-| Model | CG bank | probe bank | LoRA (3 cats) |
-|---|---|---|---|
-| Qwen2.5-0.5B | 0.832 | 0.855 | 0.685 |
-| gemma-2-2b | **0.881** | 0.874 | 0.814 |
+| Model | CG bank (taps) | probe bank @ final | **probe bank @ CG taps** | LoRA (3 cats) |
+|---|---|---|---|---|
+| Qwen2.5-0.5B | 0.832 | 0.855 | **0.840** | 0.685 |
+| gemma-2-2b | 0.881 | 0.874 | **0.880** | 0.814 |
 
-On gemma CG *edges* the probe; on Qwen it trails by 0.02. On the 3 LoRA categories CG scores 0.889 (Qwen)
+**The fair probe bank is the third column** (`scripts/eval_probe_tap_bank.py`, fit from the scaling
+run's cached activations; reproduces the stored CG and probe@final numbers to 4 decimals). The original
+comparison put the probe heads on the FINAL layer (100% of the backbone) while CG ran 91% — a depth
+advantage CG did not get. Heads on CG's own taps at identical cost: **tie** on gemma (−0.001, ahead on
+8/14 categories), **edge** CG on Qwen (+0.008, ahead on 10/14). Exactly what the single-concept §3
+result predicted. On Qwen the final layer genuinely reads harm content better than the mid taps (+0.015);
+on gemma it does not. On gemma CG *edges* the final-layer probe; on Qwen it trails it by 0.02. On the 3 LoRA categories CG scores 0.889 (Qwen)
 / 0.913 (gemma) vs LoRA's 0.685 / 0.814 — few-shot fine-tuning is both the slowest and the weakest.
 
 **Per-concept cost (marginal, to add one concept) and whole-bank totals:**
