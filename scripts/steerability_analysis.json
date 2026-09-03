@@ -1,0 +1,193 @@
+{
+ "per_seed": [
+  {
+   "seed": 0,
+   "n_attacks": 164,
+   "lever_concept": 1.2956390904217232,
+   "lever_random": 0.600633368259523,
+   "llr_vs_lever": {
+    "template": 0.1521772345301757,
+    "short": 0.6418621700879765,
+    "benign": 0.6159357359965263
+   },
+   "llr_vs_lever_all_attacks": 0.3652796104090433,
+   "outcome_cv": 0.8052317277216273,
+   "outcome_cv_grouped": 0.7616884088528558,
+   "outcome_cv_template_only": 0.6024862837697063,
+   "llr_template_only": 0.1521772345301757,
+   "transfer_template_to_other": 0.8755461592670896,
+   "transfer_other_to_template": 0.6842072366136537,
+   "outcome_cv_residualized_norm_baseline": 0.7974779970889501,
+   "outcome_cv_per_unit_write": 0.8061376899323928,
+   "norm_vs_lever": 0.08983717165671377,
+   "baseline_vs_lever": -0.054744058873940654,
+   "absbaseline_vs_abslever": 0.02262729041121978,
+   "cos_outcome_vs_concept": [
+    0.06290022543442901,
+    0.10034894139250845,
+    0.08694923492512516
+   ],
+   "cos_outcome_vs_readiness": [
+    0.03092054458727455,
+    0.01051498061853855,
+    -0.0988399340115097
+   ],
+   "cos_readiness_vs_concept": [
+    0.06768387415845026,
+    0.1305312005592449,
+    0.28601854522490167
+   ],
+   "readiness_cv": 0.8482363663569709,
+   "outcome_cv_after_projecting_out_both": 0.8238325194183341
+  },
+  {
+   "seed": 1,
+   "n_attacks": 164,
+   "lever_concept": 1.2862681557492512,
+   "lever_random": 0.23045588411935947,
+   "llr_vs_lever": {
+    "template": 0.516042780748663,
+    "short": 0.7195747800586509,
+    "benign": 0.6169127225358227
+   },
+   "llr_vs_lever_all_attacks": 0.5765102770938473,
+   "outcome_cv": 0.8503257927169343,
+   "outcome_cv_grouped": 0.8088936650660427,
+   "outcome_cv_template_only": 0.7487881102854363,
+   "llr_template_only": 0.516042780748663,
+   "transfer_template_to_other": 0.865398167723749,
+   "transfer_other_to_template": 0.7482741857073407,
+   "outcome_cv_residualized_norm_baseline": 0.8262865071483955,
+   "outcome_cv_per_unit_write": 0.853187871532926,
+   "norm_vs_lever": 0.2663991402881123,
+   "baseline_vs_lever": -0.0018744983880402105,
+   "absbaseline_vs_abslever": -0.01937888536721396,
+   "cos_outcome_vs_concept": [
+    0.0833619255875857,
+    0.13163528255475232,
+    0.10853825322781371
+   ],
+   "cos_outcome_vs_readiness": [
+    -0.017548419252488016,
+    -0.05286244195216678,
+    -0.12071510551023366
+   ],
+   "cos_readiness_vs_concept": [
+    0.029068754556680294,
+    0.0941328757874971,
+    0.27894764420896706
+   ],
+   "readiness_cv": 0.852279188714921,
+   "outcome_cv_after_projecting_out_both": 0.8522710268932026
+  },
+  {
+   "seed": 2,
+   "n_attacks": 164,
+   "lever_concept": 1.2565325411354624,
+   "lever_random": 0.7033606535050927,
+   "llr_vs_lever": {
+    "template": 0.5340023612750885,
+    "short": 0.7100439882697946,
+    "benign": 0.6371037776812853
+   },
+   "llr_vs_lever_all_attacks": 0.6002584576877559,
+   "outcome_cv": 0.7824983336280656,
+   "outcome_cv_grouped": 0.789267204440031,
+   "outcome_cv_template_only": 0.7390443780818111,
+   "llr_template_only": 0.5340023612750885,
+   "transfer_template_to_other": 0.9034531360112754,
+   "transfer_other_to_template": 0.7184873949579831,
+   "outcome_cv_residualized_norm_baseline": 0.7396025192823037,
+   "outcome_cv_per_unit_write": 0.7856596792404064,
+   "norm_vs_lever": 0.24946880143648062,
+   "baseline_vs_lever": 0.015969964496075524,
+   "absbaseline_vs_abslever": -0.0418511011657802,
+   "cos_outcome_vs_concept": [
+    0.06669217542170247,
+    0.10210252770815885,
+    0.08778720097322715
+   ],
+   "cos_outcome_vs_readiness": [
+    -0.07109424527207109,
+    -0.055450157029776806,
+    -0.16341671857733236
+   ],
+   "cos_readiness_vs_concept": [
+    0.04889153364993729,
+    0.12414574129009365,
+    0.277313317948536
+   ],
+   "readiness_cv": 0.8646497898330906,
+   "outcome_cv_after_projecting_out_both": 0.7648633575013942
+  }
+ ],
+ "summary": {
+  "llr_vs_lever_all_attacks": [
+   0.5140161150635488,
+   0.1056185112658131
+  ],
+  "llr_template_only": [
+   0.4007407921846424,
+   0.1759138392860841
+  ],
+  "outcome_cv": [
+   0.8126852846888757,
+   0.02818755854641135
+  ],
+  "outcome_cv_grouped": [
+   0.7866164261196431,
+   0.019362403824870367
+  ],
+  "outcome_cv_template_only": [
+   0.6967729240456513,
+   0.06678928546909342
+  ],
+  "transfer_template_to_other": [
+   0.8814658210007047,
+   0.016089892254072233
+  ],
+  "transfer_other_to_template": [
+   0.7169896057596592,
+   0.026176656533448955
+  ],
+  "outcome_cv_residualized_norm_baseline": [
+   0.7877890078398831,
+   0.036045673088398913
+  ],
+  "outcome_cv_per_unit_write": [
+   0.8149950802352417,
+   0.02827076476747228
+  ],
+  "outcome_cv_after_projecting_out_both": [
+   0.8136556346043103,
+   0.03640239832314485
+  ],
+  "readiness_cv": [
+   0.8550551149683274,
+   0.006982332106818995
+  ],
+  "norm_vs_lever": [
+   0.20190170446043557,
+   0.07954245712320389
+  ],
+  "baseline_vs_lever": [
+   -0.013549530921968448,
+   0.030026078263125547
+  ],
+  "absbaseline_vs_abslever": [
+   -0.012867565373924791,
+   0.026722820598762784
+  ],
+  "lever_concept": [
+   1.2794799291021457,
+   0.016671144032510028
+  ],
+  "lever_random": [
+   0.5114833019613251,
+   0.20309362531875652
+  ],
+  "cos_outcome_vs_concept_mean": 0.09225730746947809,
+  "cos_outcome_vs_readiness_mean": 0.06904028297904351,
+  "chance_cos": 0.03340765523905305
+ }
+}
