@@ -53,3 +53,10 @@ def test_rejection_classifier_orders_refusal_above_compliance():
                    ""])
     assert p[0] > 0.5 > p[1]
     assert p[2] == 0.0
+
+
+def test_bucket_pad_rounds_up_to_multiple():
+    assert B.bucket_pad(293, 32) == 27 and (293 + 27) % 32 == 0
+    assert B.bucket_pad(64, 32) == 0
+    assert B.bucket_pad(1, 32) == 31
+    assert B.bucket_pad(100, None) == 0 and B.bucket_pad(100, 0) == 0
