@@ -820,7 +820,16 @@ def main():
             tap, _ = taps_for(mn)
             tag = mn.replace("/", "__")
             res.append(scaleup_eval(mn, tuple(tap), a.device, acts_path=f"scripts/scaleup_acts__{tag}.npy"))
-        out["scaleup"] = res
+        # union by model with whatever is already stored -- each --scaleup invocation otherwise
+        # replaces the whole key and silently discards earlier models
+        try:
+            prev_sc = json.load(open("scripts/eval_gate_results.json")).get("scaleup", [])
+        except (OSError, ValueError):
+            prev_sc = []
+        by = {r["model"]: r for r in prev_sc}
+        for r in res:
+            by[r["model"]] = r
+        out["scaleup"] = [by[k] for k in sorted(by)]
     if a.steerability:
         out["steerability"] = [steerability_eval("Qwen/Qwen2.5-0.5B-Instruct", [8, 12, 16], a.device)]
     if a.logit:
