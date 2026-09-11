@@ -93,7 +93,9 @@ its sign convention is opposite to D, so correlations with it are reported on �
 (`{model, taps, alpha, K, temperature, seed, dtype, classifier, prompt_kinds, rows:[{kind, prompt,
 llr, fired, p_present, resid_norm, logit:{arm: value}, samples:{arm: [text]*K}, lex:{arm: [0/1]*K},
 clf:{arm: [p]*K}}]}`), plus the per-prompt tap activations to `scripts/behaviour_dose_acts__<tag>.npy`
-(`[n, m, d]`, float32; `.npy` is gitignored) and `W_raw` to `scripts/behaviour_dose_wraw__<tag>.npy`.
+(`[n, m, d]`, float32; add `behaviour_dose_acts__*.npy` to `.gitignore` beside the existing
+`scaleup_acts__*.npy` entry) and `W_raw` to `scripts/behaviour_dose_wraw__<tag>.npy` (small; committed,
+like `steerability_wraw.npy`).
 Analysis in `scripts/analyze_behaviour_dose.py` prints the reliability table and writes
 `scripts/behaviour_dose_analysis.json`; it never regenerates.
 
@@ -108,10 +110,12 @@ Text storage ≈ 3–4 MB per model.
 ## Stage 2 — predict the behavioural dose from the prompt
 
 Runs only if stage 1 passes. Reuses the pipeline of `analyze_steerability.py` / `steerability_controls.py`
-(same `_cv`, same Ridge configuration, same standardization) with `y = D_s` for the instrument that
-scored higher on split-half reliability (the other reported alongside).
+— `sklearn.linear_model.Ridge(alpha=10.0)` on per-feature z-scored activations, the same `_cv` — with
+`y = D_s` for the instrument that scored higher on split-half reliability (the other reported alongside).
 
-**Features.** `X` = tap activations, z-scored per tap with fit-fold statistics, flattened to `m·d`.
+**Features.** `X` = tap activations flattened to `m·d`, z-scored per feature with mean and sd computed
+over the full prompt set as the existing scripts do (label-free, so no leakage of `y`; kept for
+comparability with the §4.11 numbers).
 
 **Evaluation.**
 - 5-fold CV, and 5-fold **grouped by harmful request** (the primary number);
@@ -136,9 +140,10 @@ and gemma.
 Runs only if stage 2 passes. Two parts: a library feature and its evaluation.
 
 **Library.**
-- `conceptgate/outcome.py`: `OutcomeHead` — `fit(A: [n, m, d], y: [n]) -> self` stores per-tap
-  mean/sd and a ridge `(w: [m·d], b)`; `predict(A) -> [n]`. Pure numpy + sklearn `Ridge`, same alpha
-  convention as the analysis scripts. Optional `features="concept"` variant: fit on a named concept's
+- `conceptgate/outcome.py`: `OutcomeHead` — `fit(A: [n, m, d], y: [n]) -> self` stores per-feature
+  mean/sd and a ridge `(w: [m·d], b)`; `predict(A) -> [n]`. Pure numpy + `sklearn` `Ridge`,
+  `alpha=10.0` by default (the analysis scripts' value), exposed as a constructor argument. Optional
+  `features="concept"` variant: fit on a named concept's
   per-tap projections (3 scalars) instead of the raw taps — kept if stage 2 shows it ties the full head.
 - `ConceptGate.learn_outcome(name, prompts, y, *, features="taps", concept=None, batch_size=1)`: reads
   the taps for `prompts` with the existing `TapForward.read(..., last_only=True)`, fits an
