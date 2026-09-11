@@ -100,13 +100,26 @@ def build_gate(model, taps, device, dtype, seed):
     return cg
 
 
-def first_token_logodds(cg, prompt, deltas, R, C) -> float:
-    """The report's proxy: logsumexp over refusal-opening ids minus compliance-opening ids."""
+def prepare_inputs(cg, prompt, pad_to=None):
+    """Tokenize the formatted prompt and left-pad it to a bucket length (see bucket_pad). Returns
+    (input_ids, attention_mask) on the gate's device; with pad_to=None the mask is all ones."""
+    ids = cg.tok(cg._format(prompt), return_tensors="pt").input_ids
+    pad = cg.tok.pad_token_id if cg.tok.pad_token_id is not None else cg.tok.eos_token_id
+    npad = bucket_pad(ids.shape[1], pad_to)
+    attn = torch.ones_like(ids)
+    if npad:
+        ids = torch.cat([torch.full((1, npad), pad, dtype=ids.dtype), ids], 1)
+        attn = torch.cat([torch.zeros((1, npad), dtype=attn.dtype), attn], 1)
+    return ids.to(cg.device), attn.to(cg.device)
+
+
+def first_token_logodds(cg, ids, attn, deltas, R, C) -> float:
+    """The report's proxy: logsumexp over refusal-opening ids minus compliance-opening ids, at the last
+    position. Takes prepared (possibly left-padded) inputs so the forward reuses the generate's shapes."""
     h = cg._steer_hooks(deltas) if deltas else None
     try:
-        ids = cg.tok(cg._format(prompt), return_tensors="pt").input_ids.to(cg.device)
         with torch.no_grad():
-            lg = cg.model(input_ids=ids).logits[0, -1].float()
+            lg = cg.model(input_ids=ids, attention_mask=attn, logits_to_keep=1).logits[0, -1].float()
         return float(torch.logsumexp(lg[R], 0) - torch.logsumexp(lg[C], 0))
     finally:
         if h is not None:
@@ -152,14 +165,8 @@ def sample_all_arms(cg, prompt, deltas_by_arm, k, temperature, max_new, seed, ma
     chunks = [all_arms[i:i + per_call] for i in range(0, len(all_arms), per_call)]
     layers = list(cg.layers)
     d = next(v for v in deltas_by_arm.values() if v is not None)
-    ids = cg.tok(cg._format(prompt), return_tensors="pt").input_ids
+    ids, attn = prepare_inputs(cg, prompt, pad_to)
     pad = cg.tok.pad_token_id if cg.tok.pad_token_id is not None else cg.tok.eos_token_id
-    npad = bucket_pad(ids.shape[1], pad_to)
-    attn = torch.ones_like(ids)
-    if npad:
-        ids = torch.cat([torch.full((1, npad), pad, dtype=ids.dtype), ids], 1)
-        attn = torch.cat([torch.zeros((1, npad), dtype=attn.dtype), attn], 1)
-    ids, attn = ids.to(cg.device), attn.to(cg.device)
     n = ids.shape[1]
     result = {}
     for ci, arms in enumerate(chunks):
@@ -265,8 +272,9 @@ def run(model, device, *, k=16, alpha=0.08, temperature=0.7, max_new=40, seed=0,
                "p_present": float(v.p_present), "resid_norm": float(v.resid_norm),
                "logit": {}, "samples": {}, "lex": {}}
         deltas = {arm: arm_deltas(arm, W_raw, U, L, mag) for arm in ARMS}
+        ids_p, attn_p = prepare_inputs(cg, pr, pad_to)
         for arm in ARMS:
-            row["logit"][arm] = first_token_logodds(cg, pr, deltas[arm], R, C)
+            row["logit"][arm] = first_token_logodds(cg, ids_p, attn_p, deltas[arm], R, C)
         if arm_batch:
             samples = sample_all_arms(cg, pr, deltas, k, temperature, max_new, sample_seed(seed, i, 0),
                                       max_rows=max_rows, pad_to=pad_to)
