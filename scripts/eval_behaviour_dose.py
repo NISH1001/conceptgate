@@ -146,6 +146,22 @@ def sample_continuations(cg, prompt, deltas, k, temperature, max_new, seed) -> l
             h.remove()
 
 
+class GumbelSampler:
+    """A LogitsProcessor implementing temperature sampling by the Gumbel-max trick: argmax over
+    logits/T + Gumbel noise is an exact draw from softmax(logits/T) (top_p 1, top_k 0), so generate can
+    run its greedy path. This avoids torch.multinomial on MPS, whose per-step cumulative sum over the
+    full vocabulary dominated decode time. One independent noise tensor per row per step."""
+
+    def __init__(self, temperature: float, generator: torch.Generator | None = None):
+        self.temperature, self.generator = float(temperature), generator
+
+    def __call__(self, input_ids, scores):
+        u = torch.rand(scores.shape, device=scores.device, dtype=torch.float32, generator=self.generator)
+        u = u.clamp_(1e-20, 1.0 - 1e-7)
+        g = -torch.log(-torch.log(u))
+        return (scores.float() / self.temperature + g).to(scores.dtype)
+
+
 def bucket_pad(length: int, pad_to: int | None) -> int:
     """How many left-pad tokens bring `length` up to the next multiple of `pad_to` (0 if pad_to is None).
     Padding prompts to a few bucket lengths lets the MPS backend reuse compiled graphs across prompts
@@ -156,7 +172,7 @@ def bucket_pad(length: int, pad_to: int | None) -> int:
 
 
 def sample_all_arms(cg, prompt, deltas_by_arm, k, temperature, max_new, seed, max_rows=None,
-                    pad_to=None) -> dict[str, list[str]]:
+                    pad_to=None, sampler="multinomial") -> dict[str, list[str]]:
     """All arms in ONE generate call: rows [a*k:(a+1)*k] carry arm a's delta as a per-row [n_arms*k, 1, d]
     tensor (the steering hook broadcasts it over positions; the unsteered arm adds zeros). On MPS the
     per-step overhead dominates, so one 80-row call beats five 16-row calls."""
@@ -178,13 +194,20 @@ def sample_all_arms(cg, prompt, deltas_by_arm, k, temperature, max_new, seed, ma
                 rows += [vec] * k
             per_layer[L] = np.stack(rows)[:, None, :]
         h = cg._steer_hooks(per_layer)
+        rows_n = len(arms) * k
         try:
             torch.manual_seed(seed + ci)
             with torch.no_grad():
-                out = cg.model.generate(ids, attention_mask=attn, do_sample=True, temperature=temperature,
-                                        top_p=1.0, top_k=0, repetition_penalty=1.0,
-                                        num_return_sequences=len(arms) * k, max_new_tokens=max_new,
-                                        pad_token_id=pad)
+                if sampler == "gumbel":
+                    gen = torch.Generator(device=str(cg.device)).manual_seed(seed + ci)
+                    out = cg.model.generate(ids.repeat(rows_n, 1), attention_mask=attn.repeat(rows_n, 1),
+                                            do_sample=False, logits_processor=[GumbelSampler(temperature, gen)],
+                                            repetition_penalty=1.0, max_new_tokens=max_new, pad_token_id=pad)
+                else:
+                    out = cg.model.generate(ids, attention_mask=attn, do_sample=True, temperature=temperature,
+                                            top_p=1.0, top_k=0, repetition_penalty=1.0,
+                                            num_return_sequences=rows_n, max_new_tokens=max_new,
+                                            pad_token_id=pad)
             texts = [cg.tok.decode(o[n:], skip_special_tokens=True).strip() for o in out]
             result.update({a: texts[i * k:(i + 1) * k] for i, a in enumerate(arms)})
         finally:
@@ -238,7 +261,7 @@ class RejectionClassifier:
 
 def run(model, device, *, k=16, alpha=0.08, temperature=0.7, max_new=40, seed=0, dtype="",
         max_prompts=None, use_classifier=True, clf_device="cpu", out_dir=HERE, resume=False,
-        arm_batch=True, max_rows=None, pad_to=None, stop_after=None):
+        arm_batch=True, max_rows=None, pad_to=None, stop_after=None, sampler="multinomial"):
     from eval_detection import taps_for
     taps, n_layers = taps_for(model)
     tag = run_tag(model, seed)
@@ -277,7 +300,7 @@ def run(model, device, *, k=16, alpha=0.08, temperature=0.7, max_new=40, seed=0,
             row["logit"][arm] = first_token_logodds(cg, ids_p, attn_p, deltas[arm], R, C)
         if arm_batch:
             samples = sample_all_arms(cg, pr, deltas, k, temperature, max_new, sample_seed(seed, i, 0),
-                                      max_rows=max_rows, pad_to=pad_to)
+                                      max_rows=max_rows, pad_to=pad_to, sampler=sampler)
         else:
             samples = {arm: sample_continuations(cg, pr, deltas[arm], k, temperature, max_new,
                                                  sample_seed(seed, i, ai)) for ai, arm in enumerate(ARMS)}
@@ -312,6 +335,7 @@ def run(model, device, *, k=16, alpha=0.08, temperature=0.7, max_new=40, seed=0,
     meta["arm_batch"] = bool(arm_batch)
     meta["max_rows"] = max_rows
     meta["pad_to"] = pad_to
+    meta["sampler"] = sampler
     cg.unload()
     meta["n_empty"] = int(sum(1 for r in rows for a in ARMS for t in r["samples"][a] if not t.strip()))
     meta["rows"] = rows
@@ -364,6 +388,7 @@ def main():
     ap.add_argument("--max-rows", type=int, default=None, help="cap rows per generate call (arms are chunked)")
     ap.add_argument("--pad-to", type=int, default=None, help="left-pad prompts to a multiple of N tokens (shape reuse on MPS)")
     ap.add_argument("--stop-after", type=int, default=None, help="exit 3 after N new prompts (checkpointed); loop with --resume")
+    ap.add_argument("--sampler", default="multinomial", choices=["multinomial", "gumbel"], help="gumbel = same distribution, no MPS multinomial")
     ap.add_argument("--out-dir", default=None)
     ap.add_argument("--quick", action="store_true", help="8 prompts, K=2, 8 new tokens -> scripts/quick/")
     a = ap.parse_args()
@@ -379,7 +404,7 @@ def main():
         run(m.strip(), a.device, k=a.k, alpha=a.alpha, temperature=a.temperature, max_new=a.max_new,
             seed=a.seed, dtype=a.dtype, max_prompts=a.max_prompts, use_classifier=not a.no_classifier,
             clf_device=a.clf_device, out_dir=a.out_dir, resume=a.resume, arm_batch=not a.no_arm_batch,
-            max_rows=a.max_rows, pad_to=a.pad_to, stop_after=a.stop_after)
+            max_rows=a.max_rows, pad_to=a.pad_to, stop_after=a.stop_after, sampler=a.sampler)
 
 
 if __name__ == "__main__":

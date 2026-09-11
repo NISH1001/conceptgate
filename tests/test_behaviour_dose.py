@@ -65,3 +65,17 @@ def test_bucket_pad_rounds_up_to_multiple():
 def test_run_tag_suffixes_nonzero_seeds():
     assert B.run_tag("Qwen/Qwen2.5-0.5B-Instruct", 0) == "Qwen__Qwen2.5-0.5B-Instruct"
     assert B.run_tag("Qwen/Qwen2.5-0.5B-Instruct", 1) == "Qwen__Qwen2.5-0.5B-Instruct__seed1"
+
+
+def test_gumbel_sampler_matches_softmax_frequencies():
+    import torch
+    torch.manual_seed(0)
+    logits = torch.tensor([[2.0, 1.0, 0.0, -1.0, -3.0]])
+    T = 0.7
+    target = torch.softmax(logits / T, -1)[0]
+    n = 40000
+    proc = B.GumbelSampler(T, torch.Generator().manual_seed(1))
+    draws = proc(None, logits.repeat(n, 1)).argmax(-1)
+    freq = torch.bincount(draws, minlength=5).float() / n
+    assert torch.allclose(freq, target, atol=0.01), (freq, target)
+    assert proc(None, logits).shape == logits.shape
