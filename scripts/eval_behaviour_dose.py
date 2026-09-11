@@ -231,7 +231,7 @@ class RejectionClassifier:
 
 def run(model, device, *, k=16, alpha=0.08, temperature=0.7, max_new=40, seed=0, dtype="",
         max_prompts=None, use_classifier=True, clf_device="cpu", out_dir=HERE, resume=False,
-        arm_batch=True, max_rows=None, pad_to=None):
+        arm_batch=True, max_rows=None, pad_to=None, stop_after=None):
     from eval_detection import taps_for
     taps, n_layers = taps_for(model)
     tag = run_tag(model, seed)
@@ -286,6 +286,13 @@ def run(model, device, *, k=16, alpha=0.08, temperature=0.7, max_new=40, seed=0,
                   f"gpu {mem_mb(cg.device):.0f} MB", flush=True)
             json.dump({"rows": rows}, open(part_path, "w"))
             np.save(part_acts, np.array(acts, dtype=np.float32))
+        if stop_after and done >= stop_after and i + 1 < len(prompts):
+            json.dump({"rows": rows}, open(part_path, "w"))
+            np.save(part_acts, np.array(acts, dtype=np.float32))
+            print(f"  stop-after {stop_after}: checkpointed {len(rows)} prompts; rerun with --resume "
+                  f"(a fresh process resets the MPS graph cache, which grows with every new shape)", flush=True)
+            cg.unload()
+            sys.exit(3)
 
     meta = {"model": model, "taps": L, "n_layers": n_layers, "alpha": alpha, "k": k,
             "temperature": temperature, "top_p": 1.0, "top_k": 0, "repetition_penalty": 1.0,
@@ -348,6 +355,7 @@ def main():
     ap.add_argument("--classify-only", action="store_true", help="only run the classifier over saved results")
     ap.add_argument("--max-rows", type=int, default=None, help="cap rows per generate call (arms are chunked)")
     ap.add_argument("--pad-to", type=int, default=None, help="left-pad prompts to a multiple of N tokens (shape reuse on MPS)")
+    ap.add_argument("--stop-after", type=int, default=None, help="exit 3 after N new prompts (checkpointed); loop with --resume")
     ap.add_argument("--out-dir", default=None)
     ap.add_argument("--quick", action="store_true", help="8 prompts, K=2, 8 new tokens -> scripts/quick/")
     a = ap.parse_args()
@@ -363,7 +371,7 @@ def main():
         run(m.strip(), a.device, k=a.k, alpha=a.alpha, temperature=a.temperature, max_new=a.max_new,
             seed=a.seed, dtype=a.dtype, max_prompts=a.max_prompts, use_classifier=not a.no_classifier,
             clf_device=a.clf_device, out_dir=a.out_dir, resume=a.resume, arm_batch=not a.no_arm_batch,
-            max_rows=a.max_rows, pad_to=a.pad_to)
+            max_rows=a.max_rows, pad_to=a.pad_to, stop_after=a.stop_after)
 
 
 if __name__ == "__main__":
