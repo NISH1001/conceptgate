@@ -16,6 +16,8 @@ import os
 
 import numpy as np
 from scipy.stats import spearmanr
+from sklearn.linear_model import Ridge
+from sklearn.model_selection import GroupKFold, KFold
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ARMS = ("none", "minus", "plus", "rand_minus", "rand_plus")
@@ -134,6 +136,159 @@ def print_stage1(o):
           f"(>= {GATE1_RELIABILITY}) agreement {g['agreement']:+.3f} (>= {GATE1_AGREEMENT})")
 
 
+# ---------------------------------------------------------------- stage 2: prediction
+def groups_for(kind_attacks):
+    """Template rows cycle the N_REQ harmful requests; short and bare requests are their own groups."""
+    g = np.full(len(kind_attacks), -1)
+    ti = np.where(kind_attacks == "template")[0]
+    g[ti] = np.arange(len(ti)) % N_REQ
+    g[kind_attacks == "short"] = N_REQ
+    g[kind_attacks == "request"] = N_REQ + 1
+    return g
+
+
+def cv(X, y, seed, groups=None, n_splits=5):
+    pred = np.zeros(len(y), dtype=float)
+    split = (GroupKFold(n_splits=n_splits).split(X, y, groups) if groups is not None
+             else KFold(n_splits, shuffle=True, random_state=seed).split(X))
+    for tr, te in split:
+        pred[te] = Ridge(alpha=RIDGE).fit(X[tr], y[tr]).predict(X[te])
+    return sp(pred, y), pred
+
+
+def _zscore(X):
+    mu, sd = X.mean(0), X.std(0) + 1e-6
+    return (X - mu) / sd, mu, sd
+
+
+def stage2(meta, acts, wraw, instrument, seed=0, nperm=NPERM):
+    rows, k = meta["rows"], int(meta["k"])
+    kind = np.array([r["kind"] for r in rows])
+    atk = kind != "benign"
+    P = rates(rows, instrument, list(range(k)))
+    D, Dr = dose(P)
+    y, yr, p0 = D[atk], Dr[atk], P["none"][atk]
+    llr = np.array([r["llr"] for r in rows])[atk]
+    n, m, d = acts.shape
+    Xa = acts[atk].reshape(int(atk.sum()), -1)
+    Xs, mu, sd = _zscore(Xa)
+    Xb = (acts[~atk].reshape(int((~atk).sum()), -1) - mu) / sd
+    ka = kind[atk]
+    g = groups_for(ka)
+    ng = min(7, len(set(g)))
+    out = {"instrument": instrument, "n_attacks": int(atk.sum()), "d": int(d), "m": int(m)}
+    out["cv"], _ = cv(Xs, y, seed)
+    out["cv_grouped"], pred_g = cv(Xs, y, seed, groups=g, n_splits=ng)
+    out["llr_spearman"] = sp(llr, y)
+    proj = np.stack([acts[atk][:, i, :] @ wraw[i] for i in range(m)], 1)
+    out["cv_concept_projection_only"] = cv(_zscore(proj)[0], y, seed, groups=g, n_splits=ng)[0]
+    out["cv_random_dose"] = cv(Xs, yr, seed, groups=g, n_splits=ng)[0]
+    out["cv_baseline_rate"] = cv(Xs, p0, seed, groups=g, n_splits=ng)[0]
+    out["baseline_vs_dose"] = sp(p0, y)
+    rp = np.random.default_rng(1000 + seed)
+    null = np.array([cv(Xs, y[rp.permutation(len(y))], seed, groups=g, n_splits=ng)[0] for _ in range(nperm)])
+    out["null"] = {"n": int(nperm), "mean": float(null.mean()), "sd": float(null.std()),
+                   "p95": float(np.quantile(null, .95)), "z": float((out["cv_grouped"] - null.mean()) / null.std())}
+    lc = {}
+    for ntr in (8, 16, 32, 64):
+        if ntr >= len(y) - 8:
+            continue
+        sc = []
+        for rep in range(20):
+            idx = np.random.default_rng(rep).permutation(len(y))
+            tr, te = idx[:ntr], idx[ntr:]
+            sc.append(sp(Ridge(alpha=RIDGE).fit(Xs[tr], y[tr]).predict(Xs[te]), y[te]))
+        lc[str(ntr)] = float(np.mean(sc))
+    out["learning_curve"] = lc
+    tm, oth = ka == "template", ka != "template"
+    if tm.sum() > 10 and oth.sum() > 10:
+        out["transfer_template_to_other"] = sp(Ridge(alpha=RIDGE).fit(Xs[tm], y[tm]).predict(Xs[oth]), y[oth])
+        out["transfer_other_to_template"] = sp(Ridge(alpha=RIDGE).fit(Xs[oth], y[oth]).predict(Xs[tm]), y[tm])
+    full = Ridge(alpha=RIDGE).fit(Xs, y)
+    direction = (full.coef_ / sd).reshape(m, d)
+    unit = lambda v: v / (np.linalg.norm(v) + 1e-12)  # noqa: E731
+    out["cos_vs_concept"] = [float(abs(unit(direction[i]) @ unit(wraw[i]))) for i in range(m)]
+    out["chance_cos"] = float(1 / np.sqrt(d))
+    halves = []
+    for rep in range(20):
+        idx = np.random.default_rng(500 + rep).permutation(len(y))
+        h1, h2 = idx[: len(y) // 2], idx[len(y) // 2:]
+        d1 = (Ridge(alpha=RIDGE).fit(Xs[h1], y[h1]).coef_ / sd).reshape(m, d)
+        d2 = (Ridge(alpha=RIDGE).fit(Xs[h2], y[h2]).coef_ / sd).reshape(m, d)
+        halves.append([float(abs(unit(d1[i]) @ unit(d2[i]))) for i in range(m)])
+    out["self_consistency"] = np.array(halves).mean(0).tolist()
+    out["pred_oof_grouped"] = pred_g.tolist()
+    out["pred_benign"] = full.predict(Xb).tolist() if (~atk).any() else []
+    out["threshold_median"] = float(np.median(pred_g))
+    out["gate"] = {"z": out["null"]["z"], "cv_grouped": out["cv_grouped"], "llr": out["llr_spearman"],
+                   "go": bool(out["null"]["z"] >= GATE2_Z and out["cv_grouped"] > out["llr_spearman"])}
+    return out
+
+
+def print_stage2(o):
+    print(f"\nSTAGE 2  instrument={o['instrument']} n_attacks={o['n_attacks']} features={o['m']}x{o['d']}")
+    print(f"  ridge -> dose        CV {o['cv']:+.3f}   grouped {o['cv_grouped']:+.3f}")
+    print(f"  permutation null     {o['null']['mean']:+.3f} +/- {o['null']['sd']:.3f}  (p95 {o['null']['p95']:+.3f})  z = {o['null']['z']:.1f}")
+    print(f"  baselines            gate LLR {o['llr_spearman']:+.3f}   3 concept projections {o['cv_concept_projection_only']:+.3f}")
+    print(f"  controls             random-direction dose {o['cv_random_dose']:+.3f}   unsteered rate {o['cv_baseline_rate']:+.3f}   "
+          f"Spearman(rate, dose) {o['baseline_vs_dose']:+.3f}")
+    print("  learning curve       " + "  ".join(f"n={k} {v:+.2f}" for k, v in o["learning_curve"].items()))
+    if "transfer_template_to_other" in o:
+        print(f"  transfer             templates->other {o['transfer_template_to_other']:+.3f}   other->templates {o['transfer_other_to_template']:+.3f}")
+    print(f"  |cos| vs W_raw       {[round(c, 3) for c in o['cos_vs_concept']]}  (chance {o['chance_cos']:.3f});  "
+          f"split-half self-consistency {[round(c, 2) for c in o['self_consistency']]}")
+    g = o["gate"]
+    print(f"GATE 2: {'GO' if g['go'] else 'NO-GO'}  z {g['z']:.1f} (>= {GATE2_Z}) and grouped CV {g['cv_grouped']:+.3f} > LLR {g['llr']:+.3f}")
+
+
+# ---------------------------------------------------------------- stage 3: the gate as selection
+def stage3(meta, o2, instrument, n_random=500, seed=0):
+    """Every gating arm is a SELECTION over the same per-prompt refusal gain of the +alpha arm,
+    dP = P(plus) - P(none), with predictions OUT OF FOLD. Adds no evidence beyond stage 2; the
+    random-halves null is the only genuine test (blanket = gate + anti-gate is an identity)."""
+    rows, k = meta["rows"], int(meta["k"])
+    kind = np.array([r["kind"] for r in rows])
+    atk = kind != "benign"
+    P = rates(rows, instrument, list(range(k)))
+    dP = P["plus"] - P["none"]
+    dPa, dPb = dP[atk], dP[~atk]
+    fired = np.array([r["fired"] for r in rows])
+    fired_a, fired_b = fired[atk], fired[~atk]
+    pred_a = np.array(o2["pred_oof_grouped"])
+    pred_b = np.array(o2["pred_benign"]) if len(o2["pred_benign"]) else np.zeros(0)
+    tau = o2["threshold_median"]
+    sel = {"blanket": np.ones(len(dPa), bool), "concept_gate": fired_a,
+           "outcome_gate": pred_a >= tau, "anti_outcome": pred_a < tau, "both": fired_a & (pred_a >= tau)}
+    selb = {"blanket": np.ones(len(dPb), bool), "concept_gate": fired_b,
+            "outcome_gate": pred_b >= tau, "anti_outcome": pred_b < tau, "both": fired_b & (pred_b >= tau)}
+
+    def arm(m, mb):
+        return {"n_written": int(m.sum()),
+                "mean_dP_written": float(dPa[m].mean()) if m.any() else float("nan"),
+                "total_dP": float(dPa[m].sum()),
+                "benign_written_frac": float(mb.mean()) if len(mb) else float("nan"),
+                "benign_mean_abs_dP": float(np.abs(dPb[mb]).mean()) if mb.any() else 0.0}
+
+    out = {"instrument": instrument, "threshold": float(tau), "arms": {a: arm(sel[a], selb[a]) for a in sel}}
+    n_sel = int(sel["outcome_gate"].sum())
+    rng = np.random.default_rng(seed)
+    rand = np.array([dPa[rng.permutation(len(dPa))[:n_sel]].mean() for _ in range(n_random)])
+    og = out["arms"]["outcome_gate"]["mean_dP_written"]
+    out["random"] = {"n": int(n_random), "size": n_sel, "mean": float(rand.mean()), "sd": float(rand.std()),
+                     "p_ge_outcome": float((rand >= og).mean())}
+    return out
+
+
+def print_stage3(o):
+    print(f"\nSTAGE 3  instrument={o['instrument']}  threshold (median OOF prediction) {o['threshold']:+.3f}")
+    print(f"{'arm':14s} {'written':>7s} {'dP/write':>9s} {'total dP':>9s} {'benign written':>14s} {'benign |dP|':>11s}")
+    for a, v in o["arms"].items():
+        print(f"{a:14s} {v['n_written']:>7d} {v['mean_dP_written']:>+9.3f} {v['total_dP']:>+9.2f} "
+              f"{v['benign_written_frac']:>14.2f} {v['benign_mean_abs_dP']:>11.3f}")
+    r = o["random"]
+    print(f"{'random(size)':14s} {r['size']:>7d} {r['mean']:>+9.3f} +/- {r['sd']:.3f}   P(random >= outcome_gate) = {r['p_ge_outcome']:.3f}")
+
+
 def _save(model, key, value):
     d = json.load(open(ANALYSIS)) if os.path.exists(ANALYSIS) else {}
     d.setdefault(model, {})[key] = value
@@ -155,6 +310,25 @@ def main():
         print_stage1(o1)
         if not a.no_save:
             _save(a.model, "stage1", o1)
+    if "2" in stages:
+        inst = a.instrument
+        if inst == "auto":
+            d = json.load(open(ANALYSIS)) if os.path.exists(ANALYSIS) else {}
+            inst = d.get(a.model, {}).get("stage1", {}).get("best_instrument") or stage1(meta)["best_instrument"]
+        o2 = stage2(meta, acts, wraw, inst)
+        print_stage2(o2)
+        if not a.no_save:
+            _save(a.model, "stage2", o2)
+    if "3" in stages:
+        d = json.load(open(ANALYSIS)) if os.path.exists(ANALYSIS) else {}
+        o2 = d.get(a.model, {}).get("stage2") or stage2(meta, acts, wraw, stage1(meta)["best_instrument"])
+        if not o2["gate"]["go"]:
+            print("\nSTAGE 3 skipped: stage 2 is NO-GO for this model")
+        else:
+            o3 = stage3(meta, o2, o2["instrument"])
+            print_stage3(o3)
+            if not a.no_save:
+                _save(a.model, "stage3", o3)
 
 
 if __name__ == "__main__":
