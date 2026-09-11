@@ -25,6 +25,16 @@ unsteered prompt. Near-misses to cite: Billa 2604.15557 (which *layer* succeeds)
 cross-behaviour side-effect matrix over 67 behaviours from unsteered representations — behaviour-level,
 not prompt-level). Self-estimated P(already published) ≈ 1/3, unchanged.
 
+**The first-token proxy itself is prior art** (verified by the report session, abstract opened 2026-09-11):
+*Logit-Gap Steering* (Li & Liu, 2506.24056) defines the refusal–affirmation logit gap at the first decoding
+step as a **per-prompt safety margin**, validated on 13 models (AdvBench, HarmBench; alignment widens it on
+97.5–99.8% of toxic prompts). Ours is a basket-sum over refusal-opening vs compliance-opening tokens rather
+than top-token vs top-token — same family. Cite it as the *source* of the §8–9 measure. It is a diagnostic
+plus a gradient-free suffix attack; it does not predict how far a steering write moves a given prompt, so
+the stage 2 question stands and is sharper for it: an established per-prompt margin, and the open question
+is whether the unsteered activations predict its *response* to a write. It says nothing about the
+reliability of a sampled behavioural dose, so stage 1 is unaffected.
+
 ## Question
 
 Can a read of a prompt's tap activations predict, before any generation, how much a fixed steering write
