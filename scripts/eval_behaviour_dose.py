@@ -120,34 +120,58 @@ def sample_continuations(cg, prompt, deltas, k, temperature, max_new, seed) -> l
             h.remove()
 
 
-def sample_all_arms(cg, prompt, deltas_by_arm, k, temperature, max_new, seed) -> dict[str, list[str]]:
+def sample_all_arms(cg, prompt, deltas_by_arm, k, temperature, max_new, seed, max_rows=None) -> dict[str, list[str]]:
     """All arms in ONE generate call: rows [a*k:(a+1)*k] carry arm a's delta as a per-row [n_arms*k, 1, d]
     tensor (the steering hook broadcasts it over positions; the unsteered arm adds zeros). On MPS the
     per-step overhead dominates, so one 80-row call beats five 16-row calls."""
-    arms = list(deltas_by_arm)
+    all_arms = list(deltas_by_arm)
+    per_call = max(1, (max_rows or len(all_arms) * k) // k)      # arms per generate call
+    chunks = [all_arms[i:i + per_call] for i in range(0, len(all_arms), per_call)]
     layers = list(cg.layers)
     d = next(v for v in deltas_by_arm.values() if v is not None)
-    per_layer = {}
-    for L in layers:
-        rows = []
-        for a in arms:
-            vec = np.zeros_like(d[L]) if deltas_by_arm[a] is None else deltas_by_arm[a][L]
-            rows += [vec] * k
-        per_layer[L] = np.stack(rows)[:, None, :]
-    h = cg._steer_hooks(per_layer)
-    try:
-        ids = cg.tok(cg._format(prompt), return_tensors="pt").input_ids.to(cg.device)
-        torch.manual_seed(seed)
-        pad = cg.tok.pad_token_id if cg.tok.pad_token_id is not None else cg.tok.eos_token_id
-        with torch.no_grad():
-            out = cg.model.generate(ids, do_sample=True, temperature=temperature, top_p=1.0, top_k=0,
-                                    repetition_penalty=1.0, num_return_sequences=len(arms) * k,
-                                    max_new_tokens=max_new, pad_token_id=pad)
-        n = ids.shape[1]
-        texts = [cg.tok.decode(o[n:], skip_special_tokens=True).strip() for o in out]
-        return {a: texts[i * k:(i + 1) * k] for i, a in enumerate(arms)}
-    finally:
-        h.remove()
+    ids = cg.tok(cg._format(prompt), return_tensors="pt").input_ids.to(cg.device)
+    pad = cg.tok.pad_token_id if cg.tok.pad_token_id is not None else cg.tok.eos_token_id
+    n = ids.shape[1]
+    result = {}
+    for ci, arms in enumerate(chunks):
+        per_layer = {}
+        for L in layers:
+            rows = []
+            for a in arms:
+                vec = np.zeros_like(d[L]) if deltas_by_arm[a] is None else deltas_by_arm[a][L]
+                rows += [vec] * k
+            per_layer[L] = np.stack(rows)[:, None, :]
+        h = cg._steer_hooks(per_layer)
+        try:
+            torch.manual_seed(seed + ci)
+            with torch.no_grad():
+                out = cg.model.generate(ids, do_sample=True, temperature=temperature, top_p=1.0, top_k=0,
+                                        repetition_penalty=1.0, num_return_sequences=len(arms) * k,
+                                        max_new_tokens=max_new, pad_token_id=pad)
+            texts = [cg.tok.decode(o[n:], skip_special_tokens=True).strip() for o in out]
+            result.update({a: texts[i * k:(i + 1) * k] for i, a in enumerate(arms)})
+        finally:
+            h.remove()
+            del out
+            del_cache(cg.device)
+    return result
+
+
+def del_cache(device):
+    """Return the caching allocator's blocks after each prompt: a 40-step, 80-row generate leaves the MPS
+    allocator holding many differently-sized freed blocks, and two GPU processes on a 16 GB machine swap."""
+    if str(device).startswith("mps") and hasattr(torch, "mps"):
+        torch.mps.empty_cache()
+    elif str(device).startswith("cuda"):
+        torch.cuda.empty_cache()
+
+
+def mem_mb(device) -> float:
+    if str(device).startswith("mps") and hasattr(torch, "mps"):
+        return torch.mps.driver_allocated_memory() / 2**20
+    if str(device).startswith("cuda"):
+        return torch.cuda.memory_reserved() / 2**20
+    return float("nan")
 
 
 class RejectionClassifier:
@@ -177,7 +201,7 @@ class RejectionClassifier:
 
 def run(model, device, *, k=16, alpha=0.08, temperature=0.7, max_new=40, seed=0, dtype="",
         max_prompts=None, use_classifier=True, clf_device="cpu", out_dir=HERE, resume=False,
-        arm_batch=True):
+        arm_batch=True, max_rows=None):
     from eval_detection import taps_for
     taps, n_layers = taps_for(model)
     tag = tag_of(model)
@@ -214,7 +238,8 @@ def run(model, device, *, k=16, alpha=0.08, temperature=0.7, max_new=40, seed=0,
         for arm in ARMS:
             row["logit"][arm] = first_token_logodds(cg, pr, deltas[arm], R, C)
         if arm_batch:
-            samples = sample_all_arms(cg, pr, deltas, k, temperature, max_new, sample_seed(seed, i, 0))
+            samples = sample_all_arms(cg, pr, deltas, k, temperature, max_new, sample_seed(seed, i, 0),
+                                      max_rows=max_rows)
         else:
             samples = {arm: sample_continuations(cg, pr, deltas[arm], k, temperature, max_new,
                                                  sample_seed(seed, i, ai)) for ai, arm in enumerate(ARMS)}
@@ -227,7 +252,8 @@ def run(model, device, *, k=16, alpha=0.08, temperature=0.7, max_new=40, seed=0,
         if (i + 1) % 10 == 0 or i + 1 == len(prompts):
             el = time.time() - t0
             eta = el / done * (len(prompts) - i - 1)
-            print(f"    {i + 1}/{len(prompts)}  {el / 60:.1f} min elapsed, ~{eta / 60:.1f} min left", flush=True)
+            print(f"    {i + 1}/{len(prompts)}  {el / 60:.1f} min elapsed, ~{eta / 60:.1f} min left, "
+                  f"gpu {mem_mb(cg.device):.0f} MB", flush=True)
             json.dump({"rows": rows}, open(part_path, "w"))
             np.save(part_acts, np.array(acts, dtype=np.float32))
 
@@ -239,6 +265,7 @@ def run(model, device, *, k=16, alpha=0.08, temperature=0.7, max_new=40, seed=0,
             "classifier": CLASSIFIER if use_classifier else None,
             "prompt_kinds": [kk for kk, _ in prompts], "n_prompts": len(prompts)}
     meta["arm_batch"] = bool(arm_batch)
+    meta["max_rows"] = max_rows
     cg.unload()
     meta["n_empty"] = int(sum(1 for r in rows for a in ARMS for t in r["samples"][a] if not t.strip()))
     meta["rows"] = rows
@@ -288,6 +315,7 @@ def main():
     ap.add_argument("--resume", action="store_true", help="continue from the .partial files")
     ap.add_argument("--no-arm-batch", action="store_true", help="one generate call per arm instead of one per prompt")
     ap.add_argument("--classify-only", action="store_true", help="only run the classifier over saved results")
+    ap.add_argument("--max-rows", type=int, default=None, help="cap rows per generate call (arms are chunked)")
     ap.add_argument("--out-dir", default=None)
     ap.add_argument("--quick", action="store_true", help="8 prompts, K=2, 8 new tokens -> scripts/quick/")
     a = ap.parse_args()
@@ -302,7 +330,8 @@ def main():
             continue
         run(m.strip(), a.device, k=a.k, alpha=a.alpha, temperature=a.temperature, max_new=a.max_new,
             seed=a.seed, dtype=a.dtype, max_prompts=a.max_prompts, use_classifier=not a.no_classifier,
-            clf_device=a.clf_device, out_dir=a.out_dir, resume=a.resume, arm_batch=not a.no_arm_batch)
+            clf_device=a.clf_device, out_dir=a.out_dir, resume=a.resume, arm_batch=not a.no_arm_batch,
+            max_rows=a.max_rows)
 
 
 if __name__ == "__main__":
