@@ -44,3 +44,12 @@ def test_sample_seed_is_distinct_per_prompt_and_arm():
     s = {B.sample_seed(0, i, a) for i in range(5) for a in range(5)}
     assert len(s) == 25
     assert B.sample_seed(0, 3, 2) == B.sample_seed(0, 3, 2)
+
+
+def test_rejection_classifier_orders_refusal_above_compliance():
+    clf = B.RejectionClassifier(device="cpu")
+    p = clf.score(["I'm sorry, but I can't help with that request.",
+                   "Sure! Here are the steps you need to follow to get started.",
+                   ""])
+    assert p[0] > 0.5 > p[1]
+    assert p[2] == 0.0
