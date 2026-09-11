@@ -112,3 +112,20 @@ def test_stage3_selection_prefers_predicted_movers():
     assert arms["outcome_gate"]["mean_dP_written"] > o3["random"]["mean"]
     assert o3["random"]["p_ge_outcome"] < 0.1
     assert 0 <= arms["outcome_gate"]["benign_written_frac"] <= 1
+
+
+def test_clf_soft_uses_probabilities_and_merge_doubles_k():
+    rows = _rows(n=16, k=4)
+    soft = A.rates(rows, "clf_soft", [0, 1, 2, 3])["plus"]
+    hard = A.rates(rows, "clf", [0, 1, 2, 3])["plus"]
+    assert np.allclose(soft, 0.1 + 0.8 * hard)      # each sample scores 0.9 (refusal) or 0.1 (not)
+    meta_a = {"k": 4, "seed": 0, "model": "m", "alpha": 0.08, "temperature": 0.7, "max_new_tokens": 8,
+              "rows": [dict(r, prompt=f"p{i}", samples={a: ["x"] * 4 for a in A.ARMS}) for i, r in enumerate(rows)]}
+    meta_b = {"k": 4, "seed": 1, "model": "m", "alpha": 0.08, "temperature": 0.7, "max_new_tokens": 8,
+              "rows": [dict(r, prompt=f"p{i}", samples={a: ["y"] * 4 for a in A.ARMS}) for i, r in enumerate(_rows(n=16, k=4, seed=1))]}
+    merged = A.merge_runs(meta_a, meta_b)
+    assert merged["k"] == 8 and merged["merged_seeds"] == [0, 1]
+    assert len(merged["rows"][0]["lex"]["plus"]) == 8 and merged["rows"][0]["samples"]["plus"] == ["x"] * 4 + ["y"] * 4
+    import pytest
+    with pytest.raises(ValueError, match="same prompts"):
+        A.merge_runs(meta_a, dict(meta_b, rows=meta_b["rows"][::-1]))

@@ -35,9 +35,33 @@ def sp(a, b) -> float:
     return float(spearmanr(a, b).correlation)
 
 
-def load(model, out_dir=HERE):
+def merge_runs(meta, extra_meta):
+    """Concatenate the per-(prompt, arm) samples of a second run over the SAME prompts (a different
+    --seed): K doubles, activations and first-token log-odds stay those of the first run. Returns meta."""
+    rows, xrows = meta["rows"], extra_meta["rows"]
+    if [r["prompt"] for r in rows] != [r["prompt"] for r in xrows]:
+        raise ValueError("cannot merge: the two runs do not cover the same prompts in the same order")
+    for key in ("model", "alpha", "temperature", "max_new_tokens"):
+        if meta.get(key) != extra_meta.get(key):
+            raise ValueError(f"cannot merge: {key} differs ({meta.get(key)} vs {extra_meta.get(key)})")
+    for r, x in zip(rows, xrows):
+        for a in ARMS:
+            r["samples"][a] = list(r["samples"][a]) + list(x["samples"][a])
+            r["lex"][a] = list(r["lex"][a]) + list(x["lex"][a])
+            if "clf" in r and "clf" in x:
+                r["clf"][a] = list(r["clf"][a]) + list(x["clf"][a])
+            elif "clf" in r:
+                del r["clf"]
+    meta["k"] = int(meta["k"]) + int(extra_meta["k"])
+    meta.setdefault("merged_seeds", [meta.get("seed")]).append(extra_meta.get("seed"))
+    return meta
+
+
+def load(model, out_dir=HERE, extra=()):
     tag = tag_of(model)
     meta = json.load(open(os.path.join(out_dir, f"behaviour_dose_results__{tag}.json")))
+    for path in extra:
+        meta = merge_runs(meta, json.load(open(path)))
     acts = np.load(os.path.join(out_dir, f"behaviour_dose_acts__{tag}.npy")).astype(np.float64)
     wraw = np.load(os.path.join(out_dir, f"behaviour_dose_wraw__{tag}.npy")).astype(np.float64)
     return meta, acts, wraw
@@ -45,13 +69,18 @@ def load(model, out_dir=HERE):
 
 # ---------------------------------------------------------------- stage 1: the instrument
 def rates(rows, instrument, sample_idx):
-    """P(refuse | prompt, arm) over the given sample indices. `clf` uses the hard label p >= 0.5."""
+    """P(refuse | prompt, arm) over the given sample indices. `lex`: lexicon indicator; `clf`: the
+    classifier's hard label p >= 0.5 (pre-registered); `clf_soft`: its mean probability (auxiliary)."""
+    key = "clf" if instrument.startswith("clf") else instrument
     P = {}
     for a in ARMS:
         vals = []
         for r in rows:
-            s = r[instrument][a]
-            v = [(s[j] >= 0.5) if instrument == "clf" else s[j] for j in sample_idx if j < len(s)]
+            s = r[key][a]
+            if instrument == "clf":
+                v = [float(s[j] >= 0.5) for j in sample_idx if j < len(s)]
+            else:
+                v = [float(s[j]) for j in sample_idx if j < len(s)]
             vals.append(float(np.mean(v)) if v else np.nan)
         P[a] = np.array(vals, dtype=float)
     return P
@@ -77,11 +106,12 @@ def stage1(meta):
     kind = np.array([r["kind"] for r in rows])
     atk = kind != "benign"
     have = [s for s in INSTRUMENTS if all(s in r for r in rows)]
+    report = have + (["clf_soft"] if "clf" in have else [])     # clf_soft is reported, never gated on
     odd, even, full = list(range(1, k, 2)), list(range(0, k, 2)), list(range(k))
     out = {"n_attacks": int(atk.sum()), "n_benign": int((~atk).sum()), "k": k, "instruments": {}}
     D = {}
     llr = np.array([r["llr"] for r in rows])
-    for s in have:
+    for s in report:
         Pf, Po, Pe = rates(rows, s, full), rates(rows, s, odd), rates(rows, s, even)
         Df, Dr = dose(Pf)
         Do, De = dose(Po)[0], dose(Pe)[0]
@@ -90,6 +120,7 @@ def stage1(meta):
         out["instruments"][s] = {
             "split_half": rho,
             "spearman_brown": spearman_brown(rho),
+            "dplus_split_half": sp((Po["plus"] - Po["none"])[atk], (Pe["plus"] - Pe["none"])[atk]),
             "split_half_benign": sp(Do[~atk], De[~atk]) if (~atk).sum() > 2 else float("nan"),
             "baseline_split_half": sp(Po["none"][atk], Pe["none"][atk]),
             "proxy_check": sp(Df[atk], proxy_lever(rows)[atk]),
@@ -118,10 +149,10 @@ def stage1(meta):
 
 def print_stage1(o):
     print(f"\nSTAGE 1  n_attacks={o['n_attacks']} n_benign={o['n_benign']} K={o['k']}")
-    print(f"{'instrument':10s} {'split-half':>10s} {'SB(K)':>7s} {'base s-h':>8s} {'proxy':>7s} {'LLR':>6s} "
+    print(f"{'instrument':10s} {'split-half':>10s} {'SB(K)':>7s} {'dP+ s-h':>8s} {'base s-h':>8s} {'proxy':>7s} {'LLR':>6s} "
           f"{'dose/rand':>9s} {'|D|atk':>7s} {'|D|ben':>7s} {'D>0':>5s}")
     for s, v in o["instruments"].items():
-        print(f"{s:10s} {v['split_half']:>+10.3f} {v['spearman_brown']:>+7.3f} {v['baseline_split_half']:>+8.3f} "
+        print(f"{s:10s} {v['split_half']:>+10.3f} {v['spearman_brown']:>+7.3f} {v['dplus_split_half']:>+8.3f} {v['baseline_split_half']:>+8.3f} "
               f"{v['proxy_check']:>+7.3f} {v['llr_vs_dose']:>+6.2f} {v['dose_ratio_attacks']:>9.2f} "
               f"{v['mean_abs_dose']['attacks']:>7.3f} {v['mean_abs_dose']['benign']:>7.3f} "
               f"{v['frac_dose_positive_attacks']:>5.2f}")
@@ -302,8 +333,9 @@ def main():
     ap.add_argument("--instrument", default="auto", help="auto | lex | clf")
     ap.add_argument("--out-dir", default=HERE)
     ap.add_argument("--no-save", action="store_true")
+    ap.add_argument("--extra", default="", help="comma-separated extra results files (other seeds) to merge: K adds up")
     a = ap.parse_args()
-    meta, acts, wraw = load(a.model, a.out_dir)
+    meta, acts, wraw = load(a.model, a.out_dir, extra=[e for e in a.extra.split(",") if e])
     stages = ("1", "2", "3") if a.stage == "all" else (a.stage,)
     if "1" in stages:
         o1 = stage1(meta)
