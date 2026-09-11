@@ -8,7 +8,14 @@ regenerates. Also records the first-token refusal log-odds per arm (the report's
 measure is Logit-Gap Steering's per-prompt margin, 2506.24056, in basket-sum form) and the
 unsteered tap activations, so stage 2 can predict the behavioural dose from the prompt alone.
 
-Run:  uv run --with datasets python scripts/eval_behaviour_dose.py                    # Qwen, K=16
+MPS notes (M4, 16 GB, torch 2.12): float32 decodes ~3.5x faster than the checkpoint's bfloat16; keep a
+generate call at <= 32 rows on long prompts -- on a 293-token prompt one 80-row call took 163 s and drove
+the caching allocator to 17 GB (current_allocated stayed at 1.9 GB), while 32-row chunks of the same work
+took 30 s in total; the cache is released after every prompt. Chunking changes which random draws are
+realised, not their distribution: every row is an independent sample from P(text | prompt, arm), so the
+split-half statistic is unaffected. Sampled texts are stored, so analysis never depends on regeneration.
+
+Run:  uv run --with datasets python scripts/eval_behaviour_dose.py --dtype float32 --max-rows 32   # Qwen
       uv run --with datasets python scripts/eval_behaviour_dose.py --quick --no-classifier
       uv run --with datasets python scripts/eval_behaviour_dose.py --models google/gemma-2-2b-it
 """
