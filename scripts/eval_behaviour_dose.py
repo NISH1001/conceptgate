@@ -45,6 +45,12 @@ def tag_of(model: str) -> str:
     return model.replace("/", "__")
 
 
+def run_tag(model: str, seed: int) -> str:
+    """Seed 0 keeps the plain per-model name; other seeds get a suffix so a second run (more samples
+    for the same prompts, merged by the analysis with --extra) never overwrites the first."""
+    return tag_of(model) if seed == 0 else f"{tag_of(model)}__seed{seed}"
+
+
 def random_direction(W_raw: np.ndarray, seed: int) -> np.ndarray:
     """Unit rows from the same generator as scaleup_eval, so the floor is comparable."""
     rr = np.random.default_rng([7000, seed])
@@ -228,7 +234,7 @@ def run(model, device, *, k=16, alpha=0.08, temperature=0.7, max_new=40, seed=0,
         arm_batch=True, max_rows=None, pad_to=None):
     from eval_detection import taps_for
     taps, n_layers = taps_for(model)
-    tag = tag_of(model)
+    tag = run_tag(model, seed)
     out_path = os.path.join(out_dir, f"behaviour_dose_results__{tag}.json")
     acts_path = os.path.join(out_dir, f"behaviour_dose_acts__{tag}.npy")
     wraw_path = os.path.join(out_dir, f"behaviour_dose_wraw__{tag}.npy")
@@ -352,7 +358,7 @@ def main():
     os.makedirs(a.out_dir, exist_ok=True)
     for m in a.models.split(","):
         if a.classify_only:
-            classify_file(os.path.join(a.out_dir, f"behaviour_dose_results__{tag_of(m.strip())}.json"), a.clf_device)
+            classify_file(os.path.join(a.out_dir, f"behaviour_dose_results__{run_tag(m.strip(), a.seed)}.json"), a.clf_device)
             continue
         run(m.strip(), a.device, k=a.k, alpha=a.alpha, temperature=a.temperature, max_new=a.max_new,
             seed=a.seed, dtype=a.dtype, max_prompts=a.max_prompts, use_classifier=not a.no_classifier,

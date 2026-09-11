@@ -60,3 +60,8 @@ def test_bucket_pad_rounds_up_to_multiple():
     assert B.bucket_pad(64, 32) == 0
     assert B.bucket_pad(1, 32) == 31
     assert B.bucket_pad(100, None) == 0 and B.bucket_pad(100, 0) == 0
+
+
+def test_run_tag_suffixes_nonzero_seeds():
+    assert B.run_tag("Qwen/Qwen2.5-0.5B-Instruct", 0) == "Qwen__Qwen2.5-0.5B-Instruct"
+    assert B.run_tag("Qwen/Qwen2.5-0.5B-Instruct", 1) == "Qwen__Qwen2.5-0.5B-Instruct__seed1"
