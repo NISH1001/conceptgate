@@ -252,7 +252,7 @@ def stage2(meta, acts, wraw, instrument, seed=0, nperm=NPERM):
     out["pred_benign"] = full.predict(Xb).tolist() if (~atk).any() else []
     out["threshold_median"] = float(np.median(pred_g))
     out["gate"] = {"z": out["null"]["z"], "cv_grouped": out["cv_grouped"], "llr": out["llr_spearman"],
-                   "go": bool(out["null"]["z"] >= GATE2_Z and out["cv_grouped"] > out["llr_spearman"])}
+                   "go": bool(out["null"]["z"] >= GATE2_Z and out["cv_grouped"] > abs(out["llr_spearman"]))}
     return out
 
 
@@ -269,7 +269,7 @@ def print_stage2(o):
     print(f"  |cos| vs W_raw       {[round(c, 3) for c in o['cos_vs_concept']]}  (chance {o['chance_cos']:.3f});  "
           f"split-half self-consistency {[round(c, 2) for c in o['self_consistency']]}")
     g = o["gate"]
-    print(f"GATE 2: {'GO' if g['go'] else 'NO-GO'}  z {g['z']:.1f} (>= {GATE2_Z}) and grouped CV {g['cv_grouped']:+.3f} > LLR {g['llr']:+.3f}")
+    print(f"GATE 2: {'GO' if g['go'] else 'NO-GO'}  z {g['z']:.1f} (>= {GATE2_Z}) and grouped CV {g['cv_grouped']:+.3f} > |LLR| {abs(g['llr']):.3f}")
 
 
 # ---------------------------------------------------------------- stage 3: the gate as selection
