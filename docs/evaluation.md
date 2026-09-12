@@ -442,6 +442,23 @@ grouped by harmful request (7 folds).
 Direction geometry (Qwen): |cos| to `W_raw` 0.04–0.12 per tap (chance 0.033); split-half self-consistency of
 the fitted direction 0.10–0.22 — as in §9, too low to support any geometry claim.
 
+**Robustness of the Qwen result to the two analysis choices that could have manufactured it** (the target's
+scorer, and the ridge penalty). Neither is load-bearing:
+
+| target instrument | grouped CV | plain CV | null z | \|gate LLR\| | 3 concept proj. | random-dir. dose | gate |
+|---|---|---|---|---|---|---|---|
+| lex (lexicon) | +0.54 | +0.50 | 6.0 | 0.33 | +0.52 | +0.21 | GO |
+| clf (pre-registered) | +0.58 | +0.60 | 6.3 | 0.30 | +0.51 | +0.23 | GO |
+| clf_soft (mean probability) | +0.60 | +0.61 | 6.5 | 0.31 | +0.53 | +0.22 | GO |
+
+The two scorers' out-of-fold predictions agree at **+0.87**, so the ridge is decoding the same per-prompt
+quantity whichever instrument labels it. Ridge penalty (clf target, grouped CV): α = 1 → +0.58, 10 → +0.58,
+100 → +0.60, 1000 → +0.63 — flat to slightly *better* under heavier regularization, as expected at n = 164
+against 2688 features, so the result is not a low-penalty overfit. Stage 3 repeated against the lexicon
+target reproduces as well: outcome gate **+0.143** per write vs random halves +0.102 ± 0.017
+(P = 0.016), anti-outcome +0.060, and the outcome gate writes to **10%** of benign prompts against the
+concept gate's 100%.
+
 Findings (Qwen):
 - **The behavioural dose is predictable from the prompt's activations before any generation**, 6.7 sd above the
   null, at roughly the level the proxy result led one to expect once attenuated by the instrument's own
