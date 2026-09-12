@@ -451,6 +451,17 @@ scorer, and the ridge penalty). Neither is load-bearing:
 | clf (pre-registered) | +0.58 | +0.60 | 6.3 | 0.30 | +0.51 | +0.23 | GO |
 | clf_soft (mean probability) | +0.60 | +0.61 | 6.5 | 0.31 | +0.53 | +0.22 | GO |
 
+**Two surface confounds, both ruled out** — and these are strong tests, because the taps decode each confound
+*easily*, so a dose that was secretly one of them would have shown up as a much higher CV, not a lower one:
+
+| threat | is the dose it? | does the prediction survive? |
+|---|---|---|
+| **prompt length** — taps decode token count at CV **+0.90** | Spearman(length, dose) = **−0.12** | length-residualized dose still CV **+0.57** (raw +0.58) |
+| **prompt family** — taps decode template-vs-other at CV **+0.77** | — | within templates only (n = 120) CV **+0.52**; within short+bare only (n = 44) CV **+0.63** |
+
+So the ridge is not reading length, and it is not sorting prompt families: it predicts the dose *within* a
+single family, on both families separately.
+
 The two scorers' out-of-fold predictions agree at **+0.87**, so the ridge is decoding the same per-prompt
 quantity whichever instrument labels it. Ridge penalty (clf target, grouped CV): α = 1 → +0.58, 10 → +0.58,
 100 → +0.60, 1000 → +0.63 — flat to slightly *better* under heavier regularization, as expected at n = 164
