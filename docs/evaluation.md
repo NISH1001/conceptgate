@@ -490,10 +490,28 @@ gate writes to every benign prompt in this set (the §8 register problem) and th
 ΔP₊ is the noisy one-arm quantity (reliability +0.32); noise attenuates these gaps but cannot create the
 selection effect, which is out of fold.
 
-**Status:** Qwen GO / GO / positive. gemma-2-2b at K = 16: stage 1 NO-GO (dose reliability 0.53), stage 2
-NO-GO (z 2.2) on that unreliable target; the pre-registered K = 32 rerun (second sampling seed, same concept
-fit) started 2026-09-12 15:40. The library change (`learn_outcome`, `Predicted`, `Both`) is built and tested on
-the unmerged branch `wip/outcome-head` and lands only if gemma passes stage 2 at K = 32.
+**A defect in this section's own stop rule, and what the K = 32 rerun will therefore show** (written
+2026-09-12 20:05, *before* that run finished — check it against the result below rather than the other way
+round). The stage 1 gate is "split-half ≥ 0.6", and split-half compares a K/2-sample estimate against another
+K/2-sample estimate. **That statistic is not comparable across K.** At K = 16 it measures the reliability of an
+8-sample dose; at K = 32 it measures the reliability of a *16*-sample dose, which for gemma is already known
+from the K = 16 run via Spearman–Brown: 0.69. So gemma will very likely "pass" stage 1 at K = 32 —
+mechanically, because the statistic got easier, not because the model's dose became more measurable. The
+comparable quantities across K are the **Spearman–Brown-corrected full-K reliability** (gemma: 0.69 at K = 16
+→ ~0.82 at K = 32; Qwen: 0.82 at K = 16) or a split-half at matched half-size.
+
+Stage 2 is the test that is not fooled this way, because a more reliable target attenuates the correlation
+less. Correcting gemma's K = 16 result for the reliability gain gives a **prediction: grouped CV ≈ +0.22,
+z ≈ 2.4** — still far below the z ≥ 4 bar, which needs CV ≈ +0.36. Prediction, therefore: **stage 1 flips to
+GO, stage 2 stays NO-GO**, and if that is what happens, the flip must not be reported as "gemma's dose became
+measurable at K = 32".
+
+**Status:** Qwen GO / GO / positive, and robust to the scorer and the ridge penalty (table above). gemma-2-2b
+at K = 16: stage 1 NO-GO (dose reliability 0.53), stage 2 NO-GO (z 2.2) on that unreliable target; the
+pre-registered K = 32 rerun (second sampling seed, same concept fit) started 2026-09-12 15:40 and is slowed by
+this machine sleeping. The library change (`learn_outcome`, `Predicted`, `Both`) is built and tested on the
+unmerged branch `wip/outcome-head` and lands only if gemma passes **stage 2** at K = 32 — a stage 1 flip alone
+does not qualify, for the reason just given. On the evidence in hand the claim is **one model**.
 
 ## Verdict (honest)
 
