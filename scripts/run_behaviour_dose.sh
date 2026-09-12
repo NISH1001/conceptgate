@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Drive eval_behaviour_dose.py in slices of --stop-after prompts, resuming between slices, so the
 # MPS graph cache (one compiled graph per new tensor shape, never freed) cannot grow past a slice.
-# Usage: scripts/run_behaviour_dose.sh <model> <seed> [extra harness args...]
+# Usage: scripts/run_behaviour_dose.sh <model> <sample-seed> [extra harness args...]
+# The concept fit stays on --seed 0; <sample-seed> only changes the sampling stream (and the file tag),
+# so a second run adds samples to the SAME intervention and the analysis can merge it with --extra.
 set -u
 cd "$(dirname "$0")/.."
 MODEL="$1"; SEED="$2"; shift 2
@@ -11,7 +13,7 @@ SLICE="${SLICE:-30}"
 while [ ! -f "$OUT" ]; do
   echo "=== slice start $(date '+%H:%M:%S') ==="
   uv run --with datasets python scripts/eval_behaviour_dose.py --models "$MODEL" --seed "$SEED" \
-    --resume --stop-after "$SLICE" "$@"
+    --sample-seed "$SEED" --resume --stop-after "$SLICE" "$@"
   rc=$?
   if [ "$rc" -eq 3 ]; then fails=0; continue; fi
   if [ "$rc" -eq 2 ]; then                       # uv could not resolve deps (transient DNS/network)

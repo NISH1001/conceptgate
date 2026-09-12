@@ -41,7 +41,7 @@ def merge_runs(meta, extra_meta):
     rows, xrows = meta["rows"], extra_meta["rows"]
     if [r["prompt"] for r in rows] != [r["prompt"] for r in xrows]:
         raise ValueError("cannot merge: the two runs do not cover the same prompts in the same order")
-    for key in ("model", "alpha", "temperature", "max_new_tokens"):
+    for key in ("model", "alpha", "temperature", "max_new_tokens", "seed"):   # seed = the concept fit
         if meta.get(key) != extra_meta.get(key):
             raise ValueError(f"cannot merge: {key} differs ({meta.get(key)} vs {extra_meta.get(key)})")
     for r, x in zip(rows, xrows):
@@ -53,7 +53,8 @@ def merge_runs(meta, extra_meta):
             elif "clf" in r:
                 del r["clf"]
     meta["k"] = int(meta["k"]) + int(extra_meta["k"])
-    meta.setdefault("merged_seeds", [meta.get("seed")]).append(extra_meta.get("seed"))
+    meta.setdefault("merged_sample_seeds", [meta.get("sample_seed", meta.get("seed"))]).append(
+        extra_meta.get("sample_seed", extra_meta.get("seed")))
     return meta
 
 

@@ -261,10 +261,12 @@ class RejectionClassifier:
 
 def run(model, device, *, k=16, alpha=0.08, temperature=0.7, max_new=40, seed=0, dtype="",
         max_prompts=None, use_classifier=True, clf_device="cpu", out_dir=HERE, resume=False,
-        arm_batch=True, max_rows=None, pad_to=None, stop_after=None, sampler="multinomial"):
+        arm_batch=True, max_rows=None, pad_to=None, stop_after=None, sampler="multinomial",
+        sample_seed=None):
     from eval_detection import taps_for
     taps, n_layers = taps_for(model)
-    tag = run_tag(model, seed)
+    ss = seed if sample_seed is None else int(sample_seed)   # sampling stream; the concept fit stays on `seed`
+    tag = run_tag(model, ss)
     out_path = os.path.join(out_dir, f"behaviour_dose_results__{tag}.json")
     acts_path = os.path.join(out_dir, f"behaviour_dose_acts__{tag}.npy")
     wraw_path = os.path.join(out_dir, f"behaviour_dose_wraw__{tag}.npy")
@@ -299,11 +301,11 @@ def run(model, device, *, k=16, alpha=0.08, temperature=0.7, max_new=40, seed=0,
         for arm in ARMS:
             row["logit"][arm] = first_token_logodds(cg, ids_p, attn_p, deltas[arm], R, C)
         if arm_batch:
-            samples = sample_all_arms(cg, pr, deltas, k, temperature, max_new, sample_seed(seed, i, 0),
+            samples = sample_all_arms(cg, pr, deltas, k, temperature, max_new, sample_seed(ss, i, 0),
                                       max_rows=max_rows, pad_to=pad_to, sampler=sampler)
         else:
             samples = {arm: sample_continuations(cg, pr, deltas[arm], k, temperature, max_new,
-                                                 sample_seed(seed, i, ai)) for ai, arm in enumerate(ARMS)}
+                                                 sample_seed(ss, i, ai)) for ai, arm in enumerate(ARMS)}
         for arm in ARMS:
             row["samples"][arm] = samples[arm]
             row["lex"][arm] = [int(E.is_refusal(t)) for t in samples[arm]]
@@ -327,7 +329,7 @@ def run(model, device, *, k=16, alpha=0.08, temperature=0.7, max_new=40, seed=0,
 
     meta = {"model": model, "taps": L, "n_layers": n_layers, "alpha": alpha, "k": k,
             "temperature": temperature, "top_p": 1.0, "top_k": 0, "repetition_penalty": 1.0,
-            "max_new_tokens": max_new, "seed": seed, "dtype": str(cg.model.dtype), "chat_template": True,
+            "max_new_tokens": max_new, "seed": seed, "sample_seed": ss, "dtype": str(cg.model.dtype), "chat_template": True,
             "direction": "logistic", "n_shot": E.N_SHOT, "arms": list(ARMS),
             "refusal_lexicon": E.REFUSAL, "refusal_first": E.REFUSAL_FIRST, "comply_first": E.COMPLY_FIRST,
             "classifier": CLASSIFIER if use_classifier else None,
@@ -376,7 +378,8 @@ def main():
     ap.add_argument("--alpha", type=float, default=0.08)
     ap.add_argument("--temperature", type=float, default=0.7)
     ap.add_argument("--max-new", type=int, default=40)
-    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--seed", type=int, default=0, help="concept-fit seed (which 8+8 examples) and random direction")
+    ap.add_argument("--sample-seed", type=int, default=None, help="sampling stream; default = --seed. Use a new one to add samples to the SAME intervention")
     ap.add_argument("--dtype", default="", help="e.g. bfloat16; default = the checkpoint's own")
     ap.add_argument("--device", default="mps")
     ap.add_argument("--clf-device", default="cpu")
@@ -399,12 +402,13 @@ def main():
     os.makedirs(a.out_dir, exist_ok=True)
     for m in a.models.split(","):
         if a.classify_only:
-            classify_file(os.path.join(a.out_dir, f"behaviour_dose_results__{run_tag(m.strip(), a.seed)}.json"), a.clf_device)
+            classify_file(os.path.join(a.out_dir, f"behaviour_dose_results__{run_tag(m.strip(), a.seed if a.sample_seed is None else a.sample_seed)}.json"), a.clf_device)
             continue
         run(m.strip(), a.device, k=a.k, alpha=a.alpha, temperature=a.temperature, max_new=a.max_new,
             seed=a.seed, dtype=a.dtype, max_prompts=a.max_prompts, use_classifier=not a.no_classifier,
             clf_device=a.clf_device, out_dir=a.out_dir, resume=a.resume, arm_batch=not a.no_arm_batch,
-            max_rows=a.max_rows, pad_to=a.pad_to, stop_after=a.stop_after, sampler=a.sampler)
+            max_rows=a.max_rows, pad_to=a.pad_to, stop_after=a.stop_after, sampler=a.sampler,
+            sample_seed=a.sample_seed)
 
 
 if __name__ == "__main__":
