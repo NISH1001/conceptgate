@@ -12,7 +12,7 @@ OUT="scripts/behaviour_dose_results__${TAG}.json"
 SLICE="${SLICE:-30}"
 while [ ! -f "$OUT" ]; do
   echo "=== slice start $(date '+%H:%M:%S') ==="
-  uv run --with datasets python scripts/eval_behaviour_dose.py --models "$MODEL" --seed "$SEED" \
+  uv run --with datasets python scripts/eval_behaviour_dose.py --models "$MODEL" \
     --sample-seed "$SEED" --resume --stop-after "$SLICE" "$@"
   rc=$?
   if [ "$rc" -eq 3 ]; then fails=0; continue; fi
