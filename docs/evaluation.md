@@ -404,10 +404,16 @@ attacks; SB = Spearman–Brown estimate at the full K.
 | Qwen2.5-0.5B | lex | **+0.66** | +0.80 | +0.33 | +0.76 | **+0.88** | +0.63 | −0.33 | 1.47 | **GO** |
 | Qwen2.5-0.5B | clf | **+0.70** | +0.82 | +0.32 | +0.87 | | +0.61 | −0.30 | 1.67 | |
 | Qwen2.5-0.5B | clf_soft (aux.) | +0.72 | +0.83 | +0.32 | +0.87 | | +0.62 | −0.31 | 1.67 | |
-| gemma-2-2b | | running (2026-09-12 01:35 →) | | | | | | | | |
+| gemma-2-2b | lex | +0.53 | +0.69 | +0.33 | +0.93 | **+0.68** | +0.47 | −0.16 | 1.48 | **NO-GO** at K=16 |
+| gemma-2-2b | clf | +0.53 | +0.69 | +0.52 | +0.92 | | +0.41 | −0.06 | 1.72 | → K=32 running |
 
-Refusal rates on attacks (clf): none 0.55, −α 0.35, +α 0.65, random −α 0.46, random +α 0.63; on benign: 0.17,
-0.14, 0.18, 0.17, 0.20. 87% of attack doses are positive. Mean |D|: attacks 0.16–0.18, benign 0.06.
+Refusal rates on attacks (clf): Qwen none 0.55, −α 0.35, +α 0.65, random −α 0.46, random +α 0.63; on benign
+0.17, 0.14, 0.18, 0.17, 0.20; 87% of attack doses positive; mean |D| attacks 0.16–0.18, benign 0.06. **gemma**
+(bf16): attacks none 0.51, −α 0.46, +α 0.53, random 0.50 / 0.50; benign 0.00–0.03 in every arm; only 38% of
+doses positive; mean |D| attacks 0.07, benign 0.00. The write barely moves gemma at α = 0.08 — a quarter of
+Qwen's swing — so at K = 16 the per-prompt dose sits at the sampling-noise floor even though the unsteered rate
+itself is highly reliable (0.92) and the two instruments agree (0.68). Pre-registered fallback: a second
+sampling seed of the SAME intervention (concept fit unchanged) to reach K = 32; Spearman–Brown predicts ~0.69.
 
 Findings:
 - **The per-prompt behavioural dose is measurable at K = 16** (0.66–0.70 raw, ~0.8 at full K), and two
@@ -431,7 +437,7 @@ grouped by harmful request (7 folds).
 | model | ridge → dose, grouped CV (plain) | permutation null mean ± sd (z) | gate LLR | 3 concept projections | random-direction dose | unsteered rate (Spearman rate↔dose) | learning curve 8 / 16 / 32 / 64 | templates→other / reverse | verdict |
 |---|---|---|---|---|---|---|---|---|---|
 | Qwen2.5-0.5B | **+0.58** (+0.60) | −0.015 ± 0.089 (**z 6.7**) | −0.30 | +0.51 | +0.23 | +0.81 (+0.03) | +0.33 / +0.46 / +0.52 / +0.58 | +0.52 / +0.43 | **GO** |
-| gemma-2-2b | pending | | | | | | | | |
+| gemma-2-2b (K=16, stage 1 failed) | +0.20 (+0.32) | −0.007 ± 0.092 (z 2.2) | −0.06 | +0.06 | −0.02 | +0.82 (−0.21) | +0.20 / +0.24 / +0.24 / +0.29 | +0.12 / +0.09 | NO-GO (provisional) |
 
 Direction geometry (Qwen): |cos| to `W_raw` 0.04–0.12 per tap (chance 0.033); split-half self-consistency of
 the fitted direction 0.10–0.22 — as in §9, too low to support any geometry claim.
@@ -467,8 +473,10 @@ gate writes to every benign prompt in this set (the §8 register problem) and th
 ΔP₊ is the noisy one-arm quantity (reliability +0.32); noise attenuates these gaps but cannot create the
 selection effect, which is out of fold.
 
-**Status:** Qwen GO / GO / positive; gemma-2-2b stage 1 running (bf16, ~5.5 h). Per the pre-registration, the
-library change (`learn_outcome`, `Predicted`, `Both`) waits for gemma's stage 2.
+**Status:** Qwen GO / GO / positive. gemma-2-2b at K = 16: stage 1 NO-GO (dose reliability 0.53), stage 2
+NO-GO (z 2.2) on that unreliable target; the pre-registered K = 32 rerun (second sampling seed, same concept
+fit) started 2026-09-12 15:40. The library change (`learn_outcome`, `Predicted`, `Both`) is built and tested on
+the unmerged branch `wip/outcome-head` and lands only if gemma passes stage 2 at K = 32.
 
 ## Verdict (honest)
 
