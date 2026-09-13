@@ -138,7 +138,7 @@ def main():
         tau = np.sort(pred)[::-1][n - 1]
         m = pred >= tau
         gate.append(float(dP[m].mean()))
-        draws = np.array([dP[rng2.permutation(len(dP))[:int(m.sum())]].mean() for _ in range(400)])
+        draws = np.array([dP[rng2.permutation(len(dP))[:int(m.sum())]].mean() for _ in range(500)])
         rmean.append(float(draws.mean())); rsd.append(float(draws.std()))
     ymax = max(gate) * 1.15
     ny = lambda v: v / ymax  # noqa: E731
@@ -204,7 +204,7 @@ def bake_instrument(meta, rows, k, atk):
          f'aria-label="The sampled instrument: split-half reliability, agreement between two scorers, and the proxy rehabilitated" '
          f'font-family="ui-sans-serif,system-ui,sans-serif">',
          f'<text x="{W/2:.0f}" y="18" text-anchor="middle" font-size="11" font-weight="600" fill="{INK}">'
-         f'the withdrawn claim was the instrument&#8217;s fault, not the quantity&#8217;s</text>',
+         f'the earlier null was the instrument&#8217;s, not this model&#8217;s</text>',
          f'<text x="{W/2:.0f}" y="32" text-anchor="middle" font-size="9" fill="{MUTED}">'
          f'Qwen2.5-0.5B, 164 held-out attacks; sampling the outcome instead of decoding it greedily</text>']
 
@@ -223,7 +223,7 @@ def bake_instrument(meta, rows, k, atk):
     s += frame(gC, "first-token proxy lever", "sampled behavioural dose")
     s += scatter(gC, proxy, Dc, note="the greedy rulers agreed at &#8722;0.01", shared=False)
     s.append(f'<text x="{(gC["x0"]+gC["x1"])/2:.0f}" y="{gC["y0"]+31}" text-anchor="middle" font-size="8.5" fill="{MUTED}">'
-             f'the proxy was fine; the ruler it was checked with was not</text>')
+             f'the proxy was fine; its ruler could not resolve it</text>')
     s.append("</svg>")
     out = os.path.join(HERE, "fig_instrument.svg")
     open(out, "w").write("\n".join(s) + "\n")
