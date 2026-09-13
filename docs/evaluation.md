@@ -583,10 +583,19 @@ measurable at K = 32".
 coverage, and robust to the scorer, the ridge penalty, prompt length, prompt family, and a second
 implementation. gemma-2-2b at K = 32: stage 1 GO (mechanically), **stage 2 NO-GO (z 0.9)** — decisively, not
 marginally. Per the pre-registration the library change (`learn_outcome`, `Predicted`, `Both`) required stage
-2 on *both* models, so it does **not** land: it stays built, tested and documented on the unmerged branch
-`wip/outcome-head`, including a test that reproduces this section's measured numbers. **The claim is one
-model**, and the second model says something specific rather than nothing: where the write does not move the
-model, there is no per-prompt dose to predict.
+2 on *both* models, so by that rule it would not have landed.
+
+**It was merged anyway, by the user's decision, as an opt-in feature** (`Merge wip/outcome-head`). The
+reasoning is worth separating from the science: the code is general-purpose, tested, and reproduces this
+section's numbers to four decimals, and nothing in ConceptGate's default path changes — the `Trigger` enum and
+every existing call site behave exactly as before. Shipping it is an engineering choice about a working
+feature; it is **not** evidence that the experiment succeeded on two models, and must never be cited as such.
+`learn_outcome` requires labels the user measures themselves, and the honest label on the feature is: *fitted
+and validated on one 0.5B model; on a 2.6B model whose refusal the write barely moves, there was nothing to
+fit.*
+
+**The claim is one model**, and the second model says something specific rather than nothing: where the write
+does not move the model, there is no per-prompt dose to predict.
 
 ## Verdict (honest)
 
