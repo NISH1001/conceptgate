@@ -19,3 +19,6 @@ behaviour_dose_acts__*.npy
 *.partial
 *.partial.npy
 scripts/quick/
+
+# behaviour-dose run logs (generated)
+scripts/behaviour_dose_run_*.log

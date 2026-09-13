@@ -179,8 +179,8 @@
 <line x1="300" y1="196" x2="300" y2="74" stroke="#d8d5c8"/>
 <text x="388" y="213" text-anchor="middle" font-size="9" fill="#889">share of attacks written</text>
 <text x="270" y="135" text-anchor="middle" font-size="9" fill="#889" transform="rotate(-90 270 135)">refusal gained per write</text>
-<polygon points="317.6,110.5 344.0,128.5 388.0,138.9 432.0,144.8 458.4,148.9 458.4,158.0 432.0,161.3 388.0,168.7 344.0,179.1 317.6,193.8" fill="#889" opacity="0.18"/>
-<polyline points="317.6,152.1 344.0,153.8 388.0,153.8 432.0,153.1 458.4,153.5" fill="none" stroke="#889" stroke-width="1" stroke-dasharray="3 2"/>
+<polygon points="317.6,109.4 344.0,128.6 388.0,138.1 432.0,145.6 458.4,149.1 458.4,157.8 432.0,161.3 388.0,167.9 344.0,179.6 317.6,195.7" fill="#889" opacity="0.18"/>
+<polyline points="317.6,152.5 344.0,154.1 388.0,153.0 432.0,153.5 458.4,153.4" fill="none" stroke="#889" stroke-width="1" stroke-dasharray="3 2"/>
 <polyline points="317.6,89.9 344.0,101.2 388.0,133.6 432.0,139.5 458.4,148.8" fill="none" stroke="#1c7d74" stroke-width="1.6"/>
 <circle cx="317.6" cy="89.9" r="2.6" fill="#1c7d74"/>
 <circle cx="344.0" cy="101.2" r="2.6" fill="#1c7d74"/>
@@ -189,7 +189,7 @@
 <circle cx="458.4" cy="148.8" r="2.6" fill="#1c7d74"/>
 <text x="318" y="82" text-anchor="start" font-size="9" font-weight="600" fill="#1c7d74">+0.24</text>
 <text x="458" y="141" text-anchor="end" font-size="9" fill="#1c7d74">+0.11</text>
-<text x="392" y="167" text-anchor="middle" font-size="8.5" fill="#889">size-matched random ±2sd</text>
+<text x="392" y="166" text-anchor="middle" font-size="8.5" fill="#889">size-matched random ±2sd</text>
 <text x="318" y="205" text-anchor="middle" font-size="8" fill="#889">10%</text>
 <text x="388" y="205" text-anchor="middle" font-size="8" fill="#889">50%</text>
 <text x="458" y="205" text-anchor="middle" font-size="8" fill="#889">90%</text>
