@@ -496,6 +496,14 @@ sampled +α arm, so this adds no evidence beyond stage 2 — the random-halves n
 | both (fires AND top half) | 74 | +0.133 | +9.9 | 23% | 0.074 |
 | random halves (500) | 82 | +0.097 ± 0.016 | | | P(random ≥ outcome) = **0.002** |
 
+**Cross-implementation check.** The library's `OutcomeHead` (`conceptgate/outcome.py`, on `wip/outcome-head`)
+and this analysis script's ridge are independent implementations of the same fit. Run against the *measured*
+Qwen doses under the same grouped folds they agree to four decimals — grouped CV **+0.5805** (library) against
+**+0.5807** (analysis) — and the library's `Predicted` trigger, driven by those out-of-fold predictions,
+selects 82 attacks at +0.145 per write against the concept gate's 154 attacks at +0.090. Locked in as
+`tests/test_outcome.py::test_outcome_head_reproduces_the_analysis_script_on_measured_data`, which skips when
+the gitignored activation cache is absent.
+
 **The 50% operating point is not cherry-picked, and the predictor produces a ranking rather than a lucky
 split.** Sweeping coverage (out-of-fold predictions; random null = 500 size-matched draws at each point):
 
