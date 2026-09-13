@@ -174,6 +174,9 @@ scripts/
   bake_paper_data.py  # bake real gpt2+Qwen results -> JSON embedded in the technical report
   rebake_detection.py # per-model detection blocks for the report's "trace a prompt" picker
   eval_detection.py   # P1/P2 benchmark: ConceptGate vs single-layer/logistic across a model ladder
+  eval_behaviour_dose.py   # per-prompt BEHAVIOURAL steering dose: K sampled continuations per arm, two refusal scorers
+  run_behaviour_dose.sh    # drives the above in resumable slices (the MPS graph cache grows with every new shape)
+  analyze_behaviour_dose.py # its analysis: instrument reliability, predicting the dose from the taps, gate-as-selection
 ```
 
 ## Run (always via `uv run`)
@@ -184,6 +187,7 @@ uv run python scripts/toy_csg_mixture.py       # mixture densities -> MIXTURE VA
 uv run python scripts/mixture_gpt2_check.py    # mixture on real GPT-2 acts -> PASS
 uv run python scripts/demo.py        # facade end-to-end + speedup -> DEMO: PASS
 uv run --with datasets python scripts/eval_detection.py --quick   # detection benchmark smoke test
+uv run --with datasets python scripts/eval_behaviour_dose.py --quick --no-classifier  # dose harness smoke test
 uv run pytest tests/ -q              # unit tests
 ```
 
