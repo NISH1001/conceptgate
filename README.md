@@ -127,6 +127,25 @@ discriminative direction instead of the default diff-of-means — it closes the 
 linear SVM (largest gains on weaker models), while the steering direction stays diff-of-means.
 Default is `Direction.DIFF_OF_MEANS`.
 
+**Outcome-fitted trigger** (opt-in): the concept gate answers *is the concept present?*, which on
+formatted attacks is almost always yes, so it cannot decide *when* a write is worth making. An outcome
+read answers a different question from the same activations: *how far will the write move this prompt?*
+Label a few dozen prompts once by measuring the write's effect (e.g. sampled refusal with and without the
+steer, `scripts/eval_behaviour_dose.py`), then:
+```python
+from conceptgate import Both, Predicted, Steer, Trigger
+
+cg.learn_outcome("dose", prompts, measured_dose)          # a ridge read on the same taps; labels needed here only
+cg.check(prompt).outcomes["dose"]                          # predicted dose, no extra forward
+cg.run(prompt, action=Steer(concept="jailbreak", fraction=0.08,
+                            when=Both(Trigger.FIRE, Predicted("dose", 0.15))))   # present AND predicted to move
+```
+`Predicted(name, threshold, above=True)` fires on the prediction alone; `Both(a, b)` composes two triggers.
+Measured on Qwen2.5-0.5B (`docs/evaluation.md` §10): the dose is predictable out of fold at Spearman +0.58
+where the gate's own score manages 0.30, and writing only to the predicted-to-move half gains more refusal
+per write than random halves of the same size while touching a quarter of the benign prompts the concept
+gate would.
+
 **Two optimization knobs** (independent — compose freely):
 ```python
 # memory: how much of the model's WEIGHTS to load
@@ -158,7 +177,8 @@ conceptgate/
   __init__.py       # public surface: ConceptGate, Abort/Steer/Emit/Trigger, Direction, Verdict
   gate.py           # ConceptGate — facade: from_pretrained/learn/calibrate/check/run
   concept.py        # Concept (mixture LLR unit) + BandpassConcept baseline + ConceptBank
-  actions.py        # ConceptAction protocol, FireContext, Decision, Abort, Steer, Emit, Trigger  (strategy layer)
+  actions.py        # ConceptAction protocol, FireContext, Decision, Abort, Steer, Emit, Trigger, Predicted, Both  (strategy layer)
+  outcome.py        # OutcomeHead — a ridge read fit to a measured per-prompt outcome (learn_outcome)
   taps.py           # TapForward — the signal listener: truncated forward (or full=True), batching
   spectral.py       # diff-of-means directions, spectrogram, bandpass filter (pure numpy)
   mixture.py        # Set((mu,Sigma)) per class: GMM (sklearn EM + BIC) on the spectrogram

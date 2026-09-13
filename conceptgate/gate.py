@@ -21,6 +21,7 @@ import numpy as np
 import torch
 from loguru import logger
 
+from .outcome import OutcomeHead
 from .actions import (
     ConceptAction,
     Continue,
@@ -89,6 +90,7 @@ class ConceptGate:
         if debug:
             logger.enable("conceptgate")  # loguru: turn on this package's debug logs
         self.concepts: dict[str, Concept] = {}  # public: name -> learned Concept
+        self.outcomes: dict[str, OutcomeHead] = {}  # public: name -> outcome read (learn_outcome)
         self._taps = TapForward(model, self.layers)
 
     @classmethod
@@ -172,6 +174,20 @@ class ConceptGate:
         return self
 
     # ---- calibrate (sets tau = the operating point on every concept) ----
+    def learn_outcome(self, name: str, prompts: list[str], y, *, alpha: float = 10.0) -> ConceptGate:
+        """Fit a per-prompt OUTCOME read: `y[i]` is a measured effect for `prompts[i]` -- e.g. how far a
+        steering write moved this prompt's refusal (docs/plans/steerability-gate.md, stage 1). Reads the
+        same taps the concepts use and fits a ridge head; at check time the prediction appears as
+        `Verdict.outcomes[name]`, so `Steer(when=Predicted(name, tau))` writes only where the write is
+        predicted to matter. Labels are needed here only."""
+        y = np.asarray(y, dtype=np.float64)
+        if len(prompts) != len(y):
+            raise ValueError(f"learn_outcome({name!r}): {len(prompts)} prompts but {len(y)} labels")
+        A = self._taps.read(self.tok, [self._format(p) for p in prompts], self.device, last_only=True)[0]
+        self.outcomes[name] = OutcomeHead(alpha=alpha).fit(A, y)
+        logger.debug("learn_outcome {!r}: {} prompts, features {}x{}", name, len(prompts), *self.outcomes[name].shape)
+        return self
+
     def calibrate(self, z: float = 3.0, margin: float = 0.0) -> ConceptGate:
         for c in self.concepts.values():
             c.calibrate_z(z, margin=margin)
@@ -190,8 +206,9 @@ class ConceptGate:
         Also reports uncertainty on the attributed concept: p_present (calibrated) and an
         abstain flag (score inside the concept's unsure band around tau)."""
         resid_norm = float(np.linalg.norm(A_last[0], axis=1).mean())  # per-tap L2, averaged
+        outcomes = {k: float(h.predict(A_last)[0]) for k, h in self.outcomes.items()}
         if not self.concepts:
-            return Verdict(fired=False, step=step, resid_norm=resid_norm)
+            return Verdict(fired=False, step=step, resid_norm=resid_norm, outcomes=outcomes)
         scored = {
             n: (float(c.llr(A_last)[0]), int(c.decide(A_last)[0]))
             for n, c in self.concepts.items()
@@ -210,6 +227,7 @@ class ConceptGate:
             p_present=float(c.p_present(A_last)[0]),
             abstained=(not firing) and dec == 0,
             resid_norm=resid_norm,
+            outcomes=outcomes,
         )
         logger.debug(
             "verdict@{}: {} -> fired={} concept={} p={:.2f} abstain={}",
