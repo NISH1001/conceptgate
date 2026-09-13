@@ -1,12 +1,17 @@
-"""Bake the §4.11 behavioural-dose figure (static inline SVG, report style) from the measured runs.
+"""Bake the §4.11 behavioural-dose figures (static inline SVG, report style) from the measured runs.
 
 Three panels, left to right:
   A  out-of-fold predicted dose vs measured dose on Qwen2.5-0.5B -- the finding
   B  gain per write against coverage, gate vs a size-matched random null -- the payoff
   C  refusal rate per arm, Qwen vs gemma -- why the second model has nothing to predict
 
-Writes the SVG to scripts/fig_dose.svg. Render it and LOOK at it before it goes anywhere
-(numeric checks have missed label collisions in this project before).
+And a second figure, the instrument itself:
+  A  split-half reliability of the dose -- it is measurable at all
+  B  the two independent scorers against each other -- they agree
+  C  the first-token proxy against the sampled dose -- the withdrawn claim, rehabilitated
+
+Writes scripts/fig_dose.svg and scripts/fig_instrument.svg. Render both and LOOK at them before
+they go anywhere (numeric checks have missed label collisions in this project before).
 
 Run: uv run python scripts/bake_dose_figure.py
 """
@@ -50,6 +55,34 @@ def frame(g, xlab, ylab):
     cy = (g["y0"] + g["y1"]) / 2
     out.append(f'<text x="{g["x0"]-30}" y="{cy:.0f}" text-anchor="middle" font-size="9" fill="{MUTED}" '
                f'transform="rotate(-90 {g["x0"]-30} {cy:.0f})">{ylab}</text>')
+    return out
+
+
+def scatter(g, xv, yv, note=None, fit=True, color=TEAL, shared=True):
+    """Points with a least-squares guide. `shared=True` puts both axes on one scale, which is right only
+    when they carry the SAME unit (dose vs dose); with different units (a log-odds lever against a
+    probability) a shared scale squashes one axis into a band, so scale them independently."""
+    out = []
+    if shared:
+        lo = hi = None
+        lo = float(min(np.min(xv), np.min(yv))); hi = float(max(np.max(xv), np.max(yv)))
+        rx = ry = (hi - lo) or 1.0
+        lox = loy = lo
+    else:
+        lox, hix = float(np.min(xv)), float(np.max(xv))
+        loy, hiy = float(np.min(yv)), float(np.max(yv))
+        rx, ry = (hix - lox) or 1.0, (hiy - loy) or 1.0
+    nx_ = lambda v: (v - lox) / rx  # noqa: E731
+    ny_ = lambda v: (v - loy) / ry  # noqa: E731
+    for a_, b_ in zip(xv, yv):
+        out.append(f'<circle cx="{sx(g, nx_(a_)):.1f}" cy="{sy(g, ny_(b_)):.1f}" r="2" fill="{color}" opacity="0.5"/>')
+    if fit:
+        m, c = np.polyfit(xv, yv, 1)
+        x1v, x2v = float(np.min(xv)), float(np.max(xv))
+        out.append(f'<line x1="{sx(g, nx_(x1v)):.1f}" y1="{sy(g, ny_(m*x1v+c)):.1f}" '
+                   f'x2="{sx(g, nx_(x2v)):.1f}" y2="{sy(g, ny_(m*x2v+c)):.1f}" stroke="{DARK}" stroke-width="1.2"/>')
+    if note:
+        out.append(f'<text x="{g["x0"]+4}" y="{g["y1"]-6}" font-size="8" fill="{MUTED}">{note}</text>')
     return out
 
 
@@ -155,6 +188,47 @@ def main():
     print(f"wrote {out}  ({len(s)} elements)")
     print(f"panel A: {len(pred)} points, ρ={A.sp(pred, y):+.3f}")
     print(f"panel B: gate {[round(v,3) for v in gate]} vs random {[round(v,3) for v in rmean]}")
+    bake_instrument(meta, rows, k, atk)
+
+
+def bake_instrument(meta, rows, k, atk):
+    """Figure: the instrument. Why the withdrawn per-prompt claim was the measurement's fault."""
+    odd, even = list(range(1, k, 2)), list(range(0, k, 2))
+    Do = A.dose(A.rates(rows, "clf", odd))[0][atk]
+    De = A.dose(A.rates(rows, "clf", even))[0][atk]
+    Dl = A.dose(A.rates(rows, "lex", list(range(k))))[0][atk]
+    Dc = A.dose(A.rates(rows, "clf", list(range(k))))[0][atk]
+    proxy = A.proxy_lever(rows)[atk]
+
+    s = [f'<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg" role="img" '
+         f'aria-label="The sampled instrument: split-half reliability, agreement between two scorers, and the proxy rehabilitated" '
+         f'font-family="ui-sans-serif,system-ui,sans-serif">',
+         f'<text x="{W/2:.0f}" y="18" text-anchor="middle" font-size="11" font-weight="600" fill="{INK}">'
+         f'the withdrawn claim was the instrument&#8217;s fault, not the quantity&#8217;s</text>',
+         f'<text x="{W/2:.0f}" y="32" text-anchor="middle" font-size="9" fill="{MUTED}">'
+         f'Qwen2.5-0.5B, 164 held-out attacks; sampling the outcome instead of decoding it greedily</text>']
+
+    gA = panel_geom(60)
+    s += head(gA, "the dose measured twice", f"&#961; = {A.sp(Do, De):+.2f}")
+    s += frame(gA, "dose from odd samples", "dose from even samples")
+    s += scatter(gA, Do, De, note="Spearman&#8211;Brown at K=16: +0.82")
+
+    gB = panel_geom(300)
+    s += head(gB, "two independent scorers", f"&#961; = {A.sp(Dl, Dc):+.2f}")
+    s += frame(gB, "dose, refusal lexicon", "dose, rejection classifier")
+    s += scatter(gB, Dl, Dc, note="a word list vs a trained classifier")
+
+    gC = panel_geom(542)
+    s += head(gC, "the first-token proxy, re-judged", f"&#961; = {A.sp(proxy, Dc):+.2f}")
+    s += frame(gC, "first-token proxy lever", "sampled behavioural dose")
+    s += scatter(gC, proxy, Dc, note="the greedy rulers agreed at &#8722;0.01", shared=False)
+    s.append(f'<text x="{(gC["x0"]+gC["x1"])/2:.0f}" y="{gC["y0"]+31}" text-anchor="middle" font-size="8.5" fill="{MUTED}">'
+             f'the proxy was fine; the ruler it was checked with was not</text>')
+    s.append("</svg>")
+    out = os.path.join(HERE, "fig_instrument.svg")
+    open(out, "w").write("\n".join(s) + "\n")
+    print(f"wrote {out}")
+    print(f"  split-half {A.sp(Do, De):+.3f} | lex vs clf {A.sp(Dl, Dc):+.3f} | proxy vs dose {A.sp(proxy, Dc):+.3f}")
 
 
 if __name__ == "__main__":
