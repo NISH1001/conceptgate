@@ -496,6 +496,23 @@ sampled +α arm, so this adds no evidence beyond stage 2 — the random-halves n
 | both (fires AND top half) | 74 | +0.133 | +9.9 | 23% | 0.074 |
 | random halves (500) | 82 | +0.097 ± 0.016 | | | P(random ≥ outcome) = **0.002** |
 
+**The 50% operating point is not cherry-picked, and the predictor produces a ranking rather than a lucky
+split.** Sweeping coverage (out-of-fold predictions; random null = 500 size-matched draws at each point):
+
+| coverage | n written | dP per write (clf) | random mean | P(random ≥ gate) | benign written |
+|---|---|---|---|---|---|
+| 10% | 16 | **+0.242** | +0.099 | 0.002 | 2% |
+| 25% | 41 | **+0.216** | +0.096 | 0.000 | 10% |
+| 50% | 82 | **+0.143** | +0.098 | 0.008 | 23% |
+| 75% | 123 | +0.129 | +0.097 | 0.000 | 52% |
+| 90% | 148 | +0.108 | +0.097 | 0.014 | 85% |
+
+The gate beats its size-matched null at **every** operating point (P ≤ 0.014), and the gain per write rises
+monotonically as coverage tightens — 0.108 at 90% up to 0.242 at 10%, against a flat random baseline of
+~0.098. That monotonicity is the real evidence: a lucky split would beat the null at one threshold, whereas an
+actual ranking of prompts by responsiveness gets steadily better as you keep only the top of it. The lexicon
+target reproduces the whole sweep (+0.246 → +0.114, P ≤ 0.020 throughout).
+
 The outcome gate gets 73% of the blanket write's total refusal gain with half the writes, while the concept
 gate writes to every benign prompt in this set (the §8 register problem) and the outcome gate to 23%. Caveat:
 ΔP₊ is the noisy one-arm quantity (reliability +0.32); noise attenuates these gaps but cannot create the
