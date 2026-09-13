@@ -3,7 +3,7 @@
 **Status:** draft for the report session to adapt. Prose is written in the report's voice; the report's own
 markup (the `cg-mono` table wrappers, `<span class="cite">` citations, `sref` cross-links) still needs adding.
 Every number here comes from `scripts/behaviour_dose_analysis.json` via `docs/evaluation.md` §10.
-**The gemma verdict paragraph is marked and must be filled from the K = 32 run before this is used.**
+The gemma paragraph is now filled from the completed K = 32 run; this draft is complete.
 
 Cross-links this section needs: §4.10 (the formatting confound), §4.11 (the first-token proxy and its
 withdrawal), §5.5 (what would be new). New citation required: **Logit-Gap Steering**, Li & Liu,
@@ -86,14 +86,43 @@ threshold, whereas a genuine ranking of prompts by responsiveness improves as yo
 comparison, the concept gate at its own operating point writes to 154 of 164 attacks and to **every** benign
 prompt in the set, gaining +0.090 per write.
 
-**[FILL FROM THE K = 32 RUN]** — the second model. State plainly: whether gemma-2-2b's dose cleared the
-reliability bar at K = 32 and whether the prediction replicated; that the write at α = 0.08 moves that model
-roughly a quarter as far as it moves Qwen (refusal 0.46 → 0.51 → 0.53 against
-0.35 → 0.55 → 0.65), so a failure there is a statement about the write's size on that model and not only about
-the instrument; and that the concept-to-random dose ratio is 1.5–1.7× on *both* models, so gemma's direction
-is not less special, its effect is smaller. Note also that gemma's gate LLR carries no dose information
-(-0.06), which independently matches the magnitude sweep earlier in §4.11,
-where the LLR→dose correlation replicated on Qwen and SmolLM2 but never on gemma.
+**The second model does not replicate, and says something specific.** On gemma-2-2b the same procedure
+fails, and it fails for a reason visible in the raw rates: at the same write magnitude that moves Qwen's
+refusal from 0.35 to 0.55 to 0.65 across the −α, unsteered and +α arms, gemma moves
+0.46 → 0.51 → 0.53. Its mean absolute dose is
+0.069 against Qwen's 0.163, and only
+41% of its doses are even positive. With the intervention barely perturbing the
+model there is little per-prompt variance for anything to predict, and the prediction duly fails: grouped
+cross-validation of +0.078 against a permutation null of
+-0.001 ± 0.089, which is
+0.9 standard deviations — no effect.
+
+We can be more definite than "underpowered", because the experiment was run at two sample sizes. Sixteen
+samples per arm gave a non-significant hint of +0.20 (z 2.2). Doubling to
+thirty-two samples makes the *target* more reliable, and attenuation theory says that should make an
+attenuated signal *clearer*: the hint implied a true correlation of 0.238, which
+should have surfaced as +0.215. It fell to
++0.078 instead. A signal masked by measurement noise gets sharper when you
+measure better; noise does not. The supporting pattern agrees — cross-family transfer collapsed from
++0.12 / +0.09 to +0.03 / -0.02,
+and the fitted direction's split-half self-consistency fell to
+0.04–0.05. There is no direction there to find.
+
+Two things guard against reading this as a fact about gemma's representations rather than about the write.
+The concept direction moves refusal 1.5–1.8× as far as a random direction of
+matched norm on **both** models, so gemma's direction is not less special than Qwen's; its effect is smaller.
+And gemma's gate LLR carries no dose information (-0.05), which independently
+reproduces the magnitude sweep earlier in this section, where the gate's correlation with the dose replicated
+on Qwen and SmolLM2 but never on gemma. The right follow-up is therefore a sweep of the write magnitude on
+that model, not more samples at a magnitude which does not move it.
+
+One methodological note that generalises. Our pre-registered reliability gate was a split-half correlation,
+and **that statistic is not comparable across sample sizes**: at thirty-two samples it compares two
+sixteen-sample halves, so gemma "passed" it at K = 32 (0.69) purely because the
+statistic got easier, having failed it at K = 16 (0.53). We predicted the exact
+value in advance (0.694 predicted against 0.692
+observed) for this reason. Anyone gating a decision on measurement reliability should compare the
+Spearman–Brown-corrected full-sample figure, or split-halves at matched half-size, and not the raw statistic.
 
 **What this changes about the system.** The gate was built to answer *is the concept present?*, and on
 correctly formatted attacks it answers yes almost always, which is precisely why §4.10 found it selecting
