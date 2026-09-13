@@ -27,6 +27,7 @@ class Verdict:
     p_present: float = 0.5          # P(concept present): logistic of the margin
     abstained: bool = False         # inside the unsure band around tau (no decision)
     resid_norm: float = 0.0         # mean L2 norm of the last-token residual at the taps
+    outcomes: dict = field(default_factory=dict)   # name -> predicted outcome (OutcomeHead reads, see gate.learn_outcome)
 
 
 # ---- Decision: what the gate should do (a Command the driver executes) ----
@@ -85,7 +86,37 @@ class Trigger(Enum):
     ALWAYS = "always"                  # unconditionally, regardless of the verdict
 
 
-def _triggered(when: Trigger | str, v: Verdict) -> bool:
+@dataclass(frozen=True)
+class Predicted:
+    """Fire when a learned outcome read (`cg.learn_outcome`) crosses a threshold: `above=True` fires
+    when prediction >= threshold, `above=False` when <= threshold. Presence of a concept is not
+    consulted -- this asks "will the write move this prompt?", not "is the concept here?"."""
+
+    outcome: str
+    threshold: float
+    above: bool = True
+
+
+@dataclass(frozen=True)
+class Both:
+    """Fire only when both triggers fire -- e.g. Both(Trigger.FIRE, Predicted("dose", 0.3)): the
+    concept is PRESENT and the write is predicted to MOVE this prompt."""
+
+    a: object
+    b: object
+
+
+def _triggered(when: "Trigger | str | Predicted | Both", v: Verdict) -> bool:
+    if isinstance(when, Both):
+        return _triggered(when.a, v) and _triggered(when.b, v)
+    if isinstance(when, Predicted):
+        if when.outcome not in v.outcomes:
+            raise KeyError(
+                f"Predicted({when.outcome!r}): not a learned outcome; available {sorted(v.outcomes)}. "
+                f"Call cg.learn_outcome({when.outcome!r}, ...) first."
+            )
+        x = v.outcomes[when.outcome]
+        return x >= when.threshold if when.above else x <= when.threshold
     when = Trigger(when)
     if when is Trigger.ALWAYS:
         return True
@@ -99,7 +130,7 @@ def _triggered(when: Trigger | str, v: Verdict) -> bool:
 class Abort:
     """Halt generation and emit a fixed marker when the trigger fires (default: on a fire)."""
     marker: str = "[GUARDRAILED]"
-    when: Trigger | str = Trigger.FIRE
+    when: Trigger | str | Predicted | Both = Trigger.FIRE
 
     def decide(self, ctx: FireContext) -> Decision:
         return Stop(emit=self.marker) if _triggered(self.when, ctx.verdict) else Continue()
@@ -115,7 +146,7 @@ class Steer:
     only when flagged. The gate installs the returned InjectSteer as hooks for the generation."""
     fraction: float = 0.06           # magnitude as a fraction of the residual norm
     strength: float | None = None    # absolute magnitude; overrides `fraction` when set
-    when: Trigger | str = Trigger.FIRE
+    when: Trigger | str | Predicted | Both = Trigger.FIRE
     concept: str | None = None
 
     def decide(self, ctx: FireContext) -> Decision:
@@ -151,7 +182,7 @@ class Emit:
     refusal on a jailbreak fire and let the model finish it in its own voice, instead of a hard
     stop. The gate tokenizes `text` and forces those ids before generating the rest."""
     text: str = "I can't help with that."
-    when: Trigger | str = Trigger.FIRE
+    when: Trigger | str | Predicted | Both = Trigger.FIRE
 
     def decide(self, ctx: FireContext) -> Decision:
         if _triggered(self.when, ctx.verdict):

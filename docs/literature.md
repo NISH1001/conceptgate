@@ -101,6 +101,30 @@ CUSUM-style calibrated detection of drift-toward-a-concept across generated toke
 - **Online Safety Monitoring for LLMs** (~2607.02510 — *verify*): finds simple
   thresholding competitive with sequential-testing monitors — must rebut or accommodate.
 
+### 3b. Prior art for the steerability question (evaluation §9–10), checked 2026-09-11/12
+
+- **Logit-Gap Steering: A Forward-Pass Diagnostic for Alignment Robustness** (Li & Liu, 2506.24056 —
+  abstract verified by the report session): defines the first-token refusal–affirmation logit gap as a
+  **per-prompt safety margin** (13 models, AdvBench + HarmBench; alignment widens it on 97.5–99.8% of toxic
+  prompts). This is the **source** of the first-token measure in §8–10 (ours is a basket-sum over
+  refusal-opening vs compliance-opening tokens; theirs is top token vs top token — same family). Cite as
+  the origin of the instrument, not as a near-miss. It does not predict a prompt's *response* to a
+  steering write.
+- **Forecasting Side Effects of Activation Steering** (2608.11227, Aug 2026 — abstract verified): predicts
+  cross-behaviour side effects of unseen steering interventions from **unsteered** representations, as a
+  67-behaviour cross-effect matrix over three open models. Behaviour-level, not prompt-level; the nearest
+  miss to §10's per-prompt dose prediction. Must cite.
+- Already in the report and unchanged: Billa 2604.15557 (which *layer* a steering vector succeeds at, from
+  the prompt), ASTEER 2606.11599 (steerability from post-steering states, 3-class, 1.4M generations), Braun
+  2505.22637 (dataset-level), CRH 2605.01844 (qualitative geometry). None predicts, per prompt and before
+  generation, how far a fixed write moves behaviour, which is §10's question.
+- Searched but not opened (arXiv ids from search snippets): 2604.09839, 2605.10664, 2511.21399,
+  2605.05715, 2605.03907, 2606.22686, 2411.09003, 2510.06594, 2606.25182.
+
+**Instrument used in §10 (a dependency, not a method):** `protectai/distilroberta-base-rejection-v1`
+(DistilRoBERTa, 82M, label 1 = rejection; archived upstream, hence a fixed instrument). Used only to score
+sampled continuations, next to the repo's lexicon; their per-prompt dose agreement is +0.88 on Qwen.
+
 ---
 
 ## 4. Tooling / substrate — NOT method, do not reinvent, do not claim

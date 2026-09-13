@@ -15,3 +15,7 @@ demo_concept.png
 scripts/steerability_acts.npy
 scaleup_acts__*.npy
 steer_acts__*.npy
+behaviour_dose_acts__*.npy
+*.partial
+*.partial.npy
+scripts/quick/

@@ -372,6 +372,231 @@ correlational.
 **Next if pursued:** several α, several concepts, 2B/7B, and a held-out MODEL not just a held-out fold.
 Report §4.11 + Figure 16. Numbers all from `scripts/analyze_steerability.py`.
 
+### 10. BEHAVIOURAL STEERABILITY — a reliability-tested instrument, then prediction (`eval_behaviour_dose.py`)
+
+**Why.** §9's behavioural validation used two instruments whose reliability was never measured: one greedy
+sample per arm scored by the lexicon (three possible values per prompt) and 3+3 canned continuations,
+teacher-forced. Their −0.01 agreement said the instruments were noisy, not that the per-prompt quantity was
+absent. Spec: `docs/plans/steerability-gate.md` (stop rules fixed before running).
+
+**Setup.** The §9 prompt set unchanged: 120 held-out jailbreak templates + a harmful request, 32 short framed
+attacks, 12 bare requests (164 attacks), 48 real benign. Concept `jailbreak` fit as §9 (seed 0, 8+8,
+`Direction.LOGISTIC`), taps at 33/50/67% depth, **chat template on**, α = 0.08 of the residual norm. Five arms:
+none, ±α along the concept, ±α along a random unit direction of matched norm. **K = 16 sampled continuations**
+per (prompt, arm) at T = 0.7 (top_p 1, top_k 0), 40 tokens, in **float32** (bfloat16 decodes 3.5× slower on
+MPS; the dtype is recorded in the results). Two scorers per continuation: the repo refusal lexicon (`lex`) and
+`protectai/distilroberta-base-rejection-v1` (`clf`, label 1 = rejection, hard label at 0.5; the mean probability
+is reported as `clf_soft`). **Dose** D = ½(P_refuse(+α) − P_refuse(−α)); the first-token proxy of §8–9 (the
+measure is Logit-Gap Steering's per-prompt margin, 2506.24056, in basket-sum form) is recorded per arm on the
+same run. All 16,960 continuations are stored in `scripts/behaviour_dose_results__<model>.json`; the analysis
+(`scripts/analyze_behaviour_dose.py`) never regenerates. Engineering notes that cost a night: keep a generate
+call ≤ 32 rows on long prompts (one 80-row call took 163 s and drove the MPS allocator to 17 GB; 32-row chunks
+of the same work took 30 s), release the MPS cache per prompt, left-pad to 32-token buckets, and restart the
+process every 10 prompts (`scripts/run_behaviour_dose.sh`) because the MPS graph cache grows with every new
+shape and is never freed.
+
+**Stage 1 — is the per-prompt behavioural dose measurable?** Pre-registered: split-half reliability ≥ 0.6 AND
+lexicon-vs-classifier agreement ≥ 0.6. Split-half = Spearman between D from odd and from even samples, over
+attacks; SB = Spearman–Brown estimate at the full K.
+
+| model | instrument | split-half (K/2 halves) | SB(K=16) | P₊−P₀ split-half | unsteered-rate split-half | lex↔clf | proxy → dose | gate LLR → dose | dose / random | verdict |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Qwen2.5-0.5B | lex | **+0.66** | +0.80 | +0.33 | +0.76 | **+0.88** | +0.63 | −0.33 | 1.47 | **GO** |
+| Qwen2.5-0.5B | clf | **+0.70** | +0.82 | +0.32 | +0.87 | | +0.61 | −0.30 | 1.67 | |
+| Qwen2.5-0.5B | clf_soft (aux.) | +0.72 | +0.83 | +0.32 | +0.87 | | +0.62 | −0.31 | 1.67 | |
+| gemma-2-2b | lex | +0.53 | +0.69 | +0.33 | +0.93 | **+0.68** | +0.47 | −0.16 | 1.48 | **NO-GO** at K=16 |
+| gemma-2-2b | clf | +0.53 | +0.69 | +0.52 | +0.92 | | +0.41 | −0.06 | 1.72 | → K=32 running |
+| gemma-2-2b **K=32** | lex | +0.64 | +0.78 | +0.33 | +0.95 | **+0.66** | +0.44 | −0.13 | 1.61 | **GO** (mechanically — see below) |
+| gemma-2-2b **K=32** | clf | **+0.69** | +0.82 | +0.59 | +0.94 | | +0.42 | −0.05 | 1.82 | |
+| gemma-2-2b **K=32** | clf_soft (aux.) | +0.65 | +0.79 | +0.54 | +0.95 | | +0.41 | −0.02 | 1.78 | |
+
+Refusal rates on attacks (clf): Qwen none 0.55, −α 0.35, +α 0.65, random −α 0.46, random +α 0.63; on benign
+0.17, 0.14, 0.18, 0.17, 0.20; 87% of attack doses positive; mean |D| attacks 0.16–0.18, benign 0.06. **gemma**
+(bf16): attacks none 0.51, −α 0.46, +α 0.53, random 0.50 / 0.50; benign 0.00–0.03 in every arm; only 38% of
+doses positive; mean |D| attacks 0.07, benign 0.00. The write barely moves gemma at α = 0.08 — a quarter of
+Qwen's swing — so at K = 16 the per-prompt dose sits at the sampling-noise floor even though the unsteered rate
+itself is highly reliable (0.92) and the two instruments agree (0.68). Pre-registered fallback: a second
+sampling seed of the SAME intervention (concept fit unchanged) to reach K = 32; Spearman–Brown predicts ~0.69.
+
+Findings:
+- **The per-prompt behavioural dose is measurable at K = 16** (0.66–0.70 raw, ~0.8 at full K), and two
+  independent scorers agree on it (+0.88). §9's −0.01 was the instruments.
+- **The first-token proxy tracks the sampled behavioural dose at +0.62** across 164 attacks — above the 0.5 bar
+  §9's validation had set and failed (+0.43 / +0.48 with the greedy instruments). Per-prompt, the proxy is a
+  usable but lossy stand-in for behaviour.
+- **The gate's confidence anti-correlates with the dose (−0.30):** the surer the concept read, the less the write
+  moves the prompt. Sign-consistent with §9 once conventions are aligned (there, a high LLR went with a lever
+  nearer zero).
+- **In behaviour the concept direction is only 1.5–1.7× a random direction of matched norm** (2.5× on the
+  proxy). A random write at 8% of the residual norm raises attack refusal from 0.54 to 0.62 on its own —
+  Rogue Scalpel in a sampled measure.
+- The one-arm gain P₊ − P₀ is far less reliable (+0.32) than the two-arm dose; stage 3 below inherits that noise.
+
+**Stage 2 — is the dose predictable from the unsteered prompt?** Pre-registered: grouped-CV Spearman ≥ 4 sd
+above a 300-draw permutation null from the identical pipeline AND above |gate LLR → dose|, on Qwen AND gemma.
+Ridge (α = 10) on the 3 tapped activations, z-scored, target = `clf` dose (the more reliable instrument), folds
+grouped by harmful request (7 folds).
+
+| model | ridge → dose, grouped CV (plain) | permutation null mean ± sd (z) | gate LLR | 3 concept projections | random-direction dose | unsteered rate (Spearman rate↔dose) | learning curve 8 / 16 / 32 / 64 | templates→other / reverse | verdict |
+|---|---|---|---|---|---|---|---|---|---|
+| Qwen2.5-0.5B | **+0.58** (+0.60) | −0.015 ± 0.089 (**z 6.7**) | −0.30 | +0.51 | +0.23 | +0.81 (+0.03) | +0.33 / +0.46 / +0.52 / +0.58 | +0.52 / +0.43 | **GO** |
+| gemma-2-2b (K=16, stage 1 failed) | +0.20 (+0.32) | −0.007 ± 0.092 (z 2.2) | −0.06 | +0.06 | −0.02 | +0.82 (−0.21) | +0.20 / +0.24 / +0.24 / +0.29 | +0.12 / +0.09 | NO-GO (provisional) |
+| **gemma-2-2b (K=32, final)** | **+0.08** (+0.32) | −0.001 ± 0.089 (**z 0.9**) | −0.05 | +0.19 | +0.03 | +0.82 (−0.19) | +0.21 / +0.24 / +0.25 / +0.29 | +0.03 / −0.02 | **NO-GO** |
+
+Direction geometry (Qwen): |cos| to `W_raw` 0.04–0.12 per tap (chance 0.033); split-half self-consistency of
+the fitted direction 0.10–0.22 — as in §9, too low to support any geometry claim.
+
+**Robustness of the Qwen result to the two analysis choices that could have manufactured it** (the target's
+scorer, and the ridge penalty). Neither is load-bearing:
+
+| target instrument | grouped CV | plain CV | null z | \|gate LLR\| | 3 concept proj. | random-dir. dose | gate |
+|---|---|---|---|---|---|---|---|
+| lex (lexicon) | +0.54 | +0.50 | 6.0 | 0.33 | +0.52 | +0.21 | GO |
+| clf (pre-registered) | +0.58 | +0.60 | 6.3 | 0.30 | +0.51 | +0.23 | GO |
+| clf_soft (mean probability) | +0.60 | +0.61 | 6.5 | 0.31 | +0.53 | +0.22 | GO |
+
+**Two surface confounds, both ruled out** — and these are strong tests, because the taps decode each confound
+*easily*, so a dose that was secretly one of them would have shown up as a much higher CV, not a lower one:
+
+| threat | is the dose it? | does the prediction survive? |
+|---|---|---|
+| **prompt length** — taps decode token count at CV **+0.90** | Spearman(length, dose) = **−0.12** | length-residualized dose still CV **+0.57** (raw +0.58) |
+| **prompt family** — taps decode template-vs-other at CV **+0.77** | — | within templates only (n = 120) CV **+0.52**; within short+bare only (n = 44) CV **+0.63** |
+
+So the ridge is not reading length, and it is not sorting prompt families: it predicts the dose *within* a
+single family, on both families separately.
+
+The two scorers' out-of-fold predictions agree at **+0.87**, so the ridge is decoding the same per-prompt
+quantity whichever instrument labels it. Ridge penalty (clf target, grouped CV): α = 1 → +0.58, 10 → +0.58,
+100 → +0.60, 1000 → +0.63 — flat to slightly *better* under heavier regularization, as expected at n = 164
+against 2688 features, so the result is not a low-penalty overfit. Stage 3 repeated against the lexicon
+target reproduces as well: outcome gate **+0.143** per write vs random halves +0.102 ± 0.017
+(P = 0.016), anti-outcome +0.060, and the outcome gate writes to **10%** of benign prompts against the
+concept gate's 100%.
+
+Findings (Qwen):
+- **The behavioural dose is predictable from the prompt's activations before any generation**, 6.7 sd above the
+  null, at roughly the level the proxy result led one to expect once attenuated by the instrument's own
+  reliability (+0.58 against a ceiling of ~0.8).
+- **Most of the signal again lives in the concept direction:** three concept projections predict the dose at
+  +0.51 where the calibrated LLR reaches only |0.30| — the gate is a lossy readout of information its own
+  directions carry.
+- **It is not disposition:** the unsteered refusal rate is even more predictable (+0.81) but is unrelated to the
+  dose (+0.03). It is also more predictable than a random direction's dose (+0.23), so predictability per se is
+  not the finding; the excess is.
+- Eight labelled prompts already give +0.33; 64 give +0.58. The direction transfers across prompt families
+  (+0.52 / +0.43).
+
+**Stage 3 — the gate as selection** (Qwen only until gemma is in; predictions OUT OF FOLD, 50% coverage,
+threshold = median OOF prediction; every arm is a selection over the same per-prompt gain ΔP₊ = P₊ − P₀ of the
+sampled +α arm, so this adds no evidence beyond stage 2 — the random-halves null is the only genuine test):
+
+| arm | attacks written | refusal gained per write | total | benign written | benign mean \|ΔP₊\| |
+|---|---|---|---|---|---|
+| blanket | 164 | +0.097 | +15.9 | 100% | 0.092 |
+| concept gate (`Trigger.FIRE`) | 154 | +0.090 | +13.8 | **100%** | 0.092 |
+| **outcome gate** (top half by predicted dose) | 82 | **+0.143** | +11.7 | **23%** | 0.074 |
+| anti-outcome (bottom half) | 82 | +0.052 | +4.3 | 77% | 0.098 |
+| both (fires AND top half) | 74 | +0.133 | +9.9 | 23% | 0.074 |
+| random halves (500) | 82 | +0.097 ± 0.016 | | | P(random ≥ outcome) = **0.002** |
+
+**Cross-implementation check.** The library's `OutcomeHead` (`conceptgate/outcome.py`, on `wip/outcome-head`)
+and this analysis script's ridge are independent implementations of the same fit. Run against the *measured*
+Qwen doses under the same grouped folds they agree to four decimals — grouped CV **+0.5805** (library) against
+**+0.5807** (analysis) — and the library's `Predicted` trigger, driven by those out-of-fold predictions,
+selects 82 attacks at +0.145 per write against the concept gate's 154 attacks at +0.090. Locked in as
+`tests/test_outcome.py::test_outcome_head_reproduces_the_analysis_script_on_measured_data`, which skips when
+the gitignored activation cache is absent.
+
+**The 50% operating point is not cherry-picked, and the predictor produces a ranking rather than a lucky
+split.** Sweeping coverage (out-of-fold predictions; random null = 500 size-matched draws at each point):
+
+| coverage | n written | dP per write (clf) | random mean | P(random ≥ gate) | benign written |
+|---|---|---|---|---|---|
+| 10% | 16 | **+0.242** | +0.099 | 0.002 | 2% |
+| 25% | 41 | **+0.216** | +0.096 | 0.000 | 10% |
+| 50% | 82 | **+0.143** | +0.098 | 0.008 | 23% |
+| 75% | 123 | +0.129 | +0.097 | 0.000 | 52% |
+| 90% | 148 | +0.108 | +0.097 | 0.014 | 85% |
+
+The gate beats its size-matched null at **every** operating point (P ≤ 0.014), and the gain per write rises
+monotonically as coverage tightens — 0.108 at 90% up to 0.242 at 10%, against a flat random baseline of
+~0.098. That monotonicity is the real evidence: a lucky split would beat the null at one threshold, whereas an
+actual ranking of prompts by responsiveness gets steadily better as you keep only the top of it. The lexicon
+target reproduces the whole sweep (+0.246 → +0.114, P ≤ 0.020 throughout).
+
+The outcome gate gets 73% of the blanket write's total refusal gain with half the writes, while the concept
+gate writes to every benign prompt in this set (the §8 register problem) and the outcome gate to 23%. Caveat:
+ΔP₊ is the noisy one-arm quantity (reliability +0.32); noise attenuates these gaps but cannot create the
+selection effect, which is out of fold.
+
+**PREDICTION CHECK — the K = 32 result is in, and it settles gemma.** Registered below before the run
+finished, the prediction was: stage 1 flips to GO for a mechanical reason, stage 2 stays NO-GO. Both held,
+and the second one held harder than predicted.
+
+| | predicted (2026-09-12 20:05) | observed (K = 32) |
+|---|---|---|
+| stage 1 split-half (clf) | ~0.694 | **0.692** |
+| stage 2 grouped CV | +0.215 (z 2.4) | **+0.078 (z 0.9)** |
+
+The stage 1 prediction was exact to three decimals, confirming that the flip is an artefact of the statistic
+rather than a change in the model: at K = 32 the split-half compares two 16-sample halves, and the K = 16 run
+had already measured that quantity via Spearman–Brown. **This is why gemma's stage 1 "GO" must not be
+reported as its dose becoming measurable.**
+
+The stage 2 prediction failed in the direction that matters. Attenuation says a *more* reliable target should
+*raise* the observed correlation — the K = 16 value of +0.198 implies a true correlation of 0.238, which at
+K = 32's reliability should have surfaced as +0.215. It came in at **+0.078**, 1.5 null sd *below* the
+prediction and 0.9 sd above zero. A signal attenuated by measurement noise gets clearer when you measure
+better; noise does not. **So gemma's K = 16 hint (z = 2.2, never significant) was noise, and the honest
+conclusion for gemma is not "underpowered" but "no detectable per-prompt dose signal".** The supporting
+pattern agrees: cross-family transfer collapsed from +0.12 / +0.09 to **+0.03 / −0.02**, and the fitted
+direction's split-half self-consistency fell to 0.04–0.05. There is no direction there to find.
+
+Why this is a statement about the *write*, not only about the model: at α = 0.08 the classifier-scored refusal
+on gemma attacks moves 0.46 → 0.51 → 0.53, giving mean |D| = 0.069 against Qwen's 0.163, with only 41% of
+doses positive. The intervention barely perturbs gemma at this magnitude, so there is little per-prompt
+variance for anything to predict. The concept-to-random dose ratio is **1.5–1.8× on both models**, so gemma's
+direction is not less special than Qwen's — its effect is simply smaller. Independently, gemma's gate LLR
+carries no dose information (−0.05), matching §8's magnitude sweep where the LLR→dose correlation replicated
+on Qwen and SmolLM2 but never on gemma. **The right follow-up for gemma is an α sweep of the behavioural
+instrument, not more samples** — and that is outside this plan's pre-registration, so it is recorded as the
+next step rather than run opportunistically.
+
+**A defect in this section's own stop rule, and what the K = 32 rerun will therefore show** (written
+2026-09-12 20:05, *before* that run finished — check it against the result below rather than the other way
+round). The stage 1 gate is "split-half ≥ 0.6", and split-half compares a K/2-sample estimate against another
+K/2-sample estimate. **That statistic is not comparable across K.** At K = 16 it measures the reliability of an
+8-sample dose; at K = 32 it measures the reliability of a *16*-sample dose, which for gemma is already known
+from the K = 16 run via Spearman–Brown: 0.69. So gemma will very likely "pass" stage 1 at K = 32 —
+mechanically, because the statistic got easier, not because the model's dose became more measurable. The
+comparable quantities across K are the **Spearman–Brown-corrected full-K reliability** (gemma: 0.69 at K = 16
+→ ~0.82 at K = 32; Qwen: 0.82 at K = 16) or a split-half at matched half-size.
+
+Stage 2 is the test that is not fooled this way, because a more reliable target attenuates the correlation
+less. Correcting gemma's K = 16 result for the reliability gain gives a **prediction: grouped CV ≈ +0.22,
+z ≈ 2.4** — still far below the z ≥ 4 bar, which needs CV ≈ +0.36. Prediction, therefore: **stage 1 flips to
+GO, stage 2 stays NO-GO**, and if that is what happens, the flip must not be reported as "gemma's dose became
+measurable at K = 32".
+
+**Status — FINAL for this plan.** Qwen2.5-0.5B: stage 1 GO, stage 2 GO (z 6.7), stage 3 positive at every
+coverage, and robust to the scorer, the ridge penalty, prompt length, prompt family, and a second
+implementation. gemma-2-2b at K = 32: stage 1 GO (mechanically), **stage 2 NO-GO (z 0.9)** — decisively, not
+marginally. Per the pre-registration the library change (`learn_outcome`, `Predicted`, `Both`) required stage
+2 on *both* models, so by that rule it would not have landed.
+
+**It was merged anyway, by the user's decision, as an opt-in feature** (`Merge wip/outcome-head`). The
+reasoning is worth separating from the science: the code is general-purpose, tested, and reproduces this
+section's numbers to four decimals, and nothing in ConceptGate's default path changes — the `Trigger` enum and
+every existing call site behave exactly as before. Shipping it is an engineering choice about a working
+feature; it is **not** evidence that the experiment succeeded on two models, and must never be cited as such.
+`learn_outcome` requires labels the user measures themselves, and the honest label on the feature is: *fitted
+and validated on one 0.5B model; on a 2.6B model whose refusal the write barely moves, there was nothing to
+fit.*
+
+**The claim is one model**, and the second model says something specific rather than nothing: where the write
+does not move the model, there is no per-prompt dose to predict.
+
 ## Verdict (honest)
 
 Detection accuracy is a **commodity** — CG-logistic *ties* LR/SVM in-dist and shows no
