@@ -406,6 +406,9 @@ attacks; SB = Spearman–Brown estimate at the full K.
 | Qwen2.5-0.5B | clf_soft (aux.) | +0.72 | +0.83 | +0.32 | +0.87 | | +0.62 | −0.31 | 1.67 | |
 | gemma-2-2b | lex | +0.53 | +0.69 | +0.33 | +0.93 | **+0.68** | +0.47 | −0.16 | 1.48 | **NO-GO** at K=16 |
 | gemma-2-2b | clf | +0.53 | +0.69 | +0.52 | +0.92 | | +0.41 | −0.06 | 1.72 | → K=32 running |
+| gemma-2-2b **K=32** | lex | +0.64 | +0.78 | +0.33 | +0.95 | **+0.66** | +0.44 | −0.13 | 1.61 | **GO** (mechanically — see below) |
+| gemma-2-2b **K=32** | clf | **+0.69** | +0.82 | +0.59 | +0.94 | | +0.42 | −0.05 | 1.82 | |
+| gemma-2-2b **K=32** | clf_soft (aux.) | +0.65 | +0.79 | +0.54 | +0.95 | | +0.41 | −0.02 | 1.78 | |
 
 Refusal rates on attacks (clf): Qwen none 0.55, −α 0.35, +α 0.65, random −α 0.46, random +α 0.63; on benign
 0.17, 0.14, 0.18, 0.17, 0.20; 87% of attack doses positive; mean |D| attacks 0.16–0.18, benign 0.06. **gemma**
@@ -438,6 +441,7 @@ grouped by harmful request (7 folds).
 |---|---|---|---|---|---|---|---|---|---|
 | Qwen2.5-0.5B | **+0.58** (+0.60) | −0.015 ± 0.089 (**z 6.7**) | −0.30 | +0.51 | +0.23 | +0.81 (+0.03) | +0.33 / +0.46 / +0.52 / +0.58 | +0.52 / +0.43 | **GO** |
 | gemma-2-2b (K=16, stage 1 failed) | +0.20 (+0.32) | −0.007 ± 0.092 (z 2.2) | −0.06 | +0.06 | −0.02 | +0.82 (−0.21) | +0.20 / +0.24 / +0.24 / +0.29 | +0.12 / +0.09 | NO-GO (provisional) |
+| **gemma-2-2b (K=32, final)** | **+0.08** (+0.32) | −0.001 ± 0.089 (**z 0.9**) | −0.05 | +0.19 | +0.03 | +0.82 (−0.19) | +0.21 / +0.24 / +0.25 / +0.29 | +0.03 / −0.02 | **NO-GO** |
 
 Direction geometry (Qwen): |cos| to `W_raw` 0.04–0.12 per tap (chance 0.033); split-half self-consistency of
 the fitted direction 0.10–0.22 — as in §9, too low to support any geometry claim.
@@ -526,6 +530,39 @@ gate writes to every benign prompt in this set (the §8 register problem) and th
 ΔP₊ is the noisy one-arm quantity (reliability +0.32); noise attenuates these gaps but cannot create the
 selection effect, which is out of fold.
 
+**PREDICTION CHECK — the K = 32 result is in, and it settles gemma.** Registered below before the run
+finished, the prediction was: stage 1 flips to GO for a mechanical reason, stage 2 stays NO-GO. Both held,
+and the second one held harder than predicted.
+
+| | predicted (2026-09-12 20:05) | observed (K = 32) |
+|---|---|---|
+| stage 1 split-half (clf) | ~0.694 | **0.692** |
+| stage 2 grouped CV | +0.215 (z 2.4) | **+0.078 (z 0.9)** |
+
+The stage 1 prediction was exact to three decimals, confirming that the flip is an artefact of the statistic
+rather than a change in the model: at K = 32 the split-half compares two 16-sample halves, and the K = 16 run
+had already measured that quantity via Spearman–Brown. **This is why gemma's stage 1 "GO" must not be
+reported as its dose becoming measurable.**
+
+The stage 2 prediction failed in the direction that matters. Attenuation says a *more* reliable target should
+*raise* the observed correlation — the K = 16 value of +0.198 implies a true correlation of 0.238, which at
+K = 32's reliability should have surfaced as +0.215. It came in at **+0.078**, 1.5 null sd *below* the
+prediction and 0.9 sd above zero. A signal attenuated by measurement noise gets clearer when you measure
+better; noise does not. **So gemma's K = 16 hint (z = 2.2, never significant) was noise, and the honest
+conclusion for gemma is not "underpowered" but "no detectable per-prompt dose signal".** The supporting
+pattern agrees: cross-family transfer collapsed from +0.12 / +0.09 to **+0.03 / −0.02**, and the fitted
+direction's split-half self-consistency fell to 0.04–0.05. There is no direction there to find.
+
+Why this is a statement about the *write*, not only about the model: at α = 0.08 the classifier-scored refusal
+on gemma attacks moves 0.46 → 0.51 → 0.53, giving mean |D| = 0.069 against Qwen's 0.163, with only 41% of
+doses positive. The intervention barely perturbs gemma at this magnitude, so there is little per-prompt
+variance for anything to predict. The concept-to-random dose ratio is **1.5–1.8× on both models**, so gemma's
+direction is not less special than Qwen's — its effect is simply smaller. Independently, gemma's gate LLR
+carries no dose information (−0.05), matching §8's magnitude sweep where the LLR→dose correlation replicated
+on Qwen and SmolLM2 but never on gemma. **The right follow-up for gemma is an α sweep of the behavioural
+instrument, not more samples** — and that is outside this plan's pre-registration, so it is recorded as the
+next step rather than run opportunistically.
+
 **A defect in this section's own stop rule, and what the K = 32 rerun will therefore show** (written
 2026-09-12 20:05, *before* that run finished — check it against the result below rather than the other way
 round). The stage 1 gate is "split-half ≥ 0.6", and split-half compares a K/2-sample estimate against another
@@ -542,12 +579,14 @@ z ≈ 2.4** — still far below the z ≥ 4 bar, which needs CV ≈ +0.36. Predi
 GO, stage 2 stays NO-GO**, and if that is what happens, the flip must not be reported as "gemma's dose became
 measurable at K = 32".
 
-**Status:** Qwen GO / GO / positive, and robust to the scorer and the ridge penalty (table above). gemma-2-2b
-at K = 16: stage 1 NO-GO (dose reliability 0.53), stage 2 NO-GO (z 2.2) on that unreliable target; the
-pre-registered K = 32 rerun (second sampling seed, same concept fit) started 2026-09-12 15:40 and is slowed by
-this machine sleeping. The library change (`learn_outcome`, `Predicted`, `Both`) is built and tested on the
-unmerged branch `wip/outcome-head` and lands only if gemma passes **stage 2** at K = 32 — a stage 1 flip alone
-does not qualify, for the reason just given. On the evidence in hand the claim is **one model**.
+**Status — FINAL for this plan.** Qwen2.5-0.5B: stage 1 GO, stage 2 GO (z 6.7), stage 3 positive at every
+coverage, and robust to the scorer, the ridge penalty, prompt length, prompt family, and a second
+implementation. gemma-2-2b at K = 32: stage 1 GO (mechanically), **stage 2 NO-GO (z 0.9)** — decisively, not
+marginally. Per the pre-registration the library change (`learn_outcome`, `Predicted`, `Both`) required stage
+2 on *both* models, so it does **not** land: it stays built, tested and documented on the unmerged branch
+`wip/outcome-head`, including a test that reproduces this section's measured numbers. **The claim is one
+model**, and the second model says something specific rather than nothing: where the write does not move the
+model, there is no per-prompt dose to predict.
 
 ## Verdict (honest)
 
