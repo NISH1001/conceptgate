@@ -79,3 +79,38 @@ def test_learn_outcome_round_trip_on_gpt2():
     with pytest.raises(ValueError, match="labels"):
         cg.learn_outcome("bad", prompts, y[:3])
     cg.unload()
+
+
+def test_outcome_head_reproduces_the_analysis_script_on_measured_data():
+    """Cross-implementation check: the library head and scripts/analyze_behaviour_dose.py's ridge must
+    agree on the REAL Qwen behavioural doses. Skipped when the activation cache (gitignored) is absent."""
+    import os
+    import sys
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    scripts = os.path.join(root, "scripts")
+    res = os.path.join(scripts, "behaviour_dose_results__Qwen__Qwen2.5-0.5B-Instruct.json")
+    npy = os.path.join(scripts, "behaviour_dose_acts__Qwen__Qwen2.5-0.5B-Instruct.npy")
+    if not (os.path.exists(res) and os.path.exists(npy)):
+        pytest.skip("behaviour-dose run artifacts not present (the .npy cache is gitignored)")
+    sys.path.insert(0, scripts)
+    import analyze_behaviour_dose as A
+    from sklearn.model_selection import GroupKFold
+
+    A.HERE = scripts
+    meta, acts, _ = A.load("Qwen/Qwen2.5-0.5B-Instruct", out_dir=scripts)
+    rows, k = meta["rows"], int(meta["k"])
+    kind = np.array([r["kind"] for r in rows])
+    atk = kind != "benign"
+    P = A.rates(rows, "clf", list(range(k)))
+    y = A.dose(P)[0][atk]
+    X = acts[atk]
+    g = A.groups_for(kind[atk])
+
+    pred = np.zeros(len(y))
+    for tr, te in GroupKFold(n_splits=7).split(X, y, g):
+        pred[te] = OutcomeHead(alpha=10.0).fit(X[tr], y[tr]).predict(X[te])
+    lib = A.sp(pred, y)
+    ana = A.cv(A._zscore(X.reshape(len(y), -1))[0], y, 0, groups=g, n_splits=7)[0]
+    assert abs(lib - ana) < 0.02, f"library {lib:+.4f} vs analysis {ana:+.4f}"
+    assert lib > 0.5, f"the measured result should reproduce, got {lib:+.4f}"
