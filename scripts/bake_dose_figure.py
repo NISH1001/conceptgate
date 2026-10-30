@@ -164,7 +164,9 @@ def main():
     gC = panel_geom(542)
     s += head(gC, "the same write on a second model", "gemma-2-2b: ρ = +0.08, n.s.", WARM)
     s += frame(gC, "write direction", "refusal rate on attacks")
-    qw = [0.30, 0.54, 0.64]
+    # classifier refusal rate on attacks, minus/none/plus (behaviour_dose_results: 0.349 / 0.555 / 0.652;
+    # gemma at K=32: 0.457 / 0.513 / 0.529)
+    qw = [0.35, 0.55, 0.65]
     gm = [0.46, 0.51, 0.53]
     xs = [0.06, 0.5, 0.94]
     nyc = lambda v: v / 0.75  # noqa: E731

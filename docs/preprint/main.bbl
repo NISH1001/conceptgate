@@ -1,0 +1,208 @@
+\begin{thebibliography}{29}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Alain and Bengio(2016)]{alain2016probes}
+Guillaume Alain and Yoshua Bengio.
+\newblock Understanding intermediate layers using linear classifier probes.
+\newblock \emph{arXiv preprint arXiv:1610.01644}, 2016.
+
+\bibitem[Arditi et~al.(2024)Arditi, Obeso, Syed, Paleka, Panickssery, Gurnee,
+  and Nanda]{arditi2024refusal}
+Andy Arditi, Oscar Obeso, Aaquib Syed, Daniel Paleka, Nina Panickssery, Wes
+  Gurnee, and Neel Nanda.
+\newblock Refusal in language models is mediated by a single direction.
+\newblock In \emph{Advances in Neural Information Processing Systems}, 2024.
+\newblock arXiv:2406.11717.
+
+\bibitem[Bailey et~al.(2024)Bailey, Serrano, Sheshadri, Seleznyov, Taylor,
+  Jenner, Hilton, Casper, Guestrin, and Emmons]{bailey2024obfuscated}
+Luke Bailey, Alex Serrano, Abhay Sheshadri, Mikhail Seleznyov, Jordan Taylor,
+  Erik Jenner, Jacob Hilton, Stephen Casper, Carlos Guestrin, and Scott Emmons.
+\newblock Obfuscated activations bypass {LLM} latent-space defenses.
+\newblock \emph{arXiv preprint arXiv:2412.09565}, 2024.
+
+\bibitem[Billa(2026)]{billa2026where}
+Jayadev Billa.
+\newblock Predicting where steering vectors succeed.
+\newblock \emph{arXiv preprint arXiv:2604.15557}, 2026.
+
+\bibitem[Fan et~al.(2026)Fan, Cheng, Li, Feizi, and Zhou]{fan2026asteer}
+Chenrui Fan, Yize Cheng, Ming Li, Soheil Feizi, and Tianyi Zhou.
+\newblock When is your {LLM} steerable?
+\newblock \emph{arXiv preprint arXiv:2606.11599}, 2026.
+
+\bibitem[Ferrando et~al.(2025)Ferrando, Suau, Gonz{\`a}lez, and
+  Rodriguez]{ferrando2025dsas}
+Alex Ferrando, Xavier Suau, Jordi Gonz{\`a}lez, and Pau Rodriguez.
+\newblock Dynamically scaled activation steering.
+\newblock \emph{arXiv preprint arXiv:2512.03661}, 2025.
+
+\bibitem[Gao et~al.(2026)Gao, Zhang, Liu, Ji, Wang, Song, et~al.]{gao2026crh}
+Lang Gao, Jinghui Zhang, Wei Liu, Fengxian Ji, Chenxi Wang, Zirui Song, et~al.
+\newblock The cylindrical representation hypothesis for language model
+  steering.
+\newblock In \emph{International Conference on Machine Learning}, volume 306 of
+  \emph{Proceedings of Machine Learning Research}, 2026.
+\newblock arXiv:2605.01844.
+
+\bibitem[Houlsby et~al.(2019)Houlsby, Giurgiu, Jastrzebski, Morrone,
+  de~Laroussilhe, Gesmundo, Attariyan, and Gelly]{houlsby2019adapters}
+Neil Houlsby, Andrei Giurgiu, Stanislaw Jastrzebski, Bruna Morrone, Quentin
+  de~Laroussilhe, Andrea Gesmundo, Mona Attariyan, and Sylvain Gelly.
+\newblock Parameter-efficient transfer learning for {NLP}.
+\newblock In \emph{International Conference on Machine Learning}, 2019.
+\newblock arXiv:1902.00751.
+
+\bibitem[Hu et~al.(2021)Hu, Shen, Wallis, Allen-Zhu, Li, Wang, Wang, and
+  Chen]{hu2021lora}
+Edward~J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean
+  Wang, Lu~Wang, and Weizhu Chen.
+\newblock {LoRA}: Low-rank adaptation of large language models.
+\newblock \emph{arXiv preprint arXiv:2106.09685}, 2021.
+
+\bibitem[Inan et~al.(2023)Inan, Upasani, Chi, Rungta, Iyer, Mao,
+  et~al.]{inan2023llamaguard}
+Hakan Inan, Kartikeya Upasani, Jianfeng Chi, Rashi Rungta, Krithika Iyer,
+  Yuning Mao, et~al.
+\newblock Llama guard: {LLM}-based input-output safeguard for human-{AI}
+  conversations.
+\newblock \emph{arXiv preprint arXiv:2312.06674}, 2023.
+
+\bibitem[{jackhhao}(2023)]{jackhhao2023jailbreak}
+{jackhhao}.
+\newblock jailbreak-classification.
+\newblock Hugging Face dataset, 2023.
+\newblock URL
+  \url{https://huggingface.co/datasets/jackhhao/jailbreak-classification}.
+
+\bibitem[Ji et~al.(2023)Ji, Liu, Dai, Pan, Zhang, Bian,
+  et~al.]{ji2023beavertails}
+Jiaming Ji, Mickel Liu, Juntao Dai, Xuehai Pan, Chi Zhang, Ce~Bian, et~al.
+\newblock {BeaverTails}: Towards improved safety alignment of {LLM} via a
+  human-preference dataset.
+\newblock In \emph{Advances in Neural Information Processing Systems, Datasets
+  and Benchmarks Track}, 2023.
+\newblock arXiv:2307.04657.
+
+\bibitem[Korznikov et~al.(2025)Korznikov, Galichin, Dontsov, Rogov, Oseledets,
+  and Tutubalina]{korznikov2025roguescalpel}
+Anton Korznikov, Andrey Galichin, Alexey Dontsov, Oleg~Y. Rogov, Ivan
+  Oseledets, and Elena Tutubalina.
+\newblock The rogue scalpel: Activation steering compromises {LLM} safety.
+\newblock \emph{arXiv preprint arXiv:2509.22067}, 2025.
+
+\bibitem[Kulkarni(2026)]{kulkarni2026lad}
+Prashant Kulkarni.
+\newblock Latent adversarial detection: Adaptive probing of {LLM} activations
+  for multi-turn attack detection.
+\newblock \emph{arXiv preprint arXiv:2604.28129}, 2026.
+
+\bibitem[Lee et~al.(2025)Lee, Padhi, Ramamurthy, Miehling, Dognin, Nagireddy,
+  and Dhurandhar]{lee2024cast}
+Bruce~W. Lee, Inkit Padhi, Karthikeyan~Natesan Ramamurthy, Erik Miehling,
+  Pierre Dognin, Manish Nagireddy, and Amit Dhurandhar.
+\newblock Programming refusal with conditional activation steering.
+\newblock In \emph{International Conference on Learning Representations}, 2025.
+\newblock arXiv:2409.05907.
+
+\bibitem[Lee et~al.(2018)Lee, Lee, Lee, and Shin]{lee2018mahalanobis}
+Kimin Lee, Kibok Lee, Honglak Lee, and Jinwoo Shin.
+\newblock A simple unified framework for detecting out-of-distribution samples
+  and adversarial attacks.
+\newblock In \emph{Advances in Neural Information Processing Systems}, 2018.
+\newblock arXiv:1807.03888.
+
+\bibitem[Li and Liu(2025)]{li2025logitgap}
+Tung-Ling Li and Hongliang Liu.
+\newblock Logit-gap steering: A forward-pass diagnostic for alignment
+  robustness.
+\newblock \emph{arXiv preprint arXiv:2506.24056}, 2025.
+
+\bibitem[Li et~al.(2026)Li, Fastowski, Zaradoukas, Prenkaj, and
+  Kasneci]{li2026pitfalls}
+Yuxiao Li, Alina Fastowski, Efstratios Zaradoukas, Bardh Prenkaj, and Gjergji
+  Kasneci.
+\newblock Analysing the safety pitfalls of steering vectors.
+\newblock In \emph{Findings of the Association for Computational Linguistics:
+  ACL 2026}, pages 11182--11204, 2026.
+\newblock arXiv:2603.24543.
+
+\bibitem[Ong et~al.(2026)Ong, Sim, Zhang, and Sun]{ong2026sideeffects}
+Chong~Yong Ong, Alson Wei~Jie Sim, Peixin Zhang, and Jun Sun.
+\newblock Forecasting side effects of activation steering.
+\newblock \emph{arXiv preprint arXiv:2608.11227}, 2026.
+
+\bibitem[Panickssery et~al.(2023)Panickssery, Gabrieli, Schulz, Tong, Hubinger,
+  and Turner]{panickssery2023caa}
+Nina Panickssery, Nick Gabrieli, Julian Schulz, Meg Tong, Evan Hubinger, and
+  Alexander~Matt Turner.
+\newblock Steering {Llama 2} via contrastive activation addition.
+\newblock \emph{arXiv preprint arXiv:2312.06681}, 2023.
+
+\bibitem[Park et~al.(2023)Park, Choe, and Veitch]{park2023linear}
+Kiho Park, Yo~Joong Choe, and Victor Veitch.
+\newblock The linear representation hypothesis and the geometry of large
+  language models.
+\newblock \emph{arXiv preprint arXiv:2311.03658}, 2023.
+
+\bibitem[{ProtectAI}(2024)]{protectai2024rejection}
+{ProtectAI}.
+\newblock distilroberta-base-rejection-v1.
+\newblock Hugging Face model, 2024.
+\newblock URL
+  \url{https://huggingface.co/protectai/distilroberta-base-rejection-v1}.
+
+\bibitem[Schuster et~al.(2022)Schuster, Fisch, Gupta, Dehghani, Bahri, Tran,
+  Tay, and Metzler]{schuster2022calm}
+Tal Schuster, Adam Fisch, Jai Gupta, Mostafa Dehghani, Dara Bahri, Vinh~Q.
+  Tran, Yi~Tay, and Donald Metzler.
+\newblock Confident adaptive language modeling.
+\newblock \emph{arXiv preprint arXiv:2207.07061}, 2022.
+
+\bibitem[Sheng et~al.(2025)Sheng, Shen, Zhao, Fang, Liu, Liang, Wang, Zhang,
+  and Chua]{sheng2025alphasteer}
+Leheng Sheng, Changshuo Shen, Weixiang Zhao, Junfeng Fang, Xiaohao Liu, Zhenkai
+  Liang, Xiang Wang, An~Zhang, and Tat-Seng Chua.
+\newblock {AlphaSteer}: Learning refusal steering with principled null-space
+  constraint.
+\newblock \emph{arXiv preprint arXiv:2506.07022}, 2025.
+
+\bibitem[Turner et~al.(2023)Turner, Thiergart, Leech, Udell, Vazquez, Mini, and
+  MacDiarmid]{turner2023actadd}
+Alexander~Matt Turner, Lisa Thiergart, Gavin Leech, David Udell, Juan~J.
+  Vazquez, Ulisse Mini, and Monte MacDiarmid.
+\newblock Steering language models with activation engineering.
+\newblock \emph{arXiv preprint arXiv:2308.10248}, 2023.
+
+\bibitem[Zaratiana et~al.(2024)Zaratiana, Tomeh, Holat, and
+  Charnois]{zaratiana2023gliner}
+Urchade Zaratiana, Nadi Tomeh, Pierre Holat, and Thierry Charnois.
+\newblock {GLiNER}: Generalist model for named entity recognition using
+  bidirectional transformer.
+\newblock In \emph{Proceedings of NAACL}, 2024.
+\newblock arXiv:2311.08526.
+
+\bibitem[Zhao et~al.(2025)Zhao, Huang, Wu, Bau, and Shi]{zhao2025harmfulness}
+Jiachen Zhao, Jing Huang, Zhengxuan Wu, David Bau, and Weiyan Shi.
+\newblock {LLMs} encode harmfulness and refusal separately.
+\newblock \emph{arXiv preprint arXiv:2507.11878}, 2025.
+
+\bibitem[Zou et~al.(2023)Zou, Phan, Chen, Campbell, Guo, Ren,
+  et~al.]{zou2023repe}
+Andy Zou, Long Phan, Sarah Chen, James Campbell, Phillip Guo, Richard Ren,
+  et~al.
+\newblock Representation engineering: A top-down approach to {AI} transparency.
+\newblock \emph{arXiv preprint arXiv:2310.01405}, 2023.
+
+\bibitem[Zou et~al.(2024)Zou, Phan, Wang, Duenas, Lin, Andriushchenko, Wang,
+  Kolter, Fredrikson, and Hendrycks]{zou2024circuitbreakers}
+Andy Zou, Long Phan, Justin Wang, Derek Duenas, Maxwell Lin, Maksym
+  Andriushchenko, Rowan Wang, Zico Kolter, Matt Fredrikson, and Dan Hendrycks.
+\newblock Improving alignment and robustness with circuit breakers.
+\newblock \emph{arXiv preprint arXiv:2406.04313}, 2024.
+
+\end{thebibliography}
