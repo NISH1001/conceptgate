@@ -1,4 +1,4 @@
-\begin{thebibliography}{29}
+\begin{thebibliography}{35}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -25,10 +25,30 @@ Luke Bailey, Alex Serrano, Abhay Sheshadri, Mikhail Seleznyov, Jordan Taylor,
 \newblock Obfuscated activations bypass {LLM} latent-space defenses.
 \newblock \emph{arXiv preprint arXiv:2412.09565}, 2024.
 
+\bibitem[Bhattarai and Alhanai(2026)]{bhattarai2026signatures}
+Prajjwal Bhattarai and Tuka Alhanai.
+\newblock Signatures of steerability in activation space of language models.
+\newblock \emph{arXiv preprint arXiv:2609.14151}, 2026.
+
 \bibitem[Billa(2026)]{billa2026where}
 Jayadev Billa.
 \newblock Predicting where steering vectors succeed.
 \newblock \emph{arXiv preprint arXiv:2604.15557}, 2026.
+
+\bibitem[Braun et~al.(2025)Braun, Eickhoff, Krueger, Bahrainian, and
+  Krasheninnikov]{braun2025unreliability}
+Joschka Braun, Carsten Eickhoff, David Krueger, Seyed~Ali Bahrainian, and
+  Dmitrii Krasheninnikov.
+\newblock Understanding (un)reliability of steering vectors in language models.
+\newblock In \emph{ICLR 2025 Workshop on Foundation Models in the Wild}, 2025.
+\newblock arXiv:2505.22637.
+
+\bibitem[Cunningham et~al.(2026)Cunningham, Wei, Wang, Persic, Peng,
+  et~al.]{cunningham2026ccpp}
+Hoagy Cunningham, Jerry Wei, Zihan Wang, Andrew Persic, Alwin Peng, et~al.
+\newblock Constitutional classifiers++: Efficient production-grade defenses
+  against universal jailbreaks.
+\newblock \emph{arXiv preprint arXiv:2601.04603}, 2026.
 
 \bibitem[Fan et~al.(2026)Fan, Cheng, Li, Feizi, and Zhou]{fan2026asteer}
 Chenrui Fan, Yize Cheng, Ming Li, Soheil Feizi, and Tianyi Zhou.
@@ -116,6 +136,15 @@ Kimin Lee, Kibok Lee, Honglak Lee, and Jinwoo Shin.
 \newblock In \emph{Advances in Neural Information Processing Systems}, 2018.
 \newblock arXiv:1807.03888.
 
+\bibitem[Li et~al.(2023)Li, Patel, Vi{\'e}gas, Pfister, and
+  Wattenberg]{li2023iti}
+Kenneth Li, Oam Patel, Fernanda Vi{\'e}gas, Hanspeter Pfister, and Martin
+  Wattenberg.
+\newblock Inference-time intervention: Eliciting truthful answers from a
+  language model.
+\newblock In \emph{Advances in Neural Information Processing Systems}, 2023.
+\newblock arXiv:2306.03341.
+
 \bibitem[Li and Liu(2025)]{li2025logitgap}
 Tung-Ling Li and Hongliang Liu.
 \newblock Logit-gap steering: A forward-pass diagnostic for alignment
@@ -171,12 +200,27 @@ Leheng Sheng, Changshuo Shen, Weixiang Zhao, Junfeng Fang, Xiaohao Liu, Zhenkai
   constraint.
 \newblock \emph{arXiv preprint arXiv:2506.07022}, 2025.
 
+\bibitem[Tan et~al.(2024)Tan, Chanin, Lynch, Kanoulas, Paige, Garriga-Alonso,
+  and Kirk]{tan2024reliability}
+Daniel Tan, David Chanin, Aengus Lynch, Dimitrios Kanoulas, Brooks Paige,
+  Adri{\`a} Garriga-Alonso, and Robert Kirk.
+\newblock Analyzing the generalization and reliability of steering vectors.
+\newblock \emph{arXiv preprint arXiv:2407.12404}, 2024.
+
 \bibitem[Turner et~al.(2023)Turner, Thiergart, Leech, Udell, Vazquez, Mini, and
   MacDiarmid]{turner2023actadd}
 Alexander~Matt Turner, Lisa Thiergart, Gavin Leech, David Udell, Juan~J.
   Vazquez, Ulisse Mini, and Monte MacDiarmid.
 \newblock Steering language models with activation engineering.
 \newblock \emph{arXiv preprint arXiv:2308.10248}, 2023.
+
+\bibitem[Wu et~al.(2025)Wu, Arora, Geiger, Wang, Huang, Jurafsky, Manning, and
+  Potts]{wu2025axbench}
+Zhengxuan Wu, Aryaman Arora, Atticus Geiger, Zheng Wang, Jing Huang, Dan
+  Jurafsky, Christopher~D. Manning, and Christopher Potts.
+\newblock {AxBench}: Steering {LLMs}? {Even} simple baselines outperform sparse
+  autoencoders.
+\newblock \emph{arXiv preprint arXiv:2501.17148}, 2025.
 
 \bibitem[Zaratiana et~al.(2024)Zaratiana, Tomeh, Holat, and
   Charnois]{zaratiana2023gliner}

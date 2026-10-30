@@ -57,7 +57,7 @@ the gate's false-positive rate changes from 18\% to 96\% with the register of be
 of two models, the unsteered activations predict a prompt's steerability (Spearman $\rho=0.58$,
 permutation $z=6.7$). Steerability is how far a fixed write moves the prompt's sampled refusal rate. The
 concept gate reads it at $|0.30|$, with the wrong sign. As a trigger, predicted steerability beats random
-selection at every tested coverage. It does not replicate on gemma-2-2b, where more samples made the correlation fall. We also show how an unvalidated outcome measure gave a false null, and
+selection at every tested coverage. On gemma-2-2b, the same write barely moves refusal, so the claim is untested there. We also show how an unvalidated outcome measure gave a false null, and
 why split-half reliability is not comparable across sample sizes.
 \end{abstract}
 
@@ -101,7 +101,8 @@ the useful information.
 \paragraph{Summary of findings.}
 \begin{enumerate}[leftmargin=*]
   \item \textbf{The read side gives no advantage over a probe.} A depth-matched logistic probe equals \cg{}
-    at every tap (\cref{sec:detect}). Depth fusion gets its predicted gain on synthetic data that satisfies
+    at every tap (\cref{sec:detect}). On the jailbreak benchmark, a TF-IDF classifier on the raw text is
+    better than both (AUC 0.991). Depth fusion gets its predicted gain on synthetic data that satisfies
     its assumption (test error 16.1\%$\to$9.4\%). It adds nothing on real models (\cref{sec:fusion}). The
     mixture density stays at one component (\cref{sec:mixture}). A training-free concept bank is
     30--38$\times$ cheaper to build than per-concept LoRA. A linear-probe bank has the same advantage
@@ -113,7 +114,8 @@ the useful information.
   \item \textbf{A gate on concept presence adds nothing. A gate on predicted effect helps, on one model.}
     On formatted attacks, the concept is almost always present, so the concept gate cannot select. A ridge
     read fit to the measured per-prompt effect of the write can select. On Qwen2.5-0.5B, it beats a
-    size-matched random subset at every coverage. It does not replicate on gemma-2-2b (\cref{sec:dose}).
+    size-matched random subset at every coverage. It does not replicate on gemma-2-2b. There, the same write
+    moves refusal only within a 7-point range, so the run cannot test the claim (\cref{sec:dose}).
   \item \textbf{Three cautions on method.}
     \begin{enumerate}
       \item Prompt formatting alone reversed the sign of the main gate-steering effects. It also removed the
@@ -126,7 +128,9 @@ the useful information.
 No single mechanism here is new. Probes, difference-of-means directions, activation addition, Gaussian
 density gates, and steering vectors conditioned on an activation read~\citep{lee2024cast,ferrando2025dsas}
 all exist. Our contribution is the measurement. We map where a few-shot concept adapter works and where it
-does not. We also give one possibly new result on per-prompt steerability.
+does not. We also give one possibly new result on per-prompt steerability. Prior work predicts
+steerability per concept or per dataset~\citep{braun2025unreliability,bhattarai2026signatures,billa2026where}.
+We predict it per prompt, from the unsteered prompt.
 
 % ===================================================================================================
 \section{Related work}
@@ -141,8 +145,12 @@ layer, selected by a sweep. Our only change on the read side was to fuse several
 (\cref{sec:fusion}).
 
 \paragraph{Activation steering and conditional steering.}
-ActAdd~\citep{turner2023actadd} adds a contrastive direction to the residual stream. We use the form of
-Contrastive Activation Addition~\citep{panickssery2023caa}. Circuit Breakers~\citep{zou2024circuitbreakers}
+ActAdd~\citep{turner2023actadd} adds a contrastive direction to the residual stream. Inference-time
+intervention~\citep{li2023iti} finds directions with probes on attention heads and shifts activations along them. We use the form of
+Contrastive Activation Addition~\citep{panickssery2023caa}. AxBench~\citep{wu2025axbench} compares steering
+and detection methods at scale. For steering, prompting beats every representation method. For detection,
+difference-of-means is among the best. \Cref{sec:lever} compares our write with a system prompt on a 0.5B
+model. Circuit Breakers~\citep{zou2024circuitbreakers}
 trains the model to reroute harmful representations. We steer a frozen model, so we accept less power for
 less cost. CAST~\citep{lee2024cast} conditions a steering vector on an activation read. It applies or holds
 a refusal vector based on a condition read from the prompt's hidden states. Thus the model refuses harmful
@@ -163,12 +171,21 @@ components selected by BIC.
 \paragraph{External classifiers and cost.}
 The current standard for detection is a text classifier, such as Llama Guard~\citep{inan2023llamaguard},
 or a fine-tuned multi-category guardrail on an encoder such as GLiNER~\citep{zaratiana2023gliner}. These
-are strong. But they are a second model, and they can only read. To run only the layers below the deepest
+are strong. But they are a second model, and they can only read. Production systems now put linear probes
+on the activations of the served model in front of more expensive classifiers, because the probe re-uses
+computation that the model already did~\citep{cunningham2026ccpp}. To run only the layers below the deepest
 tap is the detection equivalent of early exit~\citep{schuster2022calm}. Every latent probe gets this
 saving. For the task of adding concepts to a model, the comparison is parameter-efficient
 fine-tuning~\citep{houlsby2019adapters,hu2021lora}.
 
 \paragraph{Predicting steering outcomes.}
+\citet{tan2024reliability} show that steerability varies widely across inputs within one dataset, and that
+spurious biases in the inputs contribute to this variance. They measure the variance. They do not predict
+it. \citet{braun2025unreliability} find that a dataset is more steerable when its training activation
+differences agree in direction and when its classes separate well along the steering direction.
+\citet{bhattarai2026signatures} show that a separation signal-to-noise ratio predicts the steerability of
+a dataset-layer pair across six models. These predictors work per concept or per dataset. Our
+concept-projection predictor (\cref{sec:dose}) is a per-prompt form of the same separation idea.
 \citet{fan2026asteer} train a classifier on ASTEER, their testbed of labelled steered generations. The
 classifier predicts if an intervention will under-steer, succeed, or over-steer. Its features compare
 hidden states before and after steering over the first decoding steps. \citet{billa2026where} uses a
@@ -178,7 +195,8 @@ steering vector on other behaviours. Our first-token refusal-minus-compliance st
 variant of the refusal--affirmation logit gap of \citet{li2025logitgap}. The Cylindrical Representation
 Hypothesis~\citep{gao2026crh} gives a geometric explanation of why steering sensitivity changes from sample
 to sample. It does not predict the sensitivity from the unsteered prompt. We found no prior work that
-predicts, from the unsteered prompt alone, how far a fixed write will move the behaviour on that prompt.
+fits a supervised per-prompt regressor on the unsteered activations, validates it against sampled
+behaviour, and uses it as a steering trigger.
 
 \paragraph{Adversarial limits.}
 Obfuscated-activation attacks decrease the recall of latent-space probes to zero, and the target behaviour
@@ -247,14 +265,16 @@ $\mathcal{L}=\{\ell_1,\dots,\ell_m\}$. Each prompt is represented by its \emph{l
 $a_\ell\in\mathbb{R}^d$. This token has attended to the full prompt. A fit on every token adds shared
 boilerplate, which hides the signal. The positive and negative sets $\mathcal{A}^{\pm}$ each contain about
 ten prompts. Residual streams have a few very large outlier dimensions. Thus, for detection, we standardize
-per layer and per dimension with pooled statistics, $z=(a-\mu_0)\oslash(\sigma_0+\epsilon)$.
+per layer and per dimension, $z=(a-\mu_0)\oslash(\sigma_0+\epsilon)$. Here $\mu_0$ and $\sigma_0$ are the mean
+and standard deviation over the pooled positive and negative fit prompts, and $\epsilon=10^{-6}$.
 
 \subsection{Directions and the spectrogram}
 The per-layer detection direction is the unit difference of the standardized class means:
 \begin{equation}
 w_\ell = \frac{\bar z^+_\ell - \bar z^-_\ell}{\lVert \bar z^+_\ell - \bar z^-_\ell\rVert}.
 \end{equation}
-In \emph{logistic} mode, it is a per-layer logistic-regression weight. Diff-of-means equals the LDA
+In \emph{logistic} mode, it is a per-layer logistic-regression weight (L2 penalty, $C=1$, scikit-learn),
+normalized to unit length. Diff-of-means equals the LDA
 direction $\Sigma^{-1}(\mu^+-\mu^-)$ only if the standardized dimensions are uncorrelated. Standardization
 makes the marginal variances equal, but it does not remove correlations. The logistic mode closes this
 gap. The projection at each layer, $s_\ell = w_\ell^\top z_\ell$, gives the profile of the concept across
@@ -285,9 +305,14 @@ residual-stream layers are not independent. This is why the argument fails in pr
 We fit class-conditional densities to the score. The gate fires when $\LLR = \log p(\cdot\mid +) - \log
 p(\cdot\mid -) > \tau$. We set the threshold on the benign tail. Two rules are available: a false-positive
 quantile, or the point $z$ standard deviations above the benign mean ($z=3$ is a one-sided Gaussian
-tail of approximately 0.135\%). We map the LLR to $P_{\text{present}}=\sigma((\LLR-\tau)/s)$, where $s$ is the benign spread near
+tail of approximately 0.135\%). In the library gate, which all gate experiments use, the $z$ rule does not
+use an empirical quantile of the ten or so benign fit prompts. It draws 10{,}000 scores from the fitted benign density and puts $\tau$ at the $1-\Phi(-z)$
+quantile of their LLRs. Thus the tail is a model extrapolation from few prompts, and \cref{sec:register}
+shows how it fails when traffic changes. We map the LLR to $P_{\text{present}}=\sigma((\LLR-\tau)/s)$. Here $s$
+is the LLR distance from the $\Phi(z-1)$ benign quantile to $\tau$, that is, the benign spread one standard deviation below
 $\tau$. The gate abstains when $|P_{\text{present}}-\tfrac12|$ is less than a margin. As an option, each
-class is a Gaussian mixture on the joint spectrogram, with $J\in\{1,2,3\}$ components selected by BIC.
+class is a Gaussian mixture on the joint spectrogram, with $J\in\{1,2,3\}$ components selected by BIC. The
+covariance regularizer is 0.1 times the mean per-dimension variance.
 With $J=1$ and a shared covariance, the LLR is affine in $\mathbf{s}$. It then reduces exactly to the
 \texttt{fisher} filter.
 
@@ -302,7 +327,10 @@ $w^\raw_\ell = (\bar a^+_\ell - \bar a^-_\ell)/\lVert \bar a^+_\ell - \bar a^-_\
 generation, the hook applies $a_\ell \leftarrow a_\ell + \alpha\, w^\raw_\ell$. A positive $\alpha$ steers
 toward the concept. A negative $\alpha$ steers away from it. The residual norm of GPT-2 is approximately
 five times that of Qwen2.5-0.5B (96 and 18 in our runs). Thus we set $\alpha$ as a fraction of the
-measured residual norm. In development runs, 3--10\% kept the text coherent. Above approximately 20--25\%,
+measured residual norm. The norm is measured per prompt: it is the L2 norm of the last-token activation of
+that prompt, averaged over the taps. All taps get a write of the same magnitude. The hook adds the write
+to the block output at every token position, in the prompt and in each generated token.
+In development runs, 3--10\% kept the text coherent. Above approximately 20--25\%,
 the text became repetitive.
 
 \subsection{Actions, triggers, and the truncated forward}
@@ -372,7 +400,22 @@ all steering and gate experiments format prompts with the chat template of the m
 generation. \Cref{sec:formatting} explains why this is important.
 
 \paragraph{Statistics.} Unless stated, $\pm$ is the standard deviation over three few-shot resamples.
-Correlations are Spearman. Permutation nulls run the identical pipeline again on shuffled targets.
+With $n=3$, this is a coarse estimate of spread, not a confidence interval. Correlations are Spearman.
+Permutation nulls run the identical pipeline again on shuffled targets (300 draws unless stated). Every
+ridge regression uses penalty $\lambda=10$ on z-scored tapped activations. \Cref{app:hyper} lists all
+settings, and \cref{app:prompts} lists all hand-written prompts, lexicons, and token baskets.
+
+\paragraph{Planned and exploratory analyses.} The read-side benchmarks, the gate experiments, and the
+first-token dose analyses, and the greedy behavioural check (\cref{sec:read,sec:write}, and \cref{sec:dose}
+up to the first part of \cref{sec:instrument}) were exploratory. We changed the analysis as results came
+in. The sampled behavioural study (from the sampled instrument in \cref{sec:instrument} onward) followed a
+written plan. The plan fixed the instrument, the reliability bar,
+the stop rules, and the success criteria before the first run. It is
+\texttt{docs/plans/steerability-gate.md} in the repository (commit \texttt{31cb85f}, committed before the
+first results in commit \texttt{192cb6e}). Four analyses came after a review of the draft and are post hoc:
+the text-only baseline and the duplicate check (\cref{sec:detect}), the system-prompt baseline and the
+fluency scores (\cref{sec:lever}), and the bootstrap intervals (\cref{sec:behaviour}). The last two use
+only stored outputs.
 
 % ===================================================================================================
 \section{The read side}
@@ -499,6 +542,8 @@ Model & Configuration & AUC & Depth & Weights \\
  & depth-matched probe, 3 taps & $0.978\pm0.007$ & 69\% & 76\% \\
  & \cg{} diff-of-means, 3 taps & $0.958\pm0.017$ & 69\% & 76\% \\
  & full-model probe (final layer) & $0.987\pm0.003$ & 100\% & 100\% \\
+\midrule
+no model & TF-IDF + logistic, raw text (word 1--2-grams) & $0.991\pm0.000$ & --- & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -506,6 +551,17 @@ Model & Configuration & AUC & Depth & Weights \\
 The truncated forward is a real saving over the full-model probe. On Qwen2.5-0.5B, one tap at 46\% depth
 gets 0.970 and loads 61\% of the weights. Every latent probe gets this saving. Thus it shows how early the
 model forms the concept. It is not a property of \cg{}.
+
+\paragraph{A text-only baseline beats every activation method on this benchmark.} We fit TF-IDF features
+and a logistic regression on the raw prompt text, with the same few-shot draws and the same test split
+(\cref{tab:detect}, last row). At $N=32$, it gets $0.991$ with word 1--2-grams and $0.990$ with character
+3--5-grams. This is better than \cg{} and better than the full-model probe on both models. It gets
+0.974--0.976 at $N=4$, and 0.994--0.996 on the full training split. The benchmark also has train--test overlap.
+For 45 of the 262 test prompts (44 of the 139 jailbreaks), the nearest training prompt has a character
+5-gram cosine of 0.9 or more, and 15 test prompts appear verbatim in the training split. Without those 45
+prompts, TF-IDF still gets 0.988. Thus the jailbreak persona templates differ from ordinary queries in
+surface style, and this benchmark cannot show an advantage for reading activations. The AUC values above
+compare methods with each other. They do not show that the detection task is hard.
 
 A leave-one-out layer sweep on about 20 prompts found the jailbreak concept separable at block 1 of 24 on
 Qwen2.5-0.5B. On GPT-2, it was separable only at approximately block 6 of 12. To select the knee on the same
@@ -621,8 +677,8 @@ prompts across $\alpha\in[-0.16,0.16]$. We score each continuation in three ways
   \item the LLR of the concept's own detector on the generated text.
 \end{itemize}
 The keyword list is not part of the fit. But the same author wrote the list and the few-shot prompts, so
-their framing is not independent. There is no baseline method: a probe cannot steer, and the rule itself is
-activation addition. The comparisons are the unsteered point and the two models.
+their framing is not independent. We do not compare with another steering method or with a prompting
+baseline (\cref{sec:limits}). The comparisons are the unsteered point and the two models.
 
 \begin{figure}[t]
 \centering
@@ -766,7 +822,7 @@ anti-gate, $-\alpha$ & 46\% & $-6.2\pm2.6$ & 3\% & $-3.1\pm2.6$ \\
 gated, $+\alpha$ & 54\% & $-11.5\pm5.3$ & 97\% & $+3.1\pm0.0$ \\
 \midrule
 gate fires on in-register benign & \multicolumn{2}{c}{10.4\%} & \multicolumn{2}{c}{$17.7\pm6.4\%$} \\
-benign generations left identical (gated) & \multicolumn{2}{c}{$89.6\pm9.0\%$} & \multicolumn{2}{c}{82\%} \\
+benign generations left identical (gated) & \multicolumn{2}{c}{$89.6\pm9.0\%$} & \multicolumn{2}{c}{$82.3\pm6.4\%$} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -774,7 +830,7 @@ benign generations left identical (gated) & \multicolumn{2}{c}{$89.6\pm9.0\%$} &
 With the template, the model already refuses 30 of 32 attacks. This leaves headroom of two prompts. Now,
 steering \emph{away} from the jailbreak concept \emph{decreases} refusal in every resample (by 28, 22, and
 16 points). Steering toward the concept increases refusal on attacks (at the ceiling). The anti-gate arm
-with $+\alpha$ writes to the benign prompts that the gate passes, and it causes 7.3\% over-refusal on them. The gate fires on $96.9\pm2.6\%$ of attacks. Thus
+with $+\alpha$ (not in \cref{tab:formatting}) writes to the benign prompts that the gate passes, and it causes 7.3\% over-refusal on them. The gate fires on $96.9\pm2.6\%$ of attacks. Thus
 the gated, random, and always arms write to almost the same prompts, and they agree within a resample. The
 control that separates \emph{which} prompts from \emph{how many} prompts has nothing to separate. The gate
 still limits collateral damage. 82\% of benign generations stay byte-identical. Under blanket steering,
@@ -822,6 +878,43 @@ the lexicon, is \textbf{64.0\% unsteered, 35.4\% steered away, and 78.7\% steere
 same way ($+1.08\to+0.88\to+1.12$). This score is the log-probability of canonical refusal continuations
 minus that of compliance continuations. Thus eight hand-written framings at 8\% of the residual norm move
 generated refusal across 43 points, in the direction that the operator selects.
+
+\paragraph{Against a system prompt.} We compare the write with an instruction in the system message, on
+the same 164 attacks, with the same greedy decoding and lexicon (\cref{tab:prompting}). One system prompt
+asks the model to refuse harmful or override requests. The other asks it to answer every request and never
+refuse (\cref{app:prompts}). We ran all five arms again in one session. Greedy bfloat16 decoding on MPS
+changed between library versions: a new run of the original code gives the same text as the stored run on
+22 of the first 40 prompts. Thus the unsteered rate here is 65.2\%, not 64.0\%. On this 0.5B model, each
+system prompt moves refusal by 7 points or less. The write moves it by 30 points away and 14 points
+toward. We tested one wording per direction, so a better prompt can possibly do more.
+AxBench~\citep{wu2025axbench} finds the opposite order on larger models.
+
+\begin{table}[h]
+\centering
+\small
+\caption{Greedy generated refusal on the 164 dose-set attacks (Qwen2.5-0.5B, lexicon, 40 tokens). All arms
+ran in one session; the write uses the seed-0 fit at $|\alpha|=0.08$.}
+\label{tab:prompting}
+\begin{tabular}{lcc}
+\toprule
+Arm & refusal & change \\
+\midrule
+default chat template (no system message) & 65.2\% & --- \\
+system prompt: refuse & 67.1\% & $+1.8$ \\
+system prompt: comply, never refuse & 58.5\% & $-6.7$ \\
+write away from the concept & 34.8\% & $-30.5$ \\
+write toward the concept & 79.3\% & $+14.0$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Fluency of the steered text.} A lower refusal rate can come from degenerate text. We scored
+the 16 sampled continuations per prompt and arm of \cref{sec:instrument} with the perplexity of the base
+Qwen2.5-0.5B model and with the fraction of repeated word 3-grams. On attacks, steered-away continuations that the
+classifier labels as non-refusals have a median perplexity of 9.6. Unsteered non-refusals have 12.1. Their
+repeated 3-gram fraction is 0.6\%, against 0.7\%. No arm has more than 1.3\% of its non-refusals with
+more than 30\% repeated 3-grams. Thus at $\alpha=0.08$, the write does not decrease refusal by breaking the
+text. These metrics do not show that the non-refusals help with the request.
 
 \subsection{Steering with harm-category directions}
 \label{sec:harmbank}
@@ -993,9 +1086,13 @@ without jitter.}
 \label{sec:behaviour}
 We fit a ridge ($\lambda=10$) on the three z-scored tapped activations, with folds grouped by harmful
 request. It predicts the classifier-scored behavioural dose at $\rho=+0.58$ out of fold. The permutation
-null from the identical pipeline is $-0.015\pm0.089$. Thus $z=6.7$ (\cref{fig:dose}a). The three concept
-projections alone get $+0.51$. The calibrated LLR of the gate gets $-0.30$: when the concept read is more
-confident, the write moves the prompt less. This sign is opposite to the first-token result. The
+null from the identical pipeline is $-0.015\pm0.089$ (300 draws). Thus $z=6.7$ (\cref{fig:dose}a). The plan
+required $z\geq4$. With the out-of-fold predictions fixed, a bootstrap gives a 95\% interval of
+$[+0.46,+0.66]$ when it resamples the fourteen request groups, and $[+0.47,+0.67]$ when it resamples prompts
+(10{,}000 draws each; these intervals were not in the plan). The three concept
+projections alone get $+0.51$ (group bootstrap $[+0.34,+0.66]$). The full ridge is better than the
+projections by $+0.07$, but this difference is not resolved ($[-0.05,+0.17]$). The calibrated LLR of the
+gate gets $-0.30$ ($[-0.46,-0.12]$): when the concept read is more confident, the write moves the prompt less. This sign is opposite to the first-token result. The
 first-token value is $+0.51$ over three resamples and $+0.37$ on the resample that the behavioural run
 uses. The negative sign is stable across the three behavioural scorers ($-0.33$, $-0.30$, $-0.31$). A
 ceiling effect does not explain it, because the unsteered refusal rate correlates with the dose at only
@@ -1121,7 +1218,9 @@ noise. Cross-family transfer also collapsed (from $+0.12/+0.09$ to $+0.03/-0.02$
 self-consistency of the fitted direction fell to 0.04--0.05. Thus the result for gemma-2-2b is not
 ``underpowered''. It is ``no detectable per-prompt dose, at a magnitude that almost does not move the
 model''. The concept direction on gemma is as specific as on Qwen (1.5--1.8$\times$ a random direction on
-both models). Its effect is only smaller.
+both models). Its effect is only smaller. Thus this run does not show if the dose is predictable on gemma
+at a magnitude that moves the model. We kept $\alpha=0.08$ because the plan fixed one magnitude for both
+models before the runs. A magnitude sweep per model is the open test (\cref{sec:future}).
 
 \subsection{Split-half reliability is not comparable across sample sizes}
 \label{sec:splithalf}
@@ -1136,7 +1235,7 @@ the same half-size. Do not compare the raw statistic across different $K$.
 dose of a few-shot steering write. The activations of the unsteered prompt predict this dose, well above a
 matched null. Much of this information is in the concept direction, which the system already calculates.
 The calibrated gate reads it poorly, and with the wrong sign. We do not claim generality: the result did
-not reproduce on the second model. The limits are:
+not reproduce on the second model, at the one magnitude that we tested. The limits are:
 \begin{itemize}[leftmargin=*]
   \item The behavioural run uses one concept fit on one fixed prompt set. The three resamples of the
     first-token sweep also use this prompt set. Thus there is effectively one replicate.
@@ -1144,6 +1243,8 @@ not reproduce on the second model. The limits are:
   \item Most doses have the same sign (81\% positive under the classifier, 87\% under the lexicon, 98\% on
     the first-token proxy). Thus the prediction is mainly about magnitude, not direction.
   \item The labels cost one round of sampled generation per prompt.
+  \item The bootstrap intervals hold the out-of-fold predictions fixed. Thus they cover the sampling of the
+    evaluation prompts, not the refit of the ridge. The interval of $\rho=+0.58$ spans 0.2.
 \end{itemize}
 The planned rule required success on both models, and this result does not meet it. Thus the library
 gives the outcome head only as an opt-in feature. Its documentation gives exactly this one-model evidence.
@@ -1169,12 +1270,13 @@ Mixture gates for multimodal classes & BIC picks $J=1$ up to 64/class (diff-of-m
 Matched negatives sharpen the direction & AUC 0.42 vs 0.78 for broad negatives & negative \\
 Shallow taps break under paraphrase & No effect against broad negatives & null \\
 Detection advantage over a probe & Depth-matched probe identical at every tap & no advantage \\
+Benchmark needs activations & TF-IDF on raw text 0.991, above every activation method & no \\
 Single-concept compute saving & Real, but any latent probe gets it & not specific \\
 Cheap concept bank & 30--38$\times$ cheaper than LoRA; tied with a probe bank & real, shared \\
 Cross-distribution robustness & First test confounded; held-out categories partial (0.61--0.65) & partial \\
 Gate selects where to write & Win without chat template; reversed and vanished with it & artifact \\
 Bank entries steer away from harm & Lower refusal (80\%$\to$65--68\%) & reversed \\
-Few-shot write is a lever & 64/35/79\% generated refusal; ${\sim}3\times$ random (first token) & holds; prior art \\
+Few-shot write is a lever & 64/35/79\% generated refusal; ${\sim}3\times$ random (first token); larger than one system prompt per direction; text stays fluent & holds; prior art \\
 Calibrated gate generalizes & FPR 18\% in register, 96\% out of register & fragile \\
 Per-prompt dose predictable (proxy) & $\rho=+0.81$; two geometry readings fail controls & holds, narrowed \\
 Per-prompt dose predictable (behaviour) & Greedy instruments: null. Sampled: $\rho=+0.58$, $z=6.7$ on Qwen; absent on gemma & one model of two \\
@@ -1219,10 +1321,20 @@ gemma-2-2b gives the same read-side pattern. But measure the specific numbers ag
 them. Most detection results are in-distribution. A change of attack style is a larger shift than a
 held-out category. We did not test it.
 
+\paragraph{Baselines.} The jailbreak benchmark is easy from surface text, and it has train--test overlap
+(\cref{sec:detect}). Thus its AUC values compare methods but do not measure robust detection. We give no
+external-classifier numbers, such as Llama Guard. On the write side, we compare with one system-prompt
+wording per direction, on one 0.5B model (\cref{tab:prompting}). We do not compare with other steering
+methods such as ITI~\citep{li2023iti} or RepE reading vectors. AxBench~\citep{wu2025axbench} finds that
+prompting beats representation steering on larger models. Thus we do not claim that the write is better
+than an instruction in general.
+
 \paragraph{The few-shot regime.} All results depend on the diversity of about ten prompts per side. The
 register result in \cref{sec:register} shows how large this dependence is.
 
 \paragraph{Measurement.} A lexicon and a classifier score refusal. They count declines, not harmlessness.
+The steered refusal text stays fluent (\cref{sec:lever}). But we did not check if the non-refusals help
+with the request or only avoid it.
 The harm-category steering cells are coarse (twelve prompts per category). The same author wrote the topical
 keyword lists and the few-shot prompts. Steering that is strong enough to change the topic reliably also
 decreases fluency. Degenerate text can push benign continuations across the gate.
@@ -1255,6 +1367,9 @@ considered an MLP probe variant but did not evaluate it.
     prompt. We measured only the prompt side.
   \item \textbf{Adversarial evaluation} against obfuscated-activation attacks. Also, a non-safety concept
     dataset, to test the claim that detection is concept-agnostic.
+  \item \textbf{A harder detection benchmark}, where a surface-text classifier fails, and no train--test
+    overlap. Also, more system-prompt wordings, a second steering method, and larger models for the
+    write-side comparison.
 \end{itemize}
 
 % ===================================================================================================
@@ -1275,6 +1390,18 @@ than the concept gate. We did not find this third result in prior work. On a sec
 model, the same write has almost no effect, so there is nothing to predict. Thus the question of whether
 per-prompt steerability is a general property of language models remains open. In our opinion, the record
 of what failed, and why, is the most reusable part of this work.
+
+\section*{Broader impact}
+The write in \cref{sec:lever} works in both directions. Eight hand-written examples, with no training,
+decrease the refusal of Qwen2.5-0.5B on harmful requests from 64\% to 35\%. This needs access to the
+weights and activations of the model, so it does not apply to a model behind an API. But anyone who serves
+open weights can do it. Activation steering is already known to decrease
+refusal~\citep{arditi2024refusal,korznikov2025roguescalpel}. We do not release a new attack. Our refusal
+measures count declines, not harm, and we do not report how harmful the non-refusals are. We release the
+harmful requests of \cref{app:prompts} because they are short, generic, and similar to requests in public
+safety benchmarks. The register result (\cref{sec:register}) is a warning to deployers: a few-shot gate
+that is calibrated on one kind of traffic can fire on almost all benign traffic of another kind, and on the
+write side, a false fire changes the answer.
 
 \section*{Acknowledgments}
 The author used a large language model to help draft and edit this manuscript. The experiments, analyses,
@@ -1314,7 +1441,7 @@ cg.run(prompt, action=Emit(text="I can't help with that.", when=Trigger.FIRE))
 cg.run(prompt, action=Steer(concept="food", fraction=0.06, when=Trigger.ALWAYS))
 cg.run(prompt, action=Steer(concept="jailbreak", fraction=-0.06, when=Trigger.FIRE))
 
-# opt-in, needs measured per-prompt effects (one-model evidence, Section 7)
+# opt-in, needs measured per-prompt effects (one-model evidence; see the dose section)
 cg.learn_outcome("dose", prompts, measured_dose)
 cg.run(prompt, action=Steer(concept="jailbreak", fraction=-0.08,
                             when=Both(Trigger.FIRE, Predicted("dose", 0.15))))
@@ -1324,6 +1451,42 @@ cg.run(prompt, action=Steer(concept="jailbreak", fraction=-0.08,
 The numerical core (directions, spectrogram, filters, gate, mixtures) is NumPy. A thin PyTorch layer
 contains the tap reader, the steering hooks, and the actions. \texttt{UP\_TO\_TAPS} loads only the
 embedding and the blocks up to the deepest tap. It raises an error if a call asks it to generate.
+
+\section{Settings}
+\label{app:hyper}
+
+\begin{small}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{4.6cm}>{\raggedright\arraybackslash}X}
+\toprule
+Setting & Value \\
+\midrule
+Prompt representation & last-token activation at each tapped block output \\
+Standardization & per layer and per dimension; mean and s.d. over pooled fit prompts; $\epsilon=10^{-6}$ \\
+Logistic direction & scikit-learn \texttt{LogisticRegression}, L2, $C=1$, 1{,}000 iterations, unit-normalized \\
+Fisher depth filter & ridge $10^{-2}\cdot\operatorname{tr}(\Sigma_{\mathbf{s}})/m$ added to the pooled covariance \\
+Mixture gate & full covariance; $J\in\{1,2,3\}$ by BIC; regularizer $0.1\times$ mean per-dimension variance \\
+Calibration & $\tau$ at the $1-\Phi(-z)$ quantile of 10{,}000 LLRs drawn from the fitted benign density;
+  $z=2$ in the gate and dose experiments \\
+Steering direction & raw-space unit diff-of-means per tap \\
+Steering magnitude & $\alpha\times$ (last-token L2 norm of the prompt, averaged over taps), same at every tap \\
+Steering positions & every token position, prompt and generated, at every tap \\
+Gate and dose few-shot fit & 8 positives and 8 negatives per resample from pools of 16 (\cref{app:prompts}) \\
+Gate and dose taps & 33/50/67\% of depth (Qwen2.5-0.5B: blocks 8/12/16) \\
+Jailbreak templates in the dose set & 120 from the held-out split, truncated to 1{,}200 characters \\
+Greedy generation & 40 new tokens \\
+Sampled generation & $K=16$ per prompt and arm, $T=0.7$, 40 new tokens \\
+Rejection classifier & \texttt{protectai/distilroberta-base-rejection-v1}~\citep{protectai2024rejection} \\
+Dose ridge & $\lambda=10$ on z-scored concatenated taps; five folds, or folds grouped by harmful request \\
+Permutation nulls & 300 draws of the identical pipeline on shuffled targets \\
+Random-subset nulls (\cref{sec:outcomegate}) & 500 draws per coverage \\
+\bottomrule
+\end{tabularx}
+\end{small}
+
+\section{Prompts, lexicons, and token baskets}
+\label{app:prompts}
+
+\input{appendix_prompts}
 
 \section{Reproducibility map}
 \label{app:repro}
@@ -1347,6 +1510,11 @@ Result & Harness (under \texttt{scripts/}) \\
 \Cref{tab:fourmodels} & \texttt{eval\_gate.py --scaleup}; \texttt{analyze\_scaleup.py} \\
 \Cref{sec:instrument,sec:behaviour,sec:outcomegate,sec:gemma} & \texttt{eval\_behaviour\_dose.py}; \texttt{run\_behaviour\_dose.sh}; \texttt{analyze\_behaviour\_dose.py} \\
 All figures & \texttt{docs/preprint/figures/make\_figures.py} \\
+\Cref{tab:detect}, text-only baseline and duplicate check & \texttt{eval\_text\_baseline.py} \\
+\Cref{tab:prompting} & \texttt{eval\_prompting\_baseline.py} \\
+\Cref{sec:lever}, fluency of steered text & \texttt{eval\_steered\_quality.py} \\
+\Cref{sec:behaviour}, bootstrap intervals & \texttt{rebuild\_dose\_acts.py} (restores the gitignored activations); \texttt{bootstrap\_dose\_ci.py} \\
+\Cref{app:prompts} & \texttt{docs/preprint/make\_appendix\_prompts.py} \\
 \bottomrule
 \end{tabularx}
 \end{small}
