@@ -1,0 +1,240 @@
+{
+ "ppl_model": "Qwen/Qwen2.5-0.5B",
+ "results": "behaviour_dose_results__Qwen__Qwen2.5-0.5B-Instruct.json",
+ "by_arm": {
+  "attacks": {
+   "none": {
+    "all": {
+     "n": 2624,
+     "ppl_median": 6.958790302276611,
+     "rep3_mean": 0.003847343199404565,
+     "distinct2_mean": 0.991388748549109,
+     "frac_rep3_over_0.3": 0.003429878048780488
+    },
+    "non_refusal": {
+     "n": 1168,
+     "ppl_median": 12.05762243270874,
+     "rep3_mean": 0.007450158885511433,
+     "distinct2_mean": 0.9853363327404258,
+     "frac_rep3_over_0.3": 0.007705479452054794
+    },
+    "refusal": {
+     "n": 1456,
+     "ppl_median": 3.1367461681365967,
+     "rep3_mean": 0.0009571723742858685,
+     "distinct2_mean": 0.9962439832088215,
+     "frac_rep3_over_0.3": 0.0
+    }
+   },
+   "minus": {
+    "all": {
+     "n": 2624,
+     "ppl_median": 7.967294454574585,
+     "rep3_mean": 0.004993436093220617,
+     "distinct2_mean": 0.9856921309620829,
+     "frac_rep3_over_0.3": 0.0026676829268292685
+    },
+    "non_refusal": {
+     "n": 1709,
+     "ppl_median": 9.591414451599121,
+     "rep3_mean": 0.006304230105907507,
+     "distinct2_mean": 0.982343118858253,
+     "frac_rep3_over_0.3": 0.004095962551199532
+    },
+    "refusal": {
+     "n": 915,
+     "ppl_median": 4.711535453796387,
+     "rep3_mean": 0.0025451880411092565,
+     "distinct2_mean": 0.9919472803450827,
+     "frac_rep3_over_0.3": 0.0
+    }
+   },
+   "plus": {
+    "all": {
+     "n": 2624,
+     "ppl_median": 6.337257385253906,
+     "rep3_mean": 0.003219443738428283,
+     "distinct2_mean": 0.9924293339193437,
+     "frac_rep3_over_0.3": 0.003048780487804878
+    },
+    "non_refusal": {
+     "n": 913,
+     "ppl_median": 17.02253532409668,
+     "rep3_mean": 0.008654399343762954,
+     "distinct2_mean": 0.9831079360543405,
+     "frac_rep3_over_0.3": 0.008762322015334063
+    },
+    "refusal": {
+     "n": 1711,
+     "ppl_median": 3.1367461681365967,
+     "rep3_mean": 0.00031931839203988273,
+     "distinct2_mean": 0.9974032884785187,
+     "frac_rep3_over_0.3": 0.0
+    }
+   },
+   "rand_minus": {
+    "all": {
+     "n": 2624,
+     "ppl_median": 7.917897462844849,
+     "rep3_mean": 0.00560148201737085,
+     "distinct2_mean": 0.9880110091556276,
+     "frac_rep3_over_0.3": 0.006859756097560976
+    },
+    "non_refusal": {
+     "n": 1406,
+     "ppl_median": 11.42287015914917,
+     "rep3_mean": 0.008890801982520385,
+     "distinct2_mean": 0.982259790665546,
+     "frac_rep3_over_0.3": 0.012802275960170697
+    },
+    "refusal": {
+     "n": 1218,
+     "ppl_median": 3.1367461681365967,
+     "rep3_mean": 0.0018044509245956067,
+     "distinct2_mean": 0.9946499362468059,
+     "frac_rep3_over_0.3": 0.0
+    }
+   },
+   "rand_plus": {
+    "all": {
+     "n": 2624,
+     "ppl_median": 6.7970497608184814,
+     "rep3_mean": 0.0018846028914010615,
+     "distinct2_mean": 0.9928259194014679,
+     "frac_rep3_over_0.3": 0.00038109756097560977
+    },
+    "non_refusal": {
+     "n": 966,
+     "ppl_median": 12.767052173614502,
+     "rep3_mean": 0.003909659030643876,
+     "distinct2_mean": 0.9874352626308267,
+     "frac_rep3_over_0.3": 0.0010351966873706005
+    },
+    "refusal": {
+     "n": 1658,
+     "ppl_median": 3.8891069889068604,
+     "rep3_mean": 0.0007047450925418587,
+     "distinct2_mean": 0.9959666760000443,
+     "frac_rep3_over_0.3": 0.0
+    }
+   }
+  },
+  "benign": {
+   "none": {
+    "all": {
+     "n": 768,
+     "ppl_median": 13.175536155700684,
+     "rep3_mean": 0.005290981638925007,
+     "distinct2_mean": 0.9843591843637665,
+     "frac_rep3_over_0.3": 0.0026041666666666665
+    },
+    "non_refusal": {
+     "n": 640,
+     "ppl_median": 14.358251571655273,
+     "rep3_mean": 0.006244546270281435,
+     "distinct2_mean": 0.982786196517252,
+     "frac_rep3_over_0.3": 0.003125
+    },
+    "refusal": {
+     "n": 128,
+     "ppl_median": 6.467976093292236,
+     "rep3_mean": 0.000523158482142857,
+     "distinct2_mean": 0.9922241235963393,
+     "frac_rep3_over_0.3": 0.0
+    }
+   },
+   "minus": {
+    "all": {
+     "n": 768,
+     "ppl_median": 11.5228590965271,
+     "rep3_mean": 0.005766061858582235,
+     "distinct2_mean": 0.9829063837447262,
+     "frac_rep3_over_0.3": 0.0
+    },
+    "non_refusal": {
+     "n": 657,
+     "ppl_median": 12.345440864562988,
+     "rep3_mean": 0.006308704550381043,
+     "distinct2_mean": 0.981955379450838,
+     "frac_rep3_over_0.3": 0.0
+    },
+    "refusal": {
+     "n": 111,
+     "ppl_median": 6.033552169799805,
+     "rep3_mean": 0.002554203763881183,
+     "distinct2_mean": 0.9885353010517954,
+     "frac_rep3_over_0.3": 0.0
+    }
+   },
+   "plus": {
+    "all": {
+     "n": 768,
+     "ppl_median": 17.159799575805664,
+     "rep3_mean": 0.002669738723465855,
+     "distinct2_mean": 0.9884204294677829,
+     "frac_rep3_over_0.3": 0.0
+    },
+    "non_refusal": {
+     "n": 629,
+     "ppl_median": 18.50275993347168,
+     "rep3_mean": 0.0028267904196045434,
+     "distinct2_mean": 0.988371944391998,
+     "frac_rep3_over_0.3": 0.0
+    },
+    "refusal": {
+     "n": 139,
+     "ppl_median": 7.974836349487305,
+     "rep3_mean": 0.00195905155173035,
+     "distinct2_mean": 0.9886398331560468,
+     "frac_rep3_over_0.3": 0.0
+    }
+   },
+   "rand_minus": {
+    "all": {
+     "n": 768,
+     "ppl_median": 13.002589225769043,
+     "rep3_mean": 0.004088409992382293,
+     "distinct2_mean": 0.9862332414407747,
+     "frac_rep3_over_0.3": 0.0013020833333333333
+    },
+    "non_refusal": {
+     "n": 636,
+     "ppl_median": 14.738633155822754,
+     "rep3_mean": 0.004841655367206825,
+     "distinct2_mean": 0.9849049912064793,
+     "frac_rep3_over_0.3": 0.0015723270440251573
+    },
+    "refusal": {
+     "n": 132,
+     "ppl_median": 4.7762451171875,
+     "rep3_mean": 0.000459136822773186,
+     "distinct2_mean": 0.9926329925696517,
+     "frac_rep3_over_0.3": 0.0
+    }
+   },
+   "rand_plus": {
+    "all": {
+     "n": 768,
+     "ppl_median": 13.458094596862793,
+     "rep3_mean": 0.0040995905177192695,
+     "distinct2_mean": 0.983975003054227,
+     "frac_rep3_over_0.3": 0.0
+    },
+    "non_refusal": {
+     "n": 615,
+     "ppl_median": 15.111629486083984,
+     "rep3_mean": 0.0046820568192872496,
+     "distinct2_mean": 0.9835762014674589,
+     "frac_rep3_over_0.3": 0.0
+    },
+    "refusal": {
+     "n": 153,
+     "ppl_median": 7.108357906341553,
+     "rep3_mean": 0.0017583044035734644,
+     "distinct2_mean": 0.9855780290402558,
+     "frac_rep3_over_0.3": 0.0
+    }
+   }
+  }
+ }
+}
