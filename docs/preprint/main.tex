@@ -375,7 +375,7 @@ generation. \Cref{sec:formatting} explains why this is important.
 Correlations are Spearman. Permutation nulls run the identical pipeline again on shuffled targets.
 
 % ===================================================================================================
-\section{The read side: a sequence of negative results}
+\section{The read side}
 \label{sec:read}
 
 \subsection{Depth fusion works only where its assumption holds}
@@ -426,7 +426,7 @@ best held-out AUC gain & 0.000 & 0.000 & +0.001 & +0.006 & +0.007 \\
 \end{tabular}
 \end{table}
 
-\subsection{Matched negatives hurt, and a predicted robustness effect is absent}
+\subsection{Matched negatives and paraphrase robustness}
 \label{sec:negatives}
 CAA~\citep{panickssery2023caa} suggests that benign negatives in the same surface register as the
 jailbreaks make the direction more precise. We expected this result. On the development set (15 negatives
@@ -512,7 +512,7 @@ Qwen2.5-0.5B. On GPT-2, it was separable only at approximately block 6 of 12. To
 small estimate biases it upward. Thus the 262-prompt numbers above are the reliable values. The comparison also
 has a confound: Qwen2.5 is instruction-tuned on refusal, and GPT-2 is a 2019 base model.
 
-\paragraph{A first generalization test with a confound.} Our first cross-distribution test trained on one
+\paragraph{Cross-dataset transfer.} Our first cross-distribution test trained on one
 dataset and tested on the other (jailbreak framing and BeaverTails harmful content). \cg{} and a probe
 both fell to approximately chance (AUC 0.36--0.52). These are two different concepts. Thus the test
 measured concept transfer, which fails for all methods. It did not measure robustness. \Cref{sec:ood}
@@ -666,7 +666,7 @@ Model & Write & Continuation \\
 \end{tabularx}
 \end{table}
 
-\subsection{Is GPT-2's weak self-read a geometric artifact?}
+\subsection{Alignment of read and write directions}
 \label{sec:cosine}
 The read and write directions are different. We map the detection direction to raw space and compare it
 with the raw steering direction. Their mean $|\cos|$ is between 0.45 and 0.79. The value changes with the
@@ -701,10 +701,10 @@ Qwen, the change is $+48$. Also, GPT-2 is not the least-aligned model in any mod
 read follows its write well. Thus the geometric explanation is wrong. The GPT-2 read stays negative because
 the concept is poorly separated in that model.
 
-\subsection{Gate-conditioned steering, first attempt: a result that reversed}
+\subsection{Gate-conditioned steering and prompt formatting}
 \label{sec:formatting}
 The steering rule is activation addition. Thus the read side can contribute to the write in only one way:
-it can decide \emph{when} to write. Our first measurement of this looked like a clear win.
+it can decide \emph{when} to write. We measured this decision without and with the chat template.
 
 \paragraph{Design.} Qwen2.5-0.5B-Instruct, taps 8/12/16. We fit a jailbreak concept in logistic mode from
 eight hand-written override framings and eight short benign requests, over three resamples. We calibrate
@@ -733,25 +733,23 @@ sign-flipped & the same prompts as one of the arms above, with the opposite sign
 \end{tabularx}
 \end{table}
 
-\paragraph{The first result.} With no chat template, the gate fired on 54\% of attacks and 10\% of
-in-register benign prompts. On the gated prompts, steering away from the concept increased refusal from
-46.9\% by $+8.3\pm1.5$ points. A random subset of the same size gained only $+1.0\pm3.9$. The anti-gate arm
-\emph{lost} $6.2\pm2.6$. The sign-flip arms seemed to explain this. On prompts where the gate fired, the two
-signs moved refusal in opposite directions, so the direction looked like a lever. On prompts where the gate
-passed, both signs decreased refusal, so the write looked like noise. The interpretation was ``selection,
-not dosage'': the gate finds the prompts on which the write has a meaning.
+\paragraph{Without the chat template.} The gate fired on 54\% of attacks and 10\% of in-register benign
+prompts. On the gated prompts, steering away from the concept increased refusal from 46.9\% by
+$+8.3\pm1.5$ points. A random subset of the same size gained $+1.0\pm3.9$. The anti-gate arm \emph{lost}
+$6.2\pm2.6$. On prompts where the gate fired, the two signs of $\alpha$ moved refusal in opposite
+directions. On prompts where the gate passed, both signs decreased refusal. This pattern suggests that the
+gate selects the prompts on which the write has an effect.
 
-\paragraph{The audit.} A read of the code path showed that the code never applied the chat template. Every
-number above came from an instruct model used as a raw text completer. Checks of the results alone did not
-find this error. \Cref{tab:formatting} shows the experiment again, with the
-prompts formatted as the model expects.
+\paragraph{With the chat template.} The code for the results above did not apply the chat template. Thus
+each number above comes from an instruct model used as a raw text completer. \Cref{tab:formatting} gives
+the same experiment with the chat template.
 
 \begin{table}[t]
 \centering
 \small
 \caption{The same gate experiment without and with the chat template (Qwen2.5-0.5B, 32 held-out framed
 attacks, $\alpha=0.08$, three resamples). $\Delta$ is the change in jailbreak refusal against no steering,
-in points. Without the template, the gate seemed to select. With the template, the always, gated, random,
+in points. Without the template, the gate appears to select. With the template, the always, gated, random,
 and sign-flipped effects all change sign, and the gate fires on almost every attack.}
 \label{tab:formatting}
 \begin{tabular}{lcccc}
@@ -782,9 +780,6 @@ control that separates \emph{which} prompts from \emph{how many} prompts has not
 still limits collateral damage. 82\% of benign generations stay byte-identical. Under blanket steering,
 none do. This agrees with the selective-refusal result of CAST~\citep{lee2024cast}, here with eight
 examples.
-
-The lesson applies beyond this experiment. Prompt formatting alone set the sign of the main effects. The
-wrong formatting gave a coherent, seed-stable result, with a mechanism that seemed to explain it.
 
 \subsection{A continuous outcome against a matched-norm random direction}
 \label{sec:lever}
@@ -828,7 +823,7 @@ same way ($+1.08\to+0.88\to+1.12$). This score is the log-probability of canonic
 minus that of compliance continuations. Thus eight hand-written framings at 8\% of the residual norm move
 generated refusal across 43 points, in the direction that the operator selects.
 
-\subsection{The harm-category directions point the other way}
+\subsection{Steering with harm-category directions}
 \label{sec:harmbank}
 We ran the main arms with five BeaverTails category directions. The result is the same. Baseline refusal on
 sixty held-out harmful prompts is 80.0\%. Blanket steering away decreases it to 65.0\%. Gated steering
@@ -856,13 +851,14 @@ not only raise a flag. It changes the answer.
 \label{sec:dose}
 
 A fixed write does not move every prompt by the same amount. We call the size of the change on one prompt
-its \emph{dose}. Can we read the dose from the prompt before generation? This section reports, in order:
+its \emph{dose}. This section tests if the activations of the unsteered prompt predict the dose. It has
+five parts:
 \begin{enumerate}[leftmargin=*]
-  \item a strong answer on a cheap proxy;
-  \item the controls that made this answer smaller;
-  \item a behavioural validation that seemed to refute it;
-  \item an instrument that showed the refutation was a measurement failure;
-  \item a second model on which the effect is absent.
+  \item dose prediction on a first-token proxy;
+  \item controls for the proxy result;
+  \item behavioural validation and the reliability of the instruments;
+  \item dose prediction on sampled behaviour, and its use as a steering trigger;
+  \item replication on gemma-2-2b.
 \end{enumerate}
 
 \paragraph{Design.} The 164 attacks are:
@@ -879,14 +875,14 @@ $\pm\alpha$ along a matched-norm random direction. The dose is the sign-reversib
 $D=\tfrac12(y_{+\alpha}-y_{-\alpha})$. A positive dose means that the write increases refusal. The dose
 has the opposite sign to the lever of \cref{sec:lever}.
 
-\subsection{On a first-token proxy, the dose is strongly predictable}
+\subsection{Dose prediction on a first-token proxy}
 Let $y$ be the first-token refusal log-odds (five forwards per prompt, no generation). A ridge regression on
 the three tapped activations predicts the dose at out-of-fold $\rho=+0.81$. The permutation null is
 $-0.00\pm0.10$ (300 draws). With folds grouped by harmful request, the result is $+0.79$. A fit on the
 templates predicts the short and bare requests at $+0.88$. Eight labelled prompts are sufficient to get
 $+0.64$.
 
-\subsection{Controls that made the result smaller}
+\subsection{Controls for the proxy result}
 \begin{itemize}[leftmargin=*]
   \item \textbf{Much of the signal is in the concept direction.} At each tap, we project the prompt onto
     the steering direction of the concept. These three scalars predict the dose at $+0.64$. The calibrated
@@ -936,7 +932,7 @@ gemma-2-2b & $+0.40$ / $+0.51$ / $+0.61$ & $-0.01$ / $-0.02$ / $-0.04$ & 0.82 / 
 \end{tabular}
 \end{table}
 
-\subsection{A behavioural validation that looked like a null}
+\subsection{Behavioural validation and instrument reliability}
 \label{sec:instrument}
 All results above use a first-token statistic over two hand-picked token baskets. The prediction claim is
 about the per-prompt ranking. We had not checked this ranking against behaviour. Thus we measured the same
@@ -993,7 +989,7 @@ without jitter.}
 \label{fig:instrument}
 \end{figure}
 
-\subsection{On behaviour, the dose is predictable from the unsteered prompt}
+\subsection{Dose prediction on sampled behaviour}
 \label{sec:behaviour}
 We fit a ridge ($\lambda=10$) on the three z-scored tapped activations, with folds grouped by harmful
 request. It predicts the classifier-scored behavioural dose at $\rho=+0.58$ out of fold. The permutation
@@ -1059,7 +1055,7 @@ confound, the correlation would be higher, not lower.
     decimals ($+0.5805$ and $+0.5807$).
 \end{itemize}
 
-\subsection{As a gate, predicted dose selects where writing works}
+\subsection{Predicted dose as a steering trigger}
 \label{sec:outcomegate}
 We rank held-out attacks by out-of-fold predicted dose. We write only to the top fraction. We compare with a
 size-matched random subset, drawn 500 times at each coverage. The outcome is the per-prompt gain under
@@ -1091,7 +1087,7 @@ and to \emph{every} benign prompt in the set. It gains $+0.090$ per write. At 50
 gains $+0.143$ per write and writes to 23\% of benign prompts. The lexicon target gives the same sweep
 ($+0.246\to+0.114$, $P\leq0.020$ at all coverages).
 
-\subsection{It does not replicate on gemma-2-2b}
+\subsection{Replication on gemma-2-2b}
 \label{sec:gemma}
 On gemma-2-2b at the same magnitude, the instrument is reliable (split-half reliability of the unsteered
 rate $+0.92$). But the write has almost no effect. \Cref{tab:gemma} compares the two models. At $K=16$, the
@@ -1196,7 +1192,8 @@ effect of the write, not to concept membership. This conclusion rests on one mod
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Format prompts as the model expects. Check the code path that does it.} In
     \cref{sec:formatting}, the formatting set the sign of the main effects. The wrong formatting gave a
-    seed-stable result with a mechanism that seemed correct.
+    seed-stable result with a plausible mechanism. A read of the code found the error. Checks of the
+    results did not find it.
   \item \textbf{Do not measure an intervention with an outcome at its ceiling.} A 94\% refusal rate cannot
     resolve an increase in refusal. Use a continuous outcome and a test set with headroom.
   \item \textbf{Always include a matched-norm random direction.} Random writes have an effect. They moved
