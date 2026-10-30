@@ -42,8 +42,8 @@ Independent Researcher\\
 \maketitle
 
 \begin{abstract}
-Deployed language models must detect and control concepts such as a jailbreak attempt, a topic, or a
-tone. Often they have few examples and cannot retrain. One residual-stream
+Operators of deployed language models must detect and control concepts such as a jailbreak attempt, a
+topic, or a tone. Often they have few examples and cannot retrain the model. One residual-stream
 direction can detect a concept, and the same direction, added back, can steer generation. We test how far
 this goes with about ten examples per class and closed-form fitting. \cg{} reads a concept at several
 layers, fuses the layers with a learned depth filter, gates on a calibrated likelihood ratio, and steers
@@ -106,7 +106,7 @@ the useful information.
     mixture density stays at one component (\cref{sec:mixture}). A training-free concept bank is
     30--38$\times$ cheaper to build than per-concept LoRA. A linear-probe bank has the same advantage
     (\cref{sec:bank}).
-  \item \textbf{The write is a real lever, but not a new one.} Eight hand-written examples move generated
+  \item \textbf{The write is a real lever, but not a new one.} Eight hand-written examples per side move generated
     refusal across a 43-point range, in either direction. On a first-token measure, the effect is about
     three times that of a matched-norm random direction (\cref{sec:write}). This is the refusal direction of
     \citet{arditi2024refusal}, recovered from few examples. It is not a new mechanism.
@@ -235,7 +235,7 @@ activation and project it onto the concept direction of that layer. This gives o
 \emph{spectrogram} $\mathbf{s}$). A depth filter combines the scores. A calibrated likelihood-ratio gate
 returns fire, abstain, or pass. On a fire, an action can stop decoding, start a fixed continuation, or add
 a raw-space direction back into the stream. The same examples fit this direction. The read and write
-directions are related but not identical (per-tap cosine 0.45--0.83, \cref{sec:cosine}).}
+directions are related but not identical (mean $|\cos|$ 0.45--0.79, \cref{sec:cosine}).}
 \label{fig:pipeline}
 \end{figure}
 
@@ -284,8 +284,8 @@ residual-stream layers are not independent. This is why the argument fails in pr
 \subsection{Calibrated gate and mixtures}
 We fit class-conditional densities to the score. The gate fires when $\LLR = \log p(\cdot\mid +) - \log
 p(\cdot\mid -) > \tau$. We set the threshold on the benign tail. Two rules are available: a false-positive
-quantile, or the point $z$ standard deviations above the benign mean ($z=3$ is approximately a 0.1\%
-tail). We map the LLR to $P_{\text{present}}=\sigma((\LLR-\tau)/s)$, where $s$ is the benign spread near
+quantile, or the point $z$ standard deviations above the benign mean ($z=3$ is a one-sided Gaussian
+tail of approximately 0.135\%). We map the LLR to $P_{\text{present}}=\sigma((\LLR-\tau)/s)$, where $s$ is the benign spread near
 $\tau$. The gate abstains when $|P_{\text{present}}-\tfrac12|$ is less than a margin. As an option, each
 class is a Gaussian mixture on the joint spectrogram, with $J\in\{1,2,3\}$ components selected by BIC.
 With $J=1$ and a shared covariance, the LLR is affine in $\mathbf{s}$. It then reduces exactly to the
@@ -293,7 +293,7 @@ With $J=1$ and a shared covariance, the LLR is affine in $\mathbf{s}$. It then r
 
 A bank of $K$ concepts fires if one or more concepts fire. It assigns the fire to the concept with the
 largest LLR. Per-concept thresholds do not compose. An OR over $K=14$ concepts at $z=3$ gives a bank-level
-false-positive rate of up to approximately 1.4\%. Thus the operating point must be set for the full bank.
+false-positive rate of up to approximately 1.9\%. Thus the operating point must be set for the full bank.
 
 \subsection{Steering}
 \label{sec:steering}
@@ -446,7 +446,8 @@ The reason is that a single-tap logistic direction is logistic regression on tha
 single-concept comparison is a tie. The only gap is to a probe on the final layer, which runs the full
 model (\cref{tab:detect}). At three taps, diff-of-means is 2--5 AUC points below logistic. Thus every
 comparison with a trained classifier uses logistic mode. \Cref{fig:nshot} shows the same pattern on four
-models, at every sample size from four to 32 examples per class. Logistic regression on the same taps
+models (GPT-2, Qwen2.5-0.5B, SmolLM2-1.7B, gemma-2-2b), at every sample size from four to 32 examples per
+class. Logistic regression on the same taps
 equals \cg{}-logistic from 16 examples per class. Below 16, it is equal or better.
 
 \begin{figure}[t]
@@ -477,7 +478,7 @@ cost of a partial network. It is not an advantage of one method.}
 \small
 \caption{Single-concept jailbreak detection, $N=32$ per class, 262 held-out prompts. Depth and weights are
 the fractions of the network that runs and that loads. They are exact properties of the truncation. We do
-not give wall-clock ratios, because they changed by several points between runs.}
+not give wall-clock ratios for these models, because they changed by several points between runs.}
 \label{tab:detect}
 \begin{tabular}{llccc}
 \toprule
@@ -521,8 +522,9 @@ replaces it with a within-concept test.
 \label{sec:bank}
 \Cref{tab:bank} compares three ways to add the fourteen BeaverTails categories at $N=32$. In \cg{}, a
 concept is a closed-form fit. A rank-8 LoRA adapter with a classification head must train. The full
-fourteen-category bank takes approximately 8\,s on Qwen2.5-0.5B and 46\,s on gemma-2-2b. LoRA takes 3.9
-and 29 minutes (30$\times$ and 38$\times$). One truncated forward serves all concepts. Thus inference cost
+fourteen-category bank needs 704 truncated forwards (448 positives and a shared pool of 256 negatives).
+This takes approximately 8\,s on Qwen2.5-0.5B and 46\,s on gemma-2-2b. We timed LoRA on three categories
+per model and multiplied by fourteen. This gives 3.9 and 29 minutes (30$\times$ and 38$\times$). One truncated forward serves all concepts. Thus inference cost
 does not change with $K$. $K$ LoRA adapters need $K$ forwards. Detection quality stays high. We also ran
 few-shot LoRA on three categories. It gets mean AUC 0.685 (Qwen) and 0.814 (gemma). \cg{} gets 0.889 and
 0.913 on the same three.
@@ -531,7 +533,8 @@ few-shot LoRA on three categories. It gets mean AUC 0.685 (Qwen) and 0.814 (gemm
 \centering
 \footnotesize\setlength{\tabcolsep}{4pt}
 \caption{Per-concept cost and mean detection AUC over fourteen BeaverTails categories ($N=32$, three
-seeds). In the last row, the probe heads read the \cg{} taps, not the final layer. The cost is the same.}
+seeds). In the last row, the probe heads read the \cg{} taps, not the final layer. The cost is the same.
+This run is separate from \cref{tab:oodsummary}, so the in-distribution means differ by up to 0.013.}
 \label{tab:bank}
 \begin{tabular}{lccc}
 \toprule
@@ -547,7 +550,8 @@ probe heads at \cg{}'s taps & --- & 0.840 / 0.880 & --- \\
 \end{table}
 
 A linear-probe bank has all of these advantages. The first comparison in the table gave the probe a depth
-advantage: its heads read the final layer, and \cg{} read three taps up to 91\% of the backbone. We fit the
+advantage: its heads read the final layer, and \cg{} read three taps (blocks 12/17/20 on Qwen, 13/18/22 on
+gemma), which run 88\% of the depth and load 91\% of the weights. We fit the
 same heads again on the \cg{} taps from cached activations. They get 0.840 on Qwen and 0.880 on gemma. On
 gemma this is a tie (the probe is better on 8 of 14 categories). On Qwen the probe has a small advantage
 (better on 10 of 14). \cg{} adds one thing: a write direction per concept, with no extra fit cost. For
@@ -665,16 +669,18 @@ Model & Write & Continuation \\
 \subsection{Is GPT-2's weak self-read a geometric artifact?}
 \label{sec:cosine}
 The read and write directions are different. We map the detection direction to raw space and compare it
-with the raw steering direction. Their mean $|\cos|$ is between 0.45 and 0.83. The value changes with the
+with the raw steering direction. Their mean $|\cos|$ is between 0.45 and 0.79. The value changes with the
 model, the concept, and the mode (\cref{tab:cosine}). Chance is approximately $1/\sqrt d$ (0.021--0.036),
-so the two directions are related. But they are 34--63 degrees apart, so they are not the same vector.
+so the two directions are related. But they are 38--63 degrees apart, so they are not the same vector.
 Logistic mode always gives a lower value. By design, it rotates away from the class-mean difference.
 
 \begin{table}[t]
 \centering
 \small
-\caption{Mean $|\cos|$ between the read direction (mapped to raw space) and the write direction, over
-three taps and four concepts, on raw prompts.}
+\caption{Mean $|\cos|$ between the read direction (mapped to raw space) and the write direction, on raw
+prompts. The first two rows average over three taps and four concepts: \emph{nature}, \emph{food}, a
+hand-written jailbreak set, and the real jailbreak set (32 per class). Here $\pm$ is the s.d. over these
+taps and concepts. The last row is the real jailbreak set alone.}
 \label{tab:cosine}
 \begin{tabular}{lccc}
 \toprule
@@ -768,9 +774,9 @@ benign generations left identical (gated) & \multicolumn{2}{c}{$89.6\pm9.0\%$} &
 \end{table}
 
 With the template, the model already refuses 30 of 32 attacks. This leaves headroom of two prompts. Now,
-steering \emph{away} from the jailbreak concept \emph{decreases} refusal by 22 points in every resample.
-Steering toward the concept increases refusal on attacks (at the ceiling). It also causes 7.3\%
-over-refusal on the benign prompts that the gate passes. The gate fires on $96.9\pm2.6\%$ of attacks. Thus
+steering \emph{away} from the jailbreak concept \emph{decreases} refusal in every resample (by 28, 22, and
+16 points). Steering toward the concept increases refusal on attacks (at the ceiling). The anti-gate arm
+with $+\alpha$ writes to the benign prompts that the gate passes, and it causes 7.3\% over-refusal on them. The gate fires on $96.9\pm2.6\%$ of attacks. Thus
 the gated, random, and always arms write to almost the same prompts, and they agree within a resample. The
 control that separates \emph{which} prompts from \emph{how many} prompts has nothing to separate. The gate
 still limits collateral damage. 82\% of benign generations stay byte-identical. Under blanket steering,
@@ -816,8 +822,8 @@ the observation that arbitrary steering decreases refusal~\citep{korznikov2025ro
 these results agree with one direction that carries refusal~\citep{arditi2024refusal}. An arbitrary vector
 moves refusal in proportion to its alignment with that direction~\citep{li2026pitfalls}.
 
-On a test set with headroom (the 164 attacks of \cref{sec:dose}), refusal over 40 greedy tokens is
-\textbf{64\% unsteered, 35\% steered away, and 79\% steered toward}. A teacher-forced score moves in the
+On a test set with headroom (the 164 attacks of \cref{sec:dose}), refusal over 40 greedy tokens, scored by
+the lexicon, is \textbf{64.0\% unsteered, 35.4\% steered away, and 78.7\% steered toward}. A teacher-forced score moves in the
 same way ($+1.08\to+0.88\to+1.12$). This score is the log-probability of canonical refusal continuations
 minus that of compliance continuations. Thus eight hand-written framings at 8\% of the residual norm move
 generated refusal across 43 points, in the direction that the operator selects.
@@ -865,11 +871,13 @@ its \emph{dose}. Can we read the dose from the prompt before generation? This se
   \item the 32 short framed attacks;
   \item the twelve bare requests.
 \end{itemize}
-We add 48 real benign prompts. Unsteered, fifteen percent of the attacks lean toward compliance. We fit the
+We add 48 real benign prompts. Unsteered, 25 of the 164 attacks (15\%) have a negative first-token refusal log-odds, so they lean
+toward compliance. We fit the
 concept as in \cref{sec:formatting} (eight plus eight, logistic, taps at 33/50/67\% depth, chat template
 on, $\alpha=0.08$). For each prompt, we record five arms: none, $\pm\alpha$ along the concept, and
 $\pm\alpha$ along a matched-norm random direction. The dose is the sign-reversible half of the response,
-$D=\tfrac12(y_{+\alpha}-y_{-\alpha})$. A positive dose means that the write increases refusal.
+$D=\tfrac12(y_{+\alpha}-y_{-\alpha})$. A positive dose means that the write increases refusal. The dose
+has the opposite sign to the lever of \cref{sec:lever}.
 
 \subsection{On a first-token proxy, the dose is strongly predictable}
 Let $y$ be the first-token refusal log-odds (five forwards per prompt, no generation). A ridge regression on
@@ -880,9 +888,11 @@ $+0.64$.
 
 \subsection{Controls that made the result smaller}
 \begin{itemize}[leftmargin=*]
-  \item \textbf{Most of the signal is in the concept direction.} At each tap, we project the prompt onto
+  \item \textbf{Much of the signal is in the concept direction.} At each tap, we project the prompt onto
     the steering direction of the concept. These three scalars predict the dose at $+0.64$. The calibrated
-    LLR of the gate gets $+0.51$. The full ridge adds a small amount ($+0.61$ on the residual).
+    LLR of the gate gets $+0.51$. But the projections do not hold all of the signal. The full ridge also
+    predicts the part of the dose that the projections miss ($+0.61$ on the residual), and it increases the
+    total from $+0.64$ to $+0.81$.
   \item \textbf{Two geometry readings do not hold.}
     \begin{enumerate}
       \item The fitted direction aligns with the concept direction at $|\cos|=0.09$. The chance floor is
@@ -916,7 +926,7 @@ others at $\rho\approx0.95$.
 \label{tab:fourmodels}
 \begin{tabular}{lccc}
 \toprule
-Model & ridge $\to$ dose, $\alpha$ = .04 / .08 / .12 & gate LLR $\to$ dose & dose, concept / random ($\alpha$=.08) \\
+Model & ridge $\to$ dose, $\alpha$ = .04 / .08 / .12 & gate LLR $\to$ dose, same $\alpha$ & dose, concept / random ($\alpha$=.08) \\
 \midrule
 SmolLM2-360M & $+0.50$ / $+0.54$ / $+0.56$ & $+0.33$ / $+0.33$ / $+0.32$ & 0.79 / 0.33 \\
 Qwen2.5-0.5B & $+0.76$ / $+0.81$ / $+0.84$ & $+0.49$ / $+0.51$ / $+0.53$ & 1.28 / 0.51 \\
@@ -989,7 +999,11 @@ We fit a ridge ($\lambda=10$) on the three z-scored tapped activations, with fol
 request. It predicts the classifier-scored behavioural dose at $\rho=+0.58$ out of fold. The permutation
 null from the identical pipeline is $-0.015\pm0.089$. Thus $z=6.7$ (\cref{fig:dose}a). The three concept
 projections alone get $+0.51$. The calibrated LLR of the gate gets $-0.30$: when the concept read is more
-confident, the write moves the prompt less. \Cref{tab:nested} compares these values with the first-token
+confident, the write moves the prompt less. This sign is opposite to the first-token result. The
+first-token value is $+0.51$ over three resamples and $+0.37$ on the resample that the behavioural run
+uses. The negative sign is stable across the three behavioural scorers ($-0.33$, $-0.30$, $-0.31$). A
+ceiling effect does not explain it, because the unsteered refusal rate correlates with the dose at only
+$+0.03$. We do not have an explanation. \Cref{tab:nested} compares these values with the first-token
 results. The order is the same on the two targets:
 \begin{itemize}[leftmargin=*]
   \item the LLR of the gate is the weakest read of the dose;
@@ -1061,9 +1075,9 @@ $P$ is the probability that a random subset of the same size is equal to or bett
 \toprule
 Coverage & refusal gained per write & size-matched random & $P(\text{random}\geq\text{gate})$ & benign prompts written \\
 \midrule
-10\% & $\mathbf{+0.242}$ & $+0.099$ & 0.002 & 2\% \\
-25\% & $\mathbf{+0.216}$ & $+0.096$ & $<$0.002 & 10\% \\
-50\% & $\mathbf{+0.143}$ & $+0.098$ & 0.008 & 23\% \\
+10\% & $+0.242$ & $+0.099$ & 0.002 & 2\% \\
+25\% & $+0.216$ & $+0.096$ & $<$0.002 & 10\% \\
+50\% & $+0.143$ & $+0.098$ & 0.008 & 23\% \\
 75\% & $+0.129$ & $+0.097$ & $<$0.002 & 52\% \\
 90\% & $+0.108$ & $+0.097$ & 0.014 & 85\% \\
 \bottomrule
@@ -1087,7 +1101,8 @@ split-half reliability of the dose on gemma is $+0.53$, below the bar. Predictio
 \begin{table}[h]
 \centering
 \small
-\caption{The same write on the two models ($\alpha=0.08$, classifier scorer, $K=16$).}
+\caption{The same write on the two models ($\alpha=0.08$, classifier scorer, $K=16$). These are sampled
+refusal rates. They differ from the greedy lexicon rates of \cref{sec:lever}.}
 \label{tab:gemma}
 \begin{tabular}{lcc}
 \toprule
@@ -1102,7 +1117,9 @@ mean $|D|$ & 0.16 & 0.07 \\
 The planned fallback was to sample the same prompts again, with the same concept fit, and merge to
 $K=32$. Attenuation theory gives a clear prediction here. Assume that the $K=16$ value of $+0.20$ is a real
 but noisy correlation. Then a more reliable target makes it \emph{clearer}. The implied true correlation of
-0.24 must appear as approximately $+0.215$ at $K=32$. But the value fell to $+0.078$ ($z=0.9$). When
+0.24 is expected to appear as approximately $+0.215$ at $K=32$. The standard error of $\rho$ at $n=164$ is
+approximately 0.084, and the $K=32$ samples include the $K=16$ samples. But the value fell to $+0.078$
+($z=0.9$), approximately 1.6 standard errors below the expected value. When
 measurement noise hides a signal, a better measurement makes the signal stronger. It does not do this for
 noise. Cross-family transfer also collapsed (from $+0.12/+0.09$ to $+0.03/-0.02$). The split-half
 self-consistency of the fitted direction fell to 0.04--0.05. Thus the result for gemma-2-2b is not
@@ -1121,7 +1138,7 @@ the same half-size. Do not compare the raw statistic across different $K$.
 
 \paragraph{What we claim.} On Qwen2.5-0.5B, a sampled instrument can measure the per-prompt behavioural
 dose of a few-shot steering write. The activations of the unsteered prompt predict this dose, well above a
-matched null. Most of this information is in the concept direction, which the system already calculates.
+matched null. Much of this information is in the concept direction, which the system already calculates.
 The calibrated gate reads it poorly, and with the wrong sign. We do not claim generality: the result did
 not reproduce on the second model. The limits are:
 \begin{itemize}[leftmargin=*]

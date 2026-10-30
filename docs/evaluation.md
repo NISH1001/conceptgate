@@ -126,8 +126,8 @@ on the frozen taps), **linear probe** (a trained logistic head per concept on th
 **The fair probe bank is the third column** (`scripts/eval_probe_tap_bank.py`, fit from the scaling
 run's cached activations; reproduces the stored CG and probe@final numbers to 4 decimals). The original
 comparison put the probe heads on the FINAL layer (100% of the backbone) while CG ran 91% — a depth
-advantage CG did not get. Heads on CG's own taps at identical cost: **tie** on gemma (−0.001, ahead on
-8/14 categories), **edge** CG on Qwen (+0.008, ahead on 10/14). Exactly what the single-concept §3
+advantage CG did not get. Heads on CG's own taps at identical cost: **tie** on gemma (probe −0.001, but
+the probe is ahead on 8/14 categories), small **edge to the probe** on Qwen (probe +0.008, ahead on 10/14). Exactly what the single-concept §3
 result predicted. On Qwen the final layer genuinely reads harm content better than the mid taps (+0.015);
 on gemma it does not. On gemma CG *edges* the final-layer probe; on Qwen it trails it by 0.02. On the 3 LoRA categories CG scores 0.889 (Qwen)
 / 0.913 (gemma) vs LoRA's 0.685 / 0.814 — few-shot fine-tuning is both the slowest and the weakest.
@@ -137,12 +137,13 @@ on gemma it does not. On gemma CG *edges* the final-layer probe; on Qwen it trai
 | per concept | CG | probe | LoRA |
 |---|---|---|---|
 | learn (Qwen / gemma) | 6.1 / 11.2 ms | 1.6 / 2.5 ms | 16.7 / 125.8 s |
-| params | 2.7–6.9 K | 0.9–2.3 K | 0.54–1.6 M |
+| params | 11–28 K (4md+m: read+write dirs, standardization, filter) | 0.9–2.3 K | 0.54–1.6 M |
 | inference over all K | 1 shared fwd | 1 shared fwd | 1 fwd **each** |
 
 Whole 14-concept bank — build: CG ~8 s (Qwen) / ~46 s (gemma) vs LoRA ~3.9 / ~29 min (**30× / 38×**);
-inference for all 14: CG 11 / 65 ms (flat in K) vs LoRA 174 / 937 ms (linear in K); memory: CG 38K / 97K
-params vs LoRA 7.6M / 22.4M.
+inference for all 14: CG 11 / 65 ms (flat in K) vs LoRA 174 / 937 ms (linear in K); memory: CG 151K / 387K
+params vs LoRA 7.6M / 22.4M. (Build basis: 704 truncated forwards = 448 positives + 256 shared benign;
+LoRA timed on 3 categories per model, ×14.)
 
 Findings:
 - **Cost is flat/shallow in K for a training-free bank, linear (and steep) for per-concept fine-tuning.**
