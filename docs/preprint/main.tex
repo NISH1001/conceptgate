@@ -1314,18 +1314,15 @@ write-side comparison needs more system-prompt wordings, a second steering metho
 \label{sec:conclusion}
 
 We built a few-shot, training-free adapter that reads a concept from the layers of a frozen model and
-writes a related direction back, and we measured each component against a fair baseline. The read is not
-better than a linear probe on the same layers. Depth fusion and mixture densities add nothing at these
-sample sizes. When prompts are correctly formatted, a write conditioned on concept presence selects
-nothing, because the concept is present in almost every attack.
-
-Three findings hold under these controls. First, a direction fit from eight examples moves
-refusal in either direction, as the operator selects. Second, the calibrated gate has a false-positive rate
-that depends strongly on the register of its traffic. Third, on one model, the unsteered activations
-predict how far a fixed write will move a given prompt, and this prediction is a better steering trigger
-than the concept gate. We are not aware of this third result in prior work. On a second
-model, the same write has almost no effect, so there is nothing to predict. The question of whether per-prompt steerability is a general property of language models remains open. In our opinion, the record
-of what failed, and why, is the most reusable part of this work.
+writes a related direction back, and we measured each component against a fair baseline. Most of the
+design did not hold up: the read equals a linear probe on the same layers, depth fusion and mixture
+densities add nothing at these sample sizes, and a write conditioned on concept presence selects nothing
+once prompts are formatted correctly. Three results hold. A direction fit from eight examples moves refusal
+in either direction. The false-positive rate of the calibrated gate depends on the register of its traffic.
+On one of two models, the unsteered activations predict how far a fixed write will move a prompt, and that
+prediction is a better steering trigger than the concept gate. Whether this last result is a general
+property of language models is the open question, and a magnitude sweep per model is the test that would
+settle it. The record of what failed, and why, is the part of this work that we expect others to reuse.
 
 \section*{Broader impact}
 The write in \cref{sec:lever} works in both directions. Eight hand-written examples, with no training,
