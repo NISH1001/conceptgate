@@ -28,7 +28,7 @@
 \newcommand{\raw}{\mathrm{raw}}
 \newcommand{\LLR}{\mathrm{LLR}}
 
-\setlist{itemsep=2pt,topsep=4pt}
+\setlist{itemsep=0pt,parsep=0pt,topsep=3pt}
 
 \title{\cg: Few-Shot Concept Reading and Steering in Frozen Language Models}
 
@@ -56,7 +56,7 @@ in both directions (Qwen2.5-0.5B refusal: 64\% unsteered, 35\% steered away, 79\
 the gate's false-positive rate changes from 18\% to 96\% with the register of benign traffic. Third, on one
 of two models, the unsteered activations predict a prompt's steerability (Spearman $\rho=0.58$,
 permutation $z=6.7$). Steerability is how far a fixed write moves the prompt's sampled refusal rate. The
-concept gate reads it at $|0.30|$, with the wrong sign. As a trigger, predicted steerability beats random
+concept gate reads it at $\rho=-0.30$, with the wrong sign. As a trigger, predicted steerability beats random
 selection at every tested coverage. On gemma-2-2b, the same write barely moves refusal, so the claim is untested there. We also show how an unvalidated outcome measure gave a false null, and
 why split-half reliability is not comparable across sample sizes.
 \end{abstract}
@@ -85,10 +85,10 @@ The concept is an input, given as data.
 
 The design had two hypotheses:
 \begin{enumerate}[leftmargin=*]
-  \item \textbf{Read across depth.} A read over several layers is better than a read at the best single
+  \item \emph{Read across depth.} A read over several layers is better than a read at the best single
     layer. If the layers carry independent evidence, a matched filter over depth combines them, and their
     discriminabilities add in quadrature.
-  \item \textbf{Couple the read and the write.} If the write fires only where the read detects the concept,
+  \item \emph{Couple the read and the write.} If the write fires only where the read detects the concept,
     steering is more effective and causes less damage than steering on every prompt.
 \end{enumerate}
 
@@ -100,29 +100,25 @@ the useful information.
 
 \paragraph{Summary of findings.}
 \begin{enumerate}[leftmargin=*]
-  \item \textbf{The read side gives no advantage over a probe.} A depth-matched logistic probe equals \cg{}
+  \item The read side gives no advantage over a probe. A depth-matched logistic probe equals \cg{}
     at every tap (\cref{sec:detect}). On the jailbreak benchmark, a TF-IDF classifier on the raw text is
     better than both (AUC 0.991). Depth fusion gets its predicted gain on synthetic data that satisfies
     its assumption (test error 16.1\%$\to$9.4\%). It adds nothing on real models (\cref{sec:fusion}). The
     mixture density stays at one component (\cref{sec:mixture}). A training-free concept bank is
     30--38$\times$ cheaper to build than per-concept LoRA. A linear-probe bank has the same advantage
     (\cref{sec:bank}).
-  \item \textbf{The write is a real lever, but not a new one.} Eight hand-written examples per side move generated
+  \item The write is a real lever, but not a new one. Eight hand-written examples per side move generated
     refusal across a 43-point range, in either direction. On a first-token measure, the effect is about
     three times that of a matched-norm random direction (\cref{sec:write}). This is the refusal direction of
     \citet{arditi2024refusal}, recovered from few examples. It is not a new mechanism.
-  \item \textbf{A gate on concept presence adds nothing. A gate on predicted effect helps, on one model.}
-    On formatted attacks, the concept is almost always present, so the concept gate cannot select. A ridge
+  \item A gate on concept presence adds nothing, and a gate on predicted effect helps, on one model. On formatted attacks, the concept is almost always present, so the concept gate cannot select. A ridge
     read fit to the measured per-prompt effect of the write can select. On Qwen2.5-0.5B, it beats a
     size-matched random subset at every coverage. It does not replicate on gemma-2-2b. There, the same write
     moves refusal only within a 7-point range, so the run cannot test the claim (\cref{sec:dose}).
-  \item \textbf{Three cautions on method.}
-    \begin{enumerate}
-      \item Prompt formatting alone reversed the sign of the main gate-steering effects. It also removed the
-        apparent advantage of the gate (\cref{sec:formatting}).
-      \item An outcome measure with unknown reliability can make a false null (\cref{sec:instrument}).
-      \item Split-half reliability is not comparable across sample sizes (\cref{sec:splithalf}).
-    \end{enumerate}
+  \item Three cautions on method. Prompt formatting alone reversed the sign of the main gate-steering
+    effects, and it removed the apparent advantage of the gate (\cref{sec:formatting}). An outcome measure
+    with unknown reliability can make a false null (\cref{sec:instrument}). Split-half reliability is not
+    comparable across sample sizes (\cref{sec:splithalf}).
 \end{enumerate}
 
 No single mechanism here is new. Probes, difference-of-means directions, activation addition, Gaussian
@@ -153,10 +149,8 @@ difference-of-means is among the best. \Cref{sec:lever} compares our write with 
 model. Circuit Breakers~\citep{zou2024circuitbreakers}
 trains the model to reroute harmful representations. We steer a frozen model, so we accept less power for
 less cost. CAST~\citep{lee2024cast} conditions a steering vector on an activation read. It applies or holds
-a refusal vector based on a condition read from the prompt's hidden states. Thus the model refuses harmful
-prompts and answers harmless prompts. DSAS~\citep{ferrando2025dsas} also separates when to steer from how
-to steer. It scales the strength of an existing steering method per input and per layer. Thus the setting
-of \cref{sec:write} is not new. Our contribution there is the controls. One direction mediates refusal~\citep{arditi2024refusal}. The model encodes harmfulness
+a refusal vector based on a condition read from the prompt's hidden states. The model then refuses harmful prompts and answers harmless prompts. DSAS~\citep{ferrando2025dsas} also separates when to steer from how
+to steer. It scales the strength of an existing steering method per input and per layer. FASB~\citep{fasb2025necessary} also decides when to steer: it reads a deviation score from the internal states during generation, steers when the score passes a threshold, and backtracks over tokens that already deviated. The setting of \cref{sec:write} is therefore not new. Our contribution there is the controls. One direction mediates refusal~\citep{arditi2024refusal}. The model encodes harmfulness
 separately from refusal~\citep{zhao2025harmfulness}. Steering along random or unrelated directions can
 decrease refusal~\citep{korznikov2025roguescalpel,li2026pitfalls}. CAST's condition rules classify
 mathematics problems as malicious and refuse them~\citep{sheng2025alphasteer}. Activation-trajectory
@@ -171,9 +165,7 @@ components selected by BIC.
 \paragraph{External classifiers and cost.}
 The current standard for detection is a text classifier, such as Llama Guard~\citep{inan2023llamaguard},
 or a fine-tuned multi-category guardrail on an encoder such as GLiNER~\citep{zaratiana2023gliner}. These
-are strong. But they are a second model, and they can only read. Production systems now put linear probes
-on the activations of the served model in front of more expensive classifiers, because the probe re-uses
-computation that the model already did~\citep{cunningham2026ccpp}. To run only the layers below the deepest
+are strong. But they are a second model, and they can only read. At least one production system puts a linear probe on the activations of the served model in front of a more expensive classifier, because the probe re-uses computation that the model already did~\citep{cunningham2026ccpp}. To run only the layers below the deepest
 tap is the detection equivalent of early exit~\citep{schuster2022calm}. Every latent probe gets this
 saving. For the task of adding concepts to a model, the comparison is parameter-efficient
 fine-tuning~\citep{houlsby2019adapters,hu2021lora}.
@@ -190,21 +182,17 @@ concept-projection predictor (\cref{sec:dose}) is a per-prompt form of the same 
 classifier predicts if an intervention will under-steer, succeed, or over-steer. Its features compare
 hidden states before and after steering over the first decoding steps. \citet{billa2026where} uses a
 logit-lens diagnostic to predict, per concept and per layer, if a difference-of-means steering vector will
-be effective. \citet{ong2026sideeffects} use unsteered representations to predict the side effects of a
-steering vector on other behaviours. Our first-token refusal-minus-compliance statistic is a basket-sum
+be effective. \citet{ong2026sideeffects} use unsteered representations to predict the direction of the side effects of a steering vector on other behaviours. Our first-token refusal-minus-compliance statistic is a basket-sum
 variant of the refusal--affirmation logit gap of \citet{li2025logitgap}. The Cylindrical Representation
 Hypothesis~\citep{gao2026crh} gives a geometric explanation of why steering sensitivity changes from sample
-to sample. It does not predict the sensitivity from the unsteered prompt. We found no prior work that
-fits a supervised per-prompt regressor on the unsteered activations, validates it against sampled
-behaviour, and uses it as a steering trigger.
+to sample. It does not predict the sensitivity from the unsteered prompt. Two methods fit a supervised per-input predictor to measured steering outcomes, but they predict the best layer, not the size of the effect, and they read an embedding of the input text from a separate model, not the hidden states of the steered model: W2S~\citep{w2s2026layer} selects the intervention layer per input, and \citet{perinstance2026layers} rank layers per instance and add a gate. AdaRAS~\citep{adaras2026neurons} gates a steer on a classifier over the unsteered prompt activations, but the classifier predicts whether the base model will fail, not what the write will do. We are not aware of prior work that fits a supervised per-prompt regressor on the unsteered activations to the measured effect of the write, validates it against sampled behaviour, and uses it as a steering trigger.
 
 \paragraph{Adversarial limits.}
-Obfuscated-activation attacks decrease the recall of latent-space probes to zero, and the target behaviour
-continues~\citep{bailey2024obfuscated}. This limit applies to all results in this paper
+Obfuscated-activation attacks can decrease the recall of latent-space probes to zero while the target behaviour continues~\citep{bailey2024obfuscated}. This limit applies to all results in this paper
 (\cref{sec:limits}).
 
 % ===================================================================================================
-\section{Method}
+\section{The ConceptGate adapter}
 \label{sec:method}
 
 \begin{figure}[t]
@@ -264,8 +252,7 @@ $M$ is a frozen causal language model with residual width $d$. We tap block outp
 $\mathcal{L}=\{\ell_1,\dots,\ell_m\}$. Each prompt is represented by its \emph{last-token} activation
 $a_\ell\in\mathbb{R}^d$. This token has attended to the full prompt. A fit on every token adds shared
 boilerplate, which hides the signal. The positive and negative sets $\mathcal{A}^{\pm}$ each contain about
-ten prompts. Residual streams have a few very large outlier dimensions. Thus, for detection, we standardize
-per layer and per dimension, $z=(a-\mu_0)\oslash(\sigma_0+\epsilon)$. Here $\mu_0$ and $\sigma_0$ are the mean
+ten prompts. Residual streams have a few very large outlier dimensions. For detection, we therefore standardize per layer and per dimension, $z=(a-\mu_0)\oslash(\sigma_0+\epsilon)$. Here $\mu_0$ and $\sigma_0$ are the mean
 and standard deviation over the pooled positive and negative fit prompts, and $\epsilon=10^{-6}$.
 
 \subsection{Directions and the spectrogram}
@@ -290,7 +277,7 @@ filters:
   \item \texttt{fisher}: $f\propto\Sigma_{\mathbf{s}}^{-1}(\bar{\mathbf{s}}^+-\bar{\mathbf{s}}^-)$, with a
     ridge-regularized pooled covariance.
 \end{itemize}
-\texttt{best} is a nested special case. Thus a comparison of the filters isolates the effect of depth.
+\texttt{best} is a nested special case, so a comparison of the filters isolates the effect of depth.
 
 The motivation is a matched-filter argument. Let $s_\ell = a_\ell y + n_\ell$, with $y\in\{\pm1\}$ and
 independent noise $n_\ell\sim\mathcal{N}(0,\sigma_\ell^2)$. Then the filter $f_\ell\propto
@@ -307,7 +294,7 @@ p(\cdot\mid -) > \tau$. We set the threshold on the benign tail. Two rules are a
 quantile, or the point $z$ standard deviations above the benign mean ($z=3$ is a one-sided Gaussian
 tail of approximately 0.135\%). In the library gate, which all gate experiments use, the $z$ rule does not
 use an empirical quantile of the ten or so benign fit prompts. It draws 10{,}000 scores from the fitted benign density and puts $\tau$ at the $1-\Phi(-z)$
-quantile of their LLRs. Thus the tail is a model extrapolation from few prompts, and \cref{sec:register}
+quantile of their LLRs. The tail is a model extrapolation from few prompts, and \cref{sec:register}
 shows how it fails when traffic changes. We map the LLR to $P_{\text{present}}=\sigma((\LLR-\tau)/s)$. Here $s$
 is the LLR distance from the $\Phi(z-1)$ benign quantile to $\tau$, that is, the benign spread one standard deviation below
 $\tau$. The gate abstains when $|P_{\text{present}}-\tfrac12|$ is less than a margin. As an option, each
@@ -318,16 +305,15 @@ With $J=1$ and a shared covariance, the LLR is affine in $\mathbf{s}$. It then r
 
 A bank of $K$ concepts fires if one or more concepts fire. It assigns the fire to the concept with the
 largest LLR. Per-concept thresholds do not compose. An OR over $K=14$ concepts at $z=3$ gives a bank-level
-false-positive rate of up to approximately 1.9\%. Thus the operating point must be set for the full bank.
+false-positive rate of up to approximately 1.9\%. The operating point must be set for the full bank.
 
 \subsection{Steering}
 \label{sec:steering}
-The steering hook sees raw activations. Thus the write uses a separate raw-space direction per tap,
+The steering hook sees raw activations, so the write uses a separate raw-space direction per tap,
 $w^\raw_\ell = (\bar a^+_\ell - \bar a^-_\ell)/\lVert \bar a^+_\ell - \bar a^-_\ell\rVert$. During
 generation, the hook applies $a_\ell \leftarrow a_\ell + \alpha\, w^\raw_\ell$. A positive $\alpha$ steers
 toward the concept. A negative $\alpha$ steers away from it. The residual norm of GPT-2 is approximately
-five times that of Qwen2.5-0.5B (96 and 18 in our runs). Thus we set $\alpha$ as a fraction of the
-measured residual norm. The norm is measured per prompt: it is the L2 norm of the last-token activation of
+five times that of Qwen2.5-0.5B (96 and 18 in our runs). We therefore set $\alpha$ as a fraction of the measured residual norm. The norm is measured per prompt: it is the L2 norm of the last-token activation of
 that prompt, averaged over the taps. All taps get a write of the same magnitude. The hook adds the write
 to the block output at every token position, in the prompt and in each generated token.
 In development runs, 3--10\% kept the text coherent. Above approximately 20--25\%,
@@ -405,8 +391,7 @@ Permutation nulls run the identical pipeline again on shuffled targets (300 draw
 ridge regression uses penalty $\lambda=10$ on z-scored tapped activations. \Cref{app:hyper} lists all
 settings, and \cref{app:prompts} lists all hand-written prompts, lexicons, and token baskets.
 
-\paragraph{Planned and exploratory analyses.} The read-side benchmarks, the gate experiments, and the
-first-token dose analyses, and the greedy behavioural check (\cref{sec:read,sec:write}, and \cref{sec:dose}
+\paragraph{Planned and exploratory analyses.} The read-side benchmarks, the gate experiments, the first-token dose analyses, and the greedy behavioural check (\cref{sec:read,sec:write}, and \cref{sec:dose}
 up to the first part of \cref{sec:instrument}) were exploratory. We changed the analysis as results came
 in. The sampled behavioural study (from the sampled instrument in \cref{sec:instrument} onward) followed a
 written plan. The plan fixed the instrument, the reliability bar,
@@ -418,10 +403,10 @@ fluency scores (\cref{sec:lever}), and the bootstrap intervals (\cref{sec:behavi
 only stored outputs.
 
 % ===================================================================================================
-\section{The read side}
+\section{Detection experiments}
 \label{sec:read}
 
-\subsection{Depth fusion works only where its assumption holds}
+\subsection{Depth fusion}
 \label{sec:fusion}
 The synthetic data has three independent layers with known $d'=[1.6, 2.0, 0.6]$. Theory predicts a fused
 $d'=2.63$ and a test error of $\Phi(-1.315)=9.4\%$. The best single layer gives $\Phi(-1.0)=15.9\%$. The
@@ -430,11 +415,10 @@ result shows only that the code implements the algebra correctly. We generated t
 assumption of the filter, so the result is almost a tautology.
 
 On real models, the gain disappears (\cref{fig:depth}, \cref{tab:detect}). Three-tap and five-tap fusions
-are equal to the best single tap. On Qwen2.5-0.5B, a logistic probe on the concatenated taps is slightly
-better than the \cg{} fusion (0.978 and 0.973). The tapped layers are too correlated for quadrature to
+are equal to the best single tap. On Qwen2.5-0.5B, a logistic probe on the concatenated taps and the \cg{} fusion are equal within the resample spread (0.978 and 0.973, s.d.\ 0.01). The tapped layers are too correlated for quadrature to
 apply.
 
-\subsection{Mixture densities collapse}
+\subsection{Mixture densities}
 \label{sec:mixture}
 Mixtures can be important. We made a test case with benign clusters on the two sides of the harmful
 cluster. No linear threshold works on it (38.8\% error, AUC 0.60). A two-component mixture gets 7.1\%
@@ -471,8 +455,7 @@ best held-out AUC gain & 0.000 & 0.000 & +0.001 & +0.006 & +0.007 \\
 
 \subsection{Matched negatives and paraphrase robustness}
 \label{sec:negatives}
-CAA~\citep{panickssery2023caa} suggests that benign negatives in the same surface register as the
-jailbreaks make the direction more precise. We expected this result. On the development set (15 negatives
+The matched-pair construction of CAA~\citep{panickssery2023caa}, in which the two prompts of a pair differ only in the target behaviour, suggests that benign negatives in the same surface register as the jailbreaks make the direction more precise. We expected this result. On the development set (15 negatives
 of each type), matched negatives gave AUC 0.42. Broad negatives gave 0.78. At this sample size, we read
 0.42 as a failure to separate, not as a stable inversion. Broad negatives let the direction align with the
 large semantic gap between an instruction to the model and an ordinary query. Matched negatives remove
@@ -482,26 +465,23 @@ We also expected that paraphrase would break shallow taps but not deep taps. Tha
 reason to tap deep. But rewording the positives has almost no effect on AUC at any layer. Against broad
 negatives, detection uses the same semantic gap, and rewording does not close it.
 
-\subsection{Detection gives no advantage over a probe}
+\subsection{Comparison with linear probes and a text classifier}
 \label{sec:detect}
 At each single tap, the \cg{} logistic direction and a depth-matched logistic probe give the same number.
-The reason is that a single-tap logistic direction is logistic regression on that tap. Thus the fair
-single-concept comparison is a tie. The only gap is to a probe on the final layer, which runs the full
-model (\cref{tab:detect}). At three taps, diff-of-means is 2--5 AUC points below logistic. Thus every
-comparison with a trained classifier uses logistic mode. \Cref{fig:nshot} shows the same pattern on four
+A single-tap logistic direction is logistic regression on that tap, so the fair single-concept comparison is a tie. The only gap is to a probe on the final layer, which runs the full model (\cref{tab:detect}). On Qwen2.5-0.5B, the best single tap (L20, 88\% of the depth) already matches it. At three taps, diff-of-means is 2--5 AUC points below logistic, so every comparison with a trained classifier uses logistic mode. \Cref{fig:nshot} shows the same pattern on four
 models (GPT-2, Qwen2.5-0.5B, SmolLM2-1.7B, gemma-2-2b), at every sample size from four to 32 examples per
 class. Logistic regression on the same taps
-equals \cg{}-logistic from 16 examples per class. Below 16, it is equal or better.
+equals \cg{} logistic from 16 examples per class. Below 16, it is equal or better.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\textwidth]{figures/fig_nshot.pdf}
 \caption{Sample efficiency on jailbreak detection: held-out AUC as the number of examples per class
-increases. Every method reads the same three tapped activations (mean $\pm$ s.d. over three resamples).
-Logistic regression on the taps is within 0.006 of \cg{}-logistic at $N\geq16$. At $N\leq8$, where the
+increases. Every method reads the same three tapped activations (mean $\pm$ s.d. over three resamples). A
+linear SVM on the same taps is within 0.004 of logistic regression at every point.
+Logistic regression on the taps is within 0.006 of \cg{} logistic at $N\geq16$. At $N\leq8$, where the
 resample spread is large, it is better by up to 0.07. Diff-of-means fusion is within $\pm0.015$ of the best
-single layer at all $N$. This run is separate from \cref{tab:detect} and has its own resamples. Thus the
-values at $N=32$ differ from that table by up to 0.01.}
+single layer at all $N$. This run is separate from \cref{tab:detect} and has its own resamples, so the values at $N=32$ differ from that table by up to 0.01.}
 \label{fig:nshot}
 \end{figure}
 
@@ -510,7 +490,7 @@ values at $N=32$ differ from that table by up to 0.01.}
 \includegraphics[width=\textwidth]{figures/fig_depth.pdf}
 \caption{Held-out jailbreak-detection AUC against the fraction of network depth that runs ($N=32$ per
 class, three resamples). Filled markers are single taps. Hollow squares are three-tap and five-tap fusions.
-Plus signs are the depth-matched probe on the same taps. \cg{}-logistic and the depth-matched probe are
+Plus signs are the depth-matched probe on the same taps. \cg{} logistic and the depth-matched probe are
 equal at every single tap. Fusion adds nothing over the best single tap. The gap to the dashed line is the
 cost of a partial network. It is not an advantage of one method.}
 \label{fig:depth}
@@ -520,23 +500,21 @@ cost of a partial network. It is not an advantage of one method.}
 \centering
 \small
 \caption{Single-concept jailbreak detection, $N=32$ per class, 262 held-out prompts. Depth and weights are
-the fractions of the network that runs and that loads. They are exact properties of the truncation. We do
-not give wall-clock ratios for these models, because they changed by several points between runs.}
+the fractions of the network that runs and that loads. They are exact properties of the truncation. The best single tap of each model is marked. We do not give wall-clock ratios for these models, because they changed by several points between runs.}
 \label{tab:detect}
 \begin{tabular}{llccc}
 \toprule
 Model & Configuration & AUC & Depth & Weights \\
 \midrule
-\multirow{6}{*}{Qwen2.5-0.5B}
- & \cg{} logistic, 1 tap (L10) & $0.970\pm0.011$ & 46\% & 61\% \\
- & depth-matched probe, 1 tap (L10) & $0.970\pm0.011$ & 46\% & 61\% \\
+\multirow{7}{*}{Qwen2.5-0.5B}
+ & \cg{} logistic, 1 tap (L10) & $0.970\pm0.011$ & 46\% & 61\% \\ & depth-matched probe, 1 tap (L10) & $0.970\pm0.011$ & 46\% & 61\% \\
+ & \cg{} logistic, 1 tap (L20, best single tap) & $0.982\pm0.005$ & 88\% & 91\% \\
  & \cg{} logistic, 3 taps (L8/12/16) & $0.973\pm0.009$ & 71\% & 79\% \\
  & depth-matched probe, 3 taps & $0.978\pm0.010$ & 71\% & 79\% \\
  & \cg{} diff-of-means, 3 taps & $0.927\pm0.017$ & 71\% & 79\% \\
  & full-model probe (final layer) & $0.982\pm0.003$ & 100\% & 100\% \\
 \midrule
-\multirow{6}{*}{gemma-2-2b}
- & \cg{} logistic, 1 tap (L10) & $0.974\pm0.010$ & 42\% & 55\% \\
+\multirow{6}{*}{gemma-2-2b} & \cg{} logistic, 1 tap (L10, best single tap) & $0.974\pm0.010$ & 42\% & 55\% \\
  & depth-matched probe, 1 tap (L10) & $0.974\pm0.010$ & 42\% & 55\% \\
  & \cg{} logistic, 3 taps (L9/13/17) & $0.979\pm0.008$ & 69\% & 76\% \\
  & depth-matched probe, 3 taps & $0.978\pm0.007$ & 69\% & 76\% \\
@@ -549,8 +527,7 @@ no model & TF-IDF + logistic, raw text (word 1--2-grams) & $0.991\pm0.000$ & ---
 \end{table}
 
 The truncated forward is a real saving over the full-model probe. On Qwen2.5-0.5B, one tap at 46\% depth
-gets 0.970 and loads 61\% of the weights. Every latent probe gets this saving. Thus it shows how early the
-model forms the concept. It is not a property of \cg{}.
+gets 0.970 and loads 61\% of the weights. Every latent probe gets this saving. It shows how early the model forms the concept, not a property of \cg{}.
 
 \paragraph{A text-only baseline beats every activation method on this benchmark.} We fit TF-IDF features
 and a logistic regression on the raw prompt text, with the same few-shot draws and the same test split
@@ -559,29 +536,26 @@ and a logistic regression on the raw prompt text, with the same few-shot draws a
 0.974--0.976 at $N=4$, and 0.994--0.996 on the full training split. The benchmark also has train--test overlap.
 For 45 of the 262 test prompts (44 of the 139 jailbreaks), the nearest training prompt has a character
 5-gram cosine of 0.9 or more, and 15 test prompts appear verbatim in the training split. Without those 45
-prompts, TF-IDF still gets 0.988. Thus the jailbreak persona templates differ from ordinary queries in
-surface style, and this benchmark cannot show an advantage for reading activations. The AUC values above
+prompts, TF-IDF still gets 0.988. The jailbreak persona templates differ from ordinary queries in surface style, and this benchmark cannot show an advantage for reading activations. The AUC values above
 compare methods with each other. They do not show that the detection task is hard.
 
 A leave-one-out layer sweep on about 20 prompts found the jailbreak concept separable at block 1 of 24 on
 Qwen2.5-0.5B. On GPT-2, it was separable only at approximately block 6 of 12. To select the knee on the same
-small estimate biases it upward. Thus the 262-prompt numbers above are the reliable values. The comparison also
+small estimate biases it upward. The 262-prompt numbers above are the reliable values. The comparison also
 has a confound: Qwen2.5 is instruction-tuned on refusal, and GPT-2 is a 2019 base model.
 
 \paragraph{Cross-dataset transfer.} Our first cross-distribution test trained on one
 dataset and tested on the other (jailbreak framing and BeaverTails harmful content). \cg{} and a probe
-both fell to approximately chance (AUC 0.36--0.52). These are two different concepts. Thus the test
-measured concept transfer, which fails for all methods. It did not measure robustness. \Cref{sec:ood}
+both fell to approximately chance (AUC 0.36--0.52). These are two different concepts, so the test measured concept transfer, which fails for all methods. It did not measure robustness. \Cref{sec:ood}
 replaces it with a within-concept test.
 
-\subsection{A concept bank: cheaper than fine-tuning, equal to a probe bank}
+\subsection{Multi-concept bank: cost and accuracy}
 \label{sec:bank}
 \Cref{tab:bank} compares three ways to add the fourteen BeaverTails categories at $N=32$. In \cg{}, a
 concept is a closed-form fit. A rank-8 LoRA adapter with a classification head must train. The full
 fourteen-category bank needs 704 truncated forwards (448 positives and a shared pool of 256 negatives).
-This takes approximately 8\,s on Qwen2.5-0.5B and 46\,s on gemma-2-2b. We timed LoRA on three categories
-per model and multiplied by fourteen. This gives 3.9 and 29 minutes (30$\times$ and 38$\times$). One truncated forward serves all concepts. Thus inference cost
-does not change with $K$. $K$ LoRA adapters need $K$ forwards. Detection quality stays high. We also ran
+At the measured per-forward latency, this is approximately 8\,s on Qwen2.5-0.5B and 46\,s on gemma-2-2b. We timed LoRA on three categories
+per model and multiplied by fourteen. This gives 3.9 and 29 minutes (30$\times$ and 38$\times$). One truncated forward serves all concepts, so inference cost does not change with $K$. $K$ LoRA adapters need $K$ forwards. Detection quality stays high. We also ran
 few-shot LoRA on three categories. It gets mean AUC 0.685 (Qwen) and 0.814 (gemma). \cg{} gets 0.889 and
 0.913 on the same three.
 
@@ -615,9 +589,8 @@ these harm categories, this direction points the wrong way (\cref{sec:harmbank})
 
 Two cautions apply to the labels:
 \begin{itemize}[leftmargin=*]
-  \item BeaverTails annotates responses. Thus a response-level label replaces a prompt-level concept.
-  \item One shared benign pool pulls all fourteen directions toward a common centroid. Thus the bank is
-    nearer to one harmfulness direction with category-specific variation than to fourteen independent
+  \item BeaverTails annotates responses, so a response-level label replaces a prompt-level concept.
+  \item One shared benign pool pulls all fourteen directions toward a common centroid, so the bank is nearer to one harmfulness direction with category-specific variation than to fourteen independent
     concepts.
 \end{itemize}
 
@@ -625,7 +598,7 @@ Two cautions apply to the labels:
 \label{sec:ood}
 This test measures generalization within one concept. We hold out one category at a time. We fit on the
 other thirteen plus the shared benign pool, and we score the held-out category. The comparison is a
-direction fit on the held-out category itself (\cref{fig:ood}). \Cref{tab:oodsummary} gives the mean AUC.
+direction fit on the held-out category itself (\cref{fig:ood}). \Cref{tab:oodsummary} gives the mean AUC. The probe in this test reads the final layer and runs the full model, as in the first bank comparison. It is not depth-matched.
 Generalization is partial. Violence, self-harm, drugs and weapons, terrorism, and financial crime stay
 detectable (0.74--0.78 on Qwen, 0.67--0.75 on gemma). Controversial politics (0.39--0.47) falls to chance
 or below. On gemma, sexual content (0.43) also falls below chance.
@@ -633,18 +606,15 @@ or below. On gemma, sexual content (0.43) also falls below chance.
 \begin{table}[h]
 \centering
 \small
-\caption{Mean AUC over fourteen BeaverTails categories, fit on the category itself and with the category
-held out.}
+\caption{Mean AUC over fourteen BeaverTails categories, fit on the category itself and with the category held out. The probe reads the final layer.}
 \label{tab:oodsummary}
 \begin{tabular}{llcc}
 \toprule
 Model & Method & In-distribution & Held out \\
 \midrule
-\multirow{2}{*}{Qwen2.5-0.5B} & \cg{} & 0.827 & 0.647 \\
- & probe & 0.847 & 0.610 \\
+\multirow{2}{*}{Qwen2.5-0.5B} & \cg{} & 0.827 & 0.647 \\ & probe (final layer) & 0.847 & 0.610 \\
 \midrule
-\multirow{2}{*}{gemma-2-2b} & \cg{} & 0.868 & 0.616 \\
- & probe & 0.866 & 0.610 \\
+\multirow{2}{*}{gemma-2-2b} & \cg{} & 0.868 & 0.616 \\ & probe (final layer) & 0.866 & 0.610 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -664,7 +634,7 @@ AUC on Qwen2.5-0.5B. The dashed line is chance.}
 \end{figure}
 
 % ===================================================================================================
-\section{The write side}
+\section{Steering experiments}
 \label{sec:write}
 
 \subsection{Dose-response on topical concepts}
@@ -754,12 +724,12 @@ to a place where the read does not look. We tested this directly. We steered, re
 and projected it onto the two directions. On GPT-2, the steered output also moves along the detection
 direction: by $+4.2$ and $+2.1$ standardized units at two of three taps. The total LLR change is $+21$. On
 Qwen, the change is $+48$. Also, GPT-2 is not the least-aligned model in any mode. Qwen is, and the Qwen
-read follows its write well. Thus the geometric explanation is wrong. The GPT-2 read stays negative because
+read follows its write well. The geometric explanation is wrong. The GPT-2 read stays negative because
 the concept is poorly separated in that model.
 
 \subsection{Gate-conditioned steering and prompt formatting}
 \label{sec:formatting}
-The steering rule is activation addition. Thus the read side can contribute to the write in only one way:
+The steering rule is activation addition, so the read side can contribute to the write in only one way:
 it can decide \emph{when} to write. We measured this decision without and with the chat template.
 
 \paragraph{Design.} Qwen2.5-0.5B-Instruct, taps 8/12/16. We fit a jailbreak concept in logistic mode from
@@ -796,8 +766,7 @@ $6.2\pm2.6$. On prompts where the gate fired, the two signs of $\alpha$ moved re
 directions. On prompts where the gate passed, both signs decreased refusal. This pattern suggests that the
 gate selects the prompts on which the write has an effect.
 
-\paragraph{With the chat template.} The code for the results above did not apply the chat template. Thus
-each number above comes from an instruct model used as a raw text completer. \Cref{tab:formatting} gives
+\paragraph{With the chat template.} The code for the results above did not apply the chat template, so each number above comes from an instruct model used as a raw text completer. \Cref{tab:formatting} gives
 the same experiment with the chat template.
 
 \begin{table}[t]
@@ -830,16 +799,15 @@ benign generations left identical (gated) & \multicolumn{2}{c}{$89.6\pm9.0\%$} &
 With the template, the model already refuses 30 of 32 attacks. This leaves headroom of two prompts. Now,
 steering \emph{away} from the jailbreak concept \emph{decreases} refusal in every resample (by 28, 22, and
 16 points). Steering toward the concept increases refusal on attacks (at the ceiling). The anti-gate arm
-with $+\alpha$ (not in \cref{tab:formatting}) writes to the benign prompts that the gate passes, and it causes 7.3\% over-refusal on them. The gate fires on $96.9\pm2.6\%$ of attacks. Thus
-the gated, random, and always arms write to almost the same prompts, and they agree within a resample. The
+with $+\alpha$ (not in \cref{tab:formatting}) writes to the benign prompts that the gate passes, and it causes 7.3\% over-refusal on them. The gate fires on $96.9\pm2.6\%$ of attacks, so the gated, random, and always arms write to almost the same prompts, and they agree within a resample. The
 control that separates \emph{which} prompts from \emph{how many} prompts has nothing to separate. The gate
 still limits collateral damage. 82\% of benign generations stay byte-identical. Under blanket steering,
 none do. This agrees with the selective-refusal result of CAST~\citep{lee2024cast}, here with eight
 examples.
 
-\subsection{A continuous outcome against a matched-norm random direction}
+\subsection{First-token outcome and a matched-norm random direction}
 \label{sec:lever}
-A refusal rate of 94\% cannot resolve an intervention. Thus we replaced it with a continuous outcome. At
+A refusal rate of 94\% cannot resolve an intervention, so we replaced it with a continuous outcome. At
 the first generated position, we take the log-mass on refusal-opening tokens (``I'', ``Sorry'', ``As'',
 ``Unfortunately'', ``No''). We subtract the log-mass on compliance-opening tokens (``Sure'', ``Here'',
 ``To'', ``Certainly'', ``Yes'', \ldots). This is a basket-sum form of the refusal--affirmation logit
@@ -876,18 +844,17 @@ moves refusal in proportion to its alignment with that direction~\citep{li2026pi
 On a test set with headroom (the 164 attacks of \cref{sec:dose}), refusal over 40 greedy tokens, scored by
 the lexicon, is \textbf{64.0\% unsteered, 35.4\% steered away, and 78.7\% steered toward}. A teacher-forced score moves in the
 same way ($+1.08\to+0.88\to+1.12$). This score is the log-probability of canonical refusal continuations
-minus that of compliance continuations. Thus eight hand-written framings at 8\% of the residual norm move
-generated refusal across 43 points, in the direction that the operator selects.
+minus that of compliance continuations. Eight hand-written framings at 8\% of the residual norm move generated refusal across 43 points, in the direction that the operator selects.
 
 \paragraph{Against a system prompt.} We compare the write with an instruction in the system message, on
 the same 164 attacks, with the same greedy decoding and lexicon (\cref{tab:prompting}). One system prompt
 asks the model to refuse harmful or override requests. The other asks it to answer every request and never
 refuse (\cref{app:prompts}). We ran all five arms again in one session. Greedy bfloat16 decoding on MPS
 changed between library versions: a new run of the original code gives the same text as the stored run on
-22 of the first 40 prompts. Thus the unsteered rate here is 65.2\%, not 64.0\%. On this 0.5B model, each
+114 of the 164 prompts. The unsteered rate here is therefore 65.2\%, not 64.0\%. On this 0.5B model, each
 system prompt moves refusal by 7 points or less. The write moves it by 30 points away and 14 points
 toward. We tested one wording per direction, so a better prompt can possibly do more.
-AxBench~\citep{wu2025axbench} finds the opposite order on larger models.
+In AxBench~\citep{wu2025axbench}, prompting beats representation steering at both model sizes, and the gap widens on the larger model.
 
 \begin{table}[h]
 \centering
@@ -913,22 +880,19 @@ the 16 sampled continuations per prompt and arm of \cref{sec:instrument} with th
 Qwen2.5-0.5B model and with the fraction of repeated word 3-grams. On attacks, steered-away continuations that the
 classifier labels as non-refusals have a median perplexity of 9.6. Unsteered non-refusals have 12.1. Their
 repeated 3-gram fraction is 0.6\%, against 0.7\%. No arm has more than 1.3\% of its non-refusals with
-more than 30\% repeated 3-grams. Thus at $\alpha=0.08$, the write does not decrease refusal by breaking the
-text. These metrics do not show that the non-refusals help with the request.
+more than 30\% repeated 3-grams. At $\alpha=0.08$, the write does not decrease refusal by breaking the text. These metrics do not show that the non-refusals help with the request.
 
 \subsection{Steering with harm-category directions}
 \label{sec:harmbank}
 We ran the main arms with five BeaverTails category directions. The result is the same. Baseline refusal on
 sixty held-out harmful prompts is 80.0\%. Blanket steering away decreases it to 65.0\%. Gated steering
-decreases it to 68.3\%. The category gates fire on 42--100\% of \emph{safe} prompts. Thus gated and blanket
-steering are almost the same policy. But the gate leaves 33\% of safe generations unchanged, against 3\%.
+decreases it to 68.3\%. The category gates fire on 42--100\% of \emph{safe} prompts, so gated and blanket steering are almost the same policy. But the gate leaves 33\% of safe generations unchanged, against 3\%.
 These topic directions are weaker refusal levers than the framing direction (15 points, against 22). This
 agrees with separate directions for harmfulness and refusal~\citep{zhao2025harmfulness}. With twelve
-prompts per category, each cell moves in steps of 8.3 points. Thus the ``free'' write direction of the bank
-exists. But for harm categories, steering away from the category decreases refusal. It does not increase
+prompts per category, each cell moves in steps of 8.3 points. The ``free'' write direction of the bank exists. But for harm categories, steering away from the category decreases refusal. It does not increase
 it.
 
-\subsection{The gate is calibrated to a register}
+\subsection{Register dependence of the gate}
 \label{sec:register}
 We keep the eight-example gate, its concept, and its threshold the same. It fires on 18\% of in-register
 benign prompts. It fires on $95.8\pm2.9\%$ of real benign prompts from a different register (30 or 31 of 32
@@ -940,7 +904,7 @@ source distribution of their training data~\citep{kulkarni2026lad}. On the write
 not only raise a flag. It changes the answer.
 
 % ===================================================================================================
-\section{Per-prompt steerability}
+\section{Per-prompt steerability prediction}
 \label{sec:dose}
 
 A fixed write does not move every prompt by the same amount. We call the size of the change on one prompt
@@ -977,23 +941,22 @@ $+0.64$.
 
 \subsection{Controls for the proxy result}
 \begin{itemize}[leftmargin=*]
-  \item \textbf{Much of the signal is in the concept direction.} At each tap, we project the prompt onto
+  \item Much of the signal is in the concept direction. At each tap, we project the prompt onto
     the steering direction of the concept. These three scalars predict the dose at $+0.64$. The calibrated
     LLR of the gate gets $+0.51$. But the projections do not hold all of the signal. The full ridge also
     predicts the part of the dose that the projections miss ($+0.61$ on the residual), and it increases the
     total from $+0.64$ to $+0.81$.
-  \item \textbf{Two geometry readings do not hold.}
+  \item Two geometry readings do not hold.
     \begin{enumerate}
       \item The fitted direction aligns with the concept direction at $|\cos|=0.09$. The chance floor is
         0.033. We first read this as near-orthogonality, and thus as a separate ``effect-modifier''
         direction. But the correct reference is the agreement of the direction with itself. When we fit it
-        again on disjoint halves of the prompts, the two halves agree at only 0.19. Thus the alignment is
-        47\% of the resolvable ceiling. At this sample size, the statistic cannot answer the question.
+        again on disjoint halves of the prompts, the two halves agree at only 0.19. The alignment is 47\% of the resolvable ceiling. At this sample size, the statistic cannot answer the question.
       \item We also read ``projecting out the concept and disposition directions still gives $+0.81$'' as
         evidence that the signal was in a different place. This control has no power. Projecting out two
         \emph{random} directions also gives $+0.81$. Projecting out the fitted direction gives $+0.09$.
     \end{enumerate}
-  \item \textbf{Predictability on this outcome is not special.} The same pipeline decodes the unsteered
+  \item Predictability on this outcome is not special. The same pipeline decodes the unsteered
     refusal logit at $+0.86$. It decodes the sign-independent part of the response at $+0.86$. Mid-layer
     activations linearly encode smooth functions of the prompt. The concept write is different in one way:
     the pipeline predicts the dose of a random direction at only $+0.44$.
@@ -1028,22 +991,19 @@ gemma-2-2b & $+0.40$ / $+0.51$ / $+0.61$ & $-0.01$ / $-0.02$ / $-0.04$ & 0.82 / 
 \subsection{Behavioural validation and instrument reliability}
 \label{sec:instrument}
 All results above use a first-token statistic over two hand-picked token baskets. The prediction claim is
-about the per-prompt ranking. We had not checked this ranking against behaviour. Thus we measured the same
-164 prompts in two more ways:
+about the per-prompt ranking. We had not checked this ranking against behaviour, so we measured the same 164 prompts in two more ways:
 \begin{itemize}[leftmargin=*]
-  \item a teacher-forced continuation score: the length-normalized log-probability of three canned refusals
-    minus that of three canned compliances;
+  \item a teacher-forced continuation score: the length-normalized log-probability of three fixed refusals
+    minus that of three fixed compliances;
   \item a generated-refusal indicator over 40 greedy tokens.
 \end{itemize}
 
-The proxy correlated with these measures at $+0.43$ and $+0.48$. This is below the threshold of 0.5 that
-we set in advance. The two behavioural measures correlated with \emph{each other} at $-0.01$. At face
+The proxy correlated with these measures at $+0.43$ and $+0.48$. This is below the threshold of 0.5 that we set before this check. The check itself came before the written plan. The two behavioural measures correlated with \emph{each other} at $-0.01$. At face
 value, this is a null, and it refutes the per-prompt claim.
 
 This reading was wrong. When two instruments of unknown reliability disagree, the disagreement is
-information about the instruments. We had checked neither instrument. The greedy measure is one sample per
-arm, scored by a lexicon. Thus the per-prompt dose has only three possible values. The teacher-forced
-measure compares three canned continuations with three others.
+information about the instruments. We had checked neither instrument. The greedy measure is one sample per arm, scored by a lexicon, so the per-prompt dose has only three possible values. The teacher-forced
+measure compares three fixed continuations with three others.
 
 \paragraph{A sampled instrument.} We followed a written plan with stop rules set in advance. We drew $K=16$
 continuations per prompt and per arm at $T=0.7$ (40 tokens; float32 on Qwen2.5-0.5B, bfloat16 on
@@ -1084,8 +1044,7 @@ without jitter.}
 
 \subsection{Dose prediction on sampled behaviour}
 \label{sec:behaviour}
-We fit a ridge ($\lambda=10$) on the three z-scored tapped activations, with folds grouped by harmful
-request. It predicts the classifier-scored behavioural dose at $\rho=+0.58$ out of fold. The permutation
+We fit a ridge ($\lambda=10$) on the three z-scored tapped activations, with folds grouped by harmful request. There are fourteen groups: the twelve requests, the short framed attacks, and the bare requests. The bare requests repeat the twelve request strings, so that group is not fully disjoint from the template groups. The ridge predicts the classifier-scored behavioural dose at $\rho=+0.58$ out of fold. The permutation
 null from the identical pipeline is $-0.015\pm0.089$ (300 draws). Thus $z=6.7$ (\cref{fig:dose}a). The plan
 required $z\geq4$. With the out-of-fold predictions fixed, a bootstrap gives a 95\% interval of
 $[+0.46,+0.66]$ when it resamples the fourteen request groups, and $[+0.47,+0.67]$ when it resamples prompts
@@ -1132,20 +1091,19 @@ ridge, random-direction dose & $+0.44$ & $+0.23$ \\
 a ridge on three taps (Qwen2.5-0.5B, folds grouped by harmful request). (b)~Refusal gained per write when
 we write only to the top fraction of attacks by predicted dose, against a size-matched random subset (500
 draws per point; the band is $\pm2$ s.d.). (c)~Refusal rate on attacks under each write. The same write
-moves gemma-2-2b much less than Qwen2.5-0.5B. Thus gemma has little per-prompt variance to predict.}
+moves gemma-2-2b much less than Qwen2.5-0.5B, so gemma has little per-prompt variance to predict.}
 \label{fig:dose}
 \end{figure}
 
-We checked the obvious confounds. The taps decode each confound easily. Thus, if the dose were secretly the
-confound, the correlation would be higher, not lower.
+We checked the obvious confounds. The taps decode each confound easily. If the dose were secretly the confound, the correlation would be higher, not lower.
 \begin{itemize}[leftmargin=*]
-  \item \textbf{Prompt length.} The taps predict token count at $+0.90$. But length correlates with the dose
+  \item \emph{Prompt length.} The taps predict token count at $+0.90$. But length correlates with the dose
     at only $-0.12$. The ridge still predicts the length-residualized dose at $+0.57$.
-  \item \textbf{Prompt family.} The taps separate templates from short attacks at $+0.77$. But the ridge
+  \item \emph{Prompt family.} The taps separate templates from short attacks at $+0.77$. But the ridge
     predicts the dose within templates alone ($+0.52$), and within short and bare requests alone ($+0.63$).
-  \item \textbf{Refusal disposition.} The unsteered refusal rate is more predictable ($+0.81$). But it
+  \item \emph{Refusal disposition.} The unsteered refusal rate is more predictable ($+0.81$). But it
     correlates with the dose at only $+0.03$.
-  \item \textbf{Analysis choices.} The three scorers give grouped $\rho=+0.54$, $+0.58$, and $+0.60$ ($z$ from
+  \item \emph{Analysis choices.} The three scorers give grouped $\rho=+0.54$, $+0.58$, and $+0.60$ ($z$ from
     6.0 to 6.7 across scorers and null draws). Their out-of-fold predictions agree at $+0.87$. A thousandfold
     change in the ridge penalty moves the result between $+0.58$ and $+0.63$. The library
     \texttt{OutcomeHead} and the analysis script are independent implementations. They agree to four
@@ -1181,8 +1139,7 @@ The gate is better than its null at every coverage. As coverage decreases, the g
 monotonically, and the random baseline stays flat. A lucky split wins at one threshold. A real ranking
 continues to improve as we keep only its top. For comparison, the concept gate writes to 154 of 164 attacks
 and to \emph{every} benign prompt in the set. It gains $+0.090$ per write. At 50\% coverage, the outcome gate
-gains $+0.143$ per write and writes to 23\% of benign prompts. The lexicon target gives the same sweep
-($+0.246\to+0.114$, $P\leq0.020$ at all coverages).
+gains $+0.143$ per write and writes to 23\% of benign prompts. The lexicon target gives the same sweep ($+0.246\to+0.114$, $P\leq0.020$ at all coverages). Each $P$ comes from 500 draws, so its resolution is 0.002, and it changes between draw sets (0.008 and 0.002 at 50\% coverage in two sets).
 
 \subsection{Replication on gemma-2-2b}
 \label{sec:gemma}
@@ -1215,18 +1172,15 @@ approximately 0.084, and the $K=32$ samples include the $K=16$ samples. But the 
 ($z=0.9$), approximately 1.6 standard errors below the expected value. When
 measurement noise hides a signal, a better measurement makes the signal stronger. It does not do this for
 noise. Cross-family transfer also collapsed (from $+0.12/+0.09$ to $+0.03/-0.02$). The split-half
-self-consistency of the fitted direction fell to 0.04--0.05. Thus the result for gemma-2-2b is not
-``underpowered''. It is ``no detectable per-prompt dose, at a magnitude that almost does not move the
+self-consistency of the fitted direction fell to 0.04--0.05. The result for gemma-2-2b is not ``underpowered''. It is ``no detectable per-prompt dose, at a magnitude that almost does not move the
 model''. The concept direction on gemma is as specific as on Qwen (1.5--1.8$\times$ a random direction on
-both models). Its effect is only smaller. Thus this run does not show if the dose is predictable on gemma
-at a magnitude that moves the model. We kept $\alpha=0.08$ because the plan fixed one magnitude for both
+both models). Its effect is only smaller. This run therefore does not show if the dose is predictable on gemma at a magnitude that moves the model. We kept $\alpha=0.08$ because the plan fixed one magnitude for both
 models before the runs. A magnitude sweep per model is the open test (\cref{sec:future}).
 
-\subsection{Split-half reliability is not comparable across sample sizes}
+\subsection{Split-half reliability across sample sizes}
 \label{sec:splithalf}
 Gemma failed the reliability bar at $K=16$ (0.53). It ``passed'' at $K=32$ (0.69). Nothing about the model
-changed. At $K$ samples, a split-half compares two estimates of $K/2$ samples each. Thus the $K=32$ value
-measures the reliability of a 16-sample dose. The $K=16$ run had already given this value through
+changed. At $K$ samples, a split-half compares two estimates of $K/2$ samples each. The $K=32$ value therefore measures the reliability of a 16-sample dose. The $K=16$ run had already given this value through
 Spearman--Brown. We recorded this prediction before the run finished (0.694 predicted, 0.692 observed). To
 make a decision on reliability, compare Spearman--Brown-corrected full-sample values, or split-halves at
 the same half-size. Do not compare the raw statistic across different $K$.
@@ -1238,16 +1192,14 @@ The calibrated gate reads it poorly, and with the wrong sign. We do not claim ge
 not reproduce on the second model, at the one magnitude that we tested. The limits are:
 \begin{itemize}[leftmargin=*]
   \item The behavioural run uses one concept fit on one fixed prompt set. The three resamples of the
-    first-token sweep also use this prompt set. Thus there is effectively one replicate.
+    first-token sweep also use this prompt set. There is effectively one replicate.
   \item Each dose is a two-point difference at one magnitude.
   \item Most doses have the same sign (81\% positive under the classifier, 87\% under the lexicon, 98\% on
-    the first-token proxy). Thus the prediction is mainly about magnitude, not direction.
+    the first-token proxy). The prediction is mainly about magnitude, not direction.
   \item The labels cost one round of sampled generation per prompt.
-  \item The bootstrap intervals hold the out-of-fold predictions fixed. Thus they cover the sampling of the
-    evaluation prompts, not the refit of the ridge. The interval of $\rho=+0.58$ spans 0.2.
+  \item The bootstrap intervals hold the out-of-fold predictions fixed. They cover the sampling of the evaluation prompts, not the refit of the ridge. The interval of $\rho=+0.58$ spans 0.2.
 \end{itemize}
-The planned rule required success on both models, and this result does not meet it. Thus the library
-gives the outcome head only as an opt-in feature. Its documentation gives exactly this one-model evidence.
+The planned rule required success on both models, and this result does not meet it. The library gives the outcome head only as an opt-in feature. Its documentation gives exactly this one-model evidence.
 
 % ===================================================================================================
 \section{Discussion}
@@ -1284,35 +1236,28 @@ Per-prompt dose predictable (behaviour) & Greedy instruments: null. Sampled: $\r
 \end{tabularx}
 \end{table}
 
-\paragraph{Presence is the wrong signal for a gate.} On correctly formatted attacks, the concept is almost
-always present. Thus a presence gate has nothing to select. A steering system needs a different answer: will
+\paragraph{Concept presence as a gate signal.} On correctly formatted attacks, the concept is almost
+always present, so a presence gate has nothing to select. A steering system needs a different answer: will
 the write move this prompt? On one model, the same activations answer this question well, and the concept
-read answers it badly. Thus it can be better to fit the read side of a steering system to the measured
+read answers it badly. It can be better to fit the read side of a steering system to the measured
 effect of the write, not to concept membership. This conclusion rests on one model.
 
-\paragraph{Lessons for the evaluation of steering.}
-\begin{enumerate}[leftmargin=*]
-  \item \textbf{Format prompts as the model expects. Check the code path that does it.} In
-    \cref{sec:formatting}, the formatting set the sign of the main effects. The wrong formatting gave a
-    seed-stable result with a plausible mechanism. A read of the code found the error. Checks of the
-    results did not find it.
-  \item \textbf{Do not measure an intervention with an outcome at its ceiling.} A 94\% refusal rate cannot
-    resolve an increase in refusal. Use a continuous outcome and a test set with headroom.
-  \item \textbf{Always include a matched-norm random direction.} Random writes have an effect. They moved
-    the first-token refusal logit by one third as much as the concept direction. They moved sampled refusal
-    by more than half as much.
-  \item \textbf{Measure the reliability of an instrument before you read its null.} Our first null came
-    from the measurement, not from the model.
-  \item \textbf{Compare reliabilities at the same sample size.} Split-half statistics change with $K$, also
-    when nothing else changes.
-\end{enumerate}
+\paragraph{Lessons for the evaluation of steering.} Five practices follow from these results. Format
+prompts as the model expects, and check the code path that does it: in \cref{sec:formatting}, the formatting
+set the sign of the main effects, the wrong formatting gave a seed-stable result with a plausible mechanism,
+and a read of the code found the error where checks of the results did not. Do not measure an intervention
+with an outcome at its ceiling: a 94\% refusal rate cannot resolve an increase in refusal, so use a
+continuous outcome and a test set with headroom. Always include a matched-norm random direction: random
+writes moved the first-token refusal logit by one third as much as the concept direction, and they moved
+sampled refusal by more than half as much. Measure the reliability of an instrument before you read its
+null; our first null came from the measurement, not from the model. Compare reliabilities at the same
+sample size, because split-half statistics change with $K$ when nothing else changes.
 
 % ===================================================================================================
 \section{Limitations}
 \label{sec:limits}
 
-\paragraph{Adversarial fragility.} \cg{} is a latent-space defense. Obfuscated-activation attacks decrease
-the recall of such probes from 100\% to 0\%, and the behaviour continues~\citep{bailey2024obfuscated}.
+\paragraph{Adversarial fragility.} \cg{} is a latent-space defense. Obfuscated-activation attacks can decrease the recall of such probes from 100\% to 0\% while the behaviour continues~\citep{bailey2024obfuscated}.
 Nothing here is a security guarantee. At best, the detector is a cheap layer in a defense stack.
 
 \paragraph{Small models, small test sets.} All models have 2.6B parameters or fewer. The gate experiments
@@ -1322,12 +1267,10 @@ them. Most detection results are in-distribution. A change of attack style is a 
 held-out category. We did not test it.
 
 \paragraph{Baselines.} The jailbreak benchmark is easy from surface text, and it has train--test overlap
-(\cref{sec:detect}). Thus its AUC values compare methods but do not measure robust detection. We give no
+(\cref{sec:detect}). Its AUC values compare methods but do not measure robust detection. We give no
 external-classifier numbers, such as Llama Guard. On the write side, we compare with one system-prompt
 wording per direction, on one 0.5B model (\cref{tab:prompting}). We do not compare with other steering
-methods such as ITI~\citep{li2023iti} or RepE reading vectors. AxBench~\citep{wu2025axbench} finds that
-prompting beats representation steering on larger models. Thus we do not claim that the write is better
-than an instruction in general.
+methods such as ITI~\citep{li2023iti} or RepE reading vectors. AxBench~\citep{wu2025axbench} finds that prompting beats representation steering, by a wider margin on its larger model. We do not claim that the write is better than an instruction in general.
 
 \paragraph{The few-shot regime.} All results depend on the diversity of about ten prompts per side. The
 register result in \cref{sec:register} shows how large this dependence is.
@@ -1343,34 +1286,28 @@ decreases fluency. Degenerate text can push benign continuations across the gate
 considered an MLP probe variant but did not evaluate it.
 
 % ===================================================================================================
-\section{Future directions}
+\section{Future work}
 \label{sec:future}
 
-\begin{itemize}[leftmargin=*]
-  \item \textbf{A magnitude sweep per model for the behavioural dose.} This experiment can show if per-prompt
-    steerability is a property of language models or only of Qwen2.5-0.5B. The response of each prompt
-    becomes a fitted slope, not a two-point difference. Each model is measured where its write has an
-    effect. gemma-2-2b at $\alpha=0.08$ is at the noise floor.
-  \item \textbf{Independent replicates and larger models.} New prompt sets per resample (the current
-    effective replicate count is one), more model families, and instruct models at 7--8B.
-  \item \textbf{Cheaper outcome labels.} The first-token proxy follows the sampled dose at $+0.61$ per
-    prompt. It costs five forwards, not 80 generations. We did not test if proxy labels can train an outcome
-    head that predicts behaviour.
-  \item \textbf{Outcomes other than refusal.} Topic, tone, and format steering. There, the outcome is not a
-    binary decline, and the base rate is not near a ceiling.
-  \item \textbf{Register-robust calibration.} Fit negatives from the traffic that the gate will see, or
-    calibrate the threshold on mixed-register benign pools. Measure the false-positive rate per register.
-  \item \textbf{Why the gate reads the dose incorrectly.} On Qwen, the calibrated LLR has a negative
-    correlation with the behavioural dose. On gemma, it carries no dose information. The cause can help the
-    design of steering triggers.
-  \item \textbf{Per-token and output-side gates.} The design reads each generated token as well as the
-    prompt. We measured only the prompt side.
-  \item \textbf{Adversarial evaluation} against obfuscated-activation attacks. Also, a non-safety concept
-    dataset, to test the claim that detection is concept-agnostic.
-  \item \textbf{A harder detection benchmark}, where a surface-text classifier fails, and no train--test
-    overlap. Also, more system-prompt wordings, a second steering method, and larger models for the
-    write-side comparison.
-\end{itemize}
+The first open test is a magnitude sweep per model for the behavioural dose. It would show if per-prompt
+steerability is a property of language models or only of Qwen2.5-0.5B. The response of each prompt becomes
+a fitted slope, not a two-point difference, and each model is measured where its write has an effect;
+gemma-2-2b at $\alpha=0.08$ is at the noise floor. The same study needs independent replicates (new prompt
+sets per resample, since the current effective replicate count is one), more model families, and instruct
+models at 7--8B. Two extensions follow from it. The first-token proxy follows the sampled dose at $+0.61$
+per prompt and costs five forwards, not 80 generations, so proxy labels may be enough to train an outcome
+head; we did not test this. Outcomes other than refusal, such as topic, tone, and format, have no ceiling in
+the base rate and no binary decline as the outcome. Why the calibrated LLR reads the dose with the wrong
+sign on Qwen and carries no dose information on gemma is also unexplained, and the cause bears on the design
+of steering triggers.
+
+On the detection side, register-robust calibration is the main gap: fit negatives from the traffic that
+the gate will see, or calibrate on mixed-register benign pools, and report the false-positive rate per
+register. The design also reads each generated token, but we measured only the prompt side, so per-token
+and output-side gates are untested. A fair detection benchmark needs prompts on which a surface-text
+classifier fails, no train--test overlap, and an adversarial evaluation against obfuscated-activation
+attacks. A non-safety concept dataset would test the claim that detection is concept-agnostic. The
+write-side comparison needs more system-prompt wordings, a second steering method, and larger models.
 
 % ===================================================================================================
 \section{Conclusion}
@@ -1386,9 +1323,8 @@ Three findings hold under these controls. First, a direction fit from eight exam
 refusal in either direction, as the operator selects. Second, the calibrated gate has a false-positive rate
 that depends strongly on the register of its traffic. Third, on one model, the unsteered activations
 predict how far a fixed write will move a given prompt, and this prediction is a better steering trigger
-than the concept gate. We did not find this third result in prior work. On a second
-model, the same write has almost no effect, so there is nothing to predict. Thus the question of whether
-per-prompt steerability is a general property of language models remains open. In our opinion, the record
+than the concept gate. We are not aware of this third result in prior work. On a second
+model, the same write has almost no effect, so there is nothing to predict. The question of whether per-prompt steerability is a general property of language models remains open. In our opinion, the record
 of what failed, and why, is the most reusable part of this work.
 
 \section*{Broader impact}
@@ -1410,7 +1346,7 @@ and conclusions are the author's. The author is fully responsible for the conten
 \section*{Code and data availability}
 The code, evaluation harnesses, stored results, and the script that makes every figure in this paper are at
 \url{https://github.com/NISH1001/conceptgate}. The repository stores every sampled continuation for
-\cref{sec:dose} with the results. Thus those numbers reproduce with no new text generation.
+\cref{sec:dose} with the results. Those numbers reproduce with no new text generation.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
@@ -1452,7 +1388,7 @@ The numerical core (directions, spectrogram, filters, gate, mixtures) is NumPy. 
 contains the tap reader, the steering hooks, and the actions. \texttt{UP\_TO\_TAPS} loads only the
 embedding and the blocks up to the deepest tap. It raises an error if a call asks it to generate.
 
-\section{Settings}
+\section{Hyperparameters and settings}
 \label{app:hyper}
 
 \begin{small}
@@ -1508,7 +1444,7 @@ Result & Harness (under \texttt{scripts/}) \\
 \Cref{sec:formatting,sec:lever,sec:harmbank,sec:register} & \texttt{eval\_gate.py --gate --signflip --beavertails --logit} \\
 \Cref{sec:dose}, proxy and controls & \texttt{eval\_gate.py --steerability}; \texttt{steerability\_controls.py}; \texttt{eval\_behaviour\_check.py} \\
 \Cref{tab:fourmodels} & \texttt{eval\_gate.py --scaleup}; \texttt{analyze\_scaleup.py} \\
-\Cref{sec:instrument,sec:behaviour,sec:outcomegate,sec:gemma} & \texttt{eval\_behaviour\_dose.py}; \texttt{run\_behaviour\_dose.sh}; \texttt{analyze\_behaviour\_dose.py} \\
+\Cref{sec:instrument,sec:behaviour,sec:outcomegate,sec:gemma} & \texttt{eval\_behaviour\_dose.py}; \texttt{run\_behaviour\_dose.sh}; \texttt{analyze\_behaviour\_dose.py} (the coverage sweep of \cref{tab:coverage} was run ad hoc on the stored out-of-fold predictions; the script gives the 50\% point) \\
 All figures & \texttt{docs/preprint/figures/make\_figures.py} \\
 \Cref{tab:detect}, text-only baseline and duplicate check & \texttt{eval\_text\_baseline.py} \\
 \Cref{tab:prompting} & \texttt{eval\_prompting\_baseline.py} \\

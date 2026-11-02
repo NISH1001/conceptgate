@@ -1,4 +1,4 @@
-\begin{thebibliography}{35}
+\begin{thebibliography}{39}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -43,12 +43,32 @@ Joschka Braun, Carsten Eickhoff, David Krueger, Seyed~Ali Bahrainian, and
 \newblock In \emph{ICLR 2025 Workshop on Foundation Models in the Wild}, 2025.
 \newblock arXiv:2505.22637.
 
+\bibitem[Cheng et~al.(2025)Cheng, Gan, Jiang, Wang, Yin, Luo, Fu, and
+  Gu]{fasb2025necessary}
+Zifeng Cheng, Jinwei Gan, Zhiwei Jiang, Cong Wang, Yafeng Yin, Xiang Luo,
+  Yuchen Fu, and Qing Gu.
+\newblock Steering when necessary: Flexible steering large language models with
+  backtracking.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~38, pages 8390--8413, 2025.
+\newblock arXiv:2508.17621.
+
 \bibitem[Cunningham et~al.(2026)Cunningham, Wei, Wang, Persic, Peng,
   et~al.]{cunningham2026ccpp}
 Hoagy Cunningham, Jerry Wei, Zihan Wang, Andrew Persic, Alwin Peng, et~al.
 \newblock Constitutional classifiers++: Efficient production-grade defenses
   against universal jailbreaks.
 \newblock \emph{arXiv preprint arXiv:2601.04603}, 2026.
+
+\bibitem[Dong et~al.(2026)Dong, Yan, Ge, Xu, Zhang, Chen, He, Xin, Chen, and
+  Zhou]{adaras2026neurons}
+Fangan Dong, Zuming Yan, Xuri Ge, Zhiwei Xu, Mengqi Zhang, Xuanang Chen, Ben
+  He, Xin Xin, Zhumin Chen, and Ying Zhou.
+\newblock Identifying and transferring reasoning-critical neurons: Improving
+  {LLM} inference reliability via activation steering.
+\newblock In \emph{Proceedings of the 2026 Conference on Empirical Methods in
+  Natural Language Processing}, pages 33179--33198, 2026.
+\newblock arXiv:2601.19847.
 
 \bibitem[Fan et~al.(2026)Fan, Cheng, Li, Feizi, and Zhou]{fan2026asteer}
 Chenrui Fan, Yize Cheng, Ming Li, Soheil Feizi, and Tianyi Zhou.
@@ -61,12 +81,20 @@ Alex Ferrando, Xavier Suau, Jordi Gonz{\`a}lez, and Pau Rodriguez.
 \newblock Dynamically scaled activation steering.
 \newblock \emph{arXiv preprint arXiv:2512.03661}, 2025.
 
+\bibitem[Gadgil et~al.(2026)Gadgil, Lin, and Lee]{w2s2026layer}
+Soham Gadgil, Chris Lin, and Su-In Lee.
+\newblock Where to steer: Input-dependent layer selection for steering improves
+  {LLM} alignment.
+\newblock In \emph{Proceedings of the 2026 Conference on Empirical Methods in
+  Natural Language Processing}, pages 40786--40817, 2026.
+\newblock arXiv:2604.03867.
+
 \bibitem[Gao et~al.(2026)Gao, Zhang, Liu, Ji, Wang, Song, et~al.]{gao2026crh}
 Lang Gao, Jinghui Zhang, Wei Liu, Fengxian Ji, Chenxi Wang, Zirui Song, et~al.
 \newblock The cylindrical representation hypothesis for language model
   steering.
 \newblock In \emph{International Conference on Machine Learning}, volume 306 of
-  \emph{Proceedings of Machine Learning Research}, 2026.
+  \emph{Proceedings of Machine Learning Research}, pages 33925--33952, 2026.
 \newblock arXiv:2605.01844.
 
 \bibitem[Houlsby et~al.(2019)Houlsby, Giurgiu, Jastrzebski, Morrone,
@@ -160,6 +188,12 @@ Yuxiao Li, Alina Fastowski, Efstratios Zaradoukas, Bardh Prenkaj, and Gjergji
   ACL 2026}, pages 11182--11204, 2026.
 \newblock arXiv:2603.24543.
 
+\bibitem[Nelwan and Wicaksono(2026)]{perinstance2026layers}
+Muhammad Faishal~Adly Nelwan and Alfan~Farizki Wicaksono.
+\newblock Deployable per-instance multi-layer activation steering for large
+  language models.
+\newblock \emph{arXiv preprint arXiv:2608.08829}, 2026.
+
 \bibitem[Ong et~al.(2026)Ong, Sim, Zhang, and Sun]{ong2026sideeffects}
 Chong~Yong Ong, Alson Wei~Jie Sim, Peixin Zhang, and Jun Sun.
 \newblock Forecasting side effects of activation steering.
@@ -192,20 +226,22 @@ Tal Schuster, Adam Fisch, Jai Gupta, Mostafa Dehghani, Dara Bahri, Vinh~Q.
 \newblock Confident adaptive language modeling.
 \newblock \emph{arXiv preprint arXiv:2207.07061}, 2022.
 
-\bibitem[Sheng et~al.(2025)Sheng, Shen, Zhao, Fang, Liu, Liang, Wang, Zhang,
+\bibitem[Sheng et~al.(2026)Sheng, Shen, Zhao, Fang, Liu, Liang, Wang, Zhang,
   and Chua]{sheng2025alphasteer}
 Leheng Sheng, Changshuo Shen, Weixiang Zhao, Junfeng Fang, Xiaohao Liu, Zhenkai
   Liang, Xiang Wang, An~Zhang, and Tat-Seng Chua.
 \newblock {AlphaSteer}: Learning refusal steering with principled null-space
   constraint.
-\newblock \emph{arXiv preprint arXiv:2506.07022}, 2025.
+\newblock In \emph{International Conference on Learning Representations}, 2026.
+\newblock arXiv:2506.07022.
 
 \bibitem[Tan et~al.(2024)Tan, Chanin, Lynch, Kanoulas, Paige, Garriga-Alonso,
   and Kirk]{tan2024reliability}
 Daniel Tan, David Chanin, Aengus Lynch, Dimitrios Kanoulas, Brooks Paige,
   Adri{\`a} Garriga-Alonso, and Robert Kirk.
-\newblock Analyzing the generalization and reliability of steering vectors.
-\newblock \emph{arXiv preprint arXiv:2407.12404}, 2024.
+\newblock Analysing the generalisation and reliability of steering vectors.
+\newblock In \emph{Advances in Neural Information Processing Systems}, 2024.
+\newblock arXiv:2407.12404.
 
 \bibitem[Turner et~al.(2023)Turner, Thiergart, Leech, Udell, Vazquez, Mini, and
   MacDiarmid]{turner2023actadd}
@@ -220,7 +256,9 @@ Zhengxuan Wu, Aryaman Arora, Atticus Geiger, Zheng Wang, Jing Huang, Dan
   Jurafsky, Christopher~D. Manning, and Christopher Potts.
 \newblock {AxBench}: Steering {LLMs}? {Even} simple baselines outperform sparse
   autoencoders.
-\newblock \emph{arXiv preprint arXiv:2501.17148}, 2025.
+\newblock In \emph{International Conference on Machine Learning}, volume 267 of
+  \emph{Proceedings of Machine Learning Research}, pages 67035--67080, 2025.
+\newblock arXiv:2501.17148.
 
 \bibitem[Zaratiana et~al.(2024)Zaratiana, Tomeh, Holat, and
   Charnois]{zaratiana2023gliner}
@@ -233,7 +271,8 @@ Urchade Zaratiana, Nadi Tomeh, Pierre Holat, and Thierry Charnois.
 \bibitem[Zhao et~al.(2025)Zhao, Huang, Wu, Bau, and Shi]{zhao2025harmfulness}
 Jiachen Zhao, Jing Huang, Zhengxuan Wu, David Bau, and Weiyan Shi.
 \newblock {LLMs} encode harmfulness and refusal separately.
-\newblock \emph{arXiv preprint arXiv:2507.11878}, 2025.
+\newblock In \emph{Advances in Neural Information Processing Systems}, 2025.
+\newblock arXiv:2507.11878.
 
 \bibitem[Zou et~al.(2023)Zou, Phan, Chen, Campbell, Guo, Ren,
   et~al.]{zou2023repe}
