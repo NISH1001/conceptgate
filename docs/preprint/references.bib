@@ -1,11 +1,16 @@
 % Titles and author lists verified against the arXiv API (export.arxiv.org) on 2026-10-26; entries from tan2024reliability onward verified on 2026-10-30.
 % All 35 entries re-verified (arXiv API, ACL Anthology, PMLR, OpenReview, NeurIPS/ICLR venue pages) on 2026-11-02; venue fields added where the proceedings page was confirmed.
+% 2026-11-02, second pass: every remaining arXiv-only entry checked for a published version; eight upgraded (proceedings page confirmed). Entries still on arXiv have no main-track publication as of this date.
 
-@article{park2023linear,
-  author  = {Park, Kiho and Choe, Yo Joong and Veitch, Victor},
-  title   = {The Linear Representation Hypothesis and the Geometry of Large Language Models},
-  journal = {arXiv preprint arXiv:2311.03658},
-  year    = {2023}
+@inproceedings{park2023linear,
+  author    = {Park, Kiho and Choe, Yo Joong and Veitch, Victor},
+  title     = {The Linear Representation Hypothesis and the Geometry of Large Language Models},
+  booktitle = {International Conference on Machine Learning},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {235},
+  pages     = {39643--39666},
+  year      = {2024},
+  note      = {arXiv:2311.03658}
 }
 
 @article{alain2016probes,
@@ -29,18 +34,23 @@
   year    = {2023}
 }
 
-@article{panickssery2023caa,
-  author  = {Panickssery, Nina and Gabrieli, Nick and Schulz, Julian and Tong, Meg and Hubinger, Evan and Turner, Alexander Matt},
-  title   = {Steering {Llama 2} via Contrastive Activation Addition},
-  journal = {arXiv preprint arXiv:2312.06681},
-  year    = {2023}
+@inproceedings{panickssery2023caa,
+  author    = {Rimsky, Nina and Gabrieli, Nick and Schulz, Julian and Tong, Meg and Hubinger, Evan and Turner, Alexander},
+  title     = {Steering {Llama 2} via Contrastive Activation Addition},
+  booktitle = {Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)},
+  pages     = {15504--15522},
+  year      = {2024},
+  note      = {arXiv:2312.06681}
 }
 
-@article{zou2024circuitbreakers,
-  author  = {Zou, Andy and Phan, Long and Wang, Justin and Duenas, Derek and Lin, Maxwell and Andriushchenko, Maksym and Wang, Rowan and Kolter, Zico and Fredrikson, Matt and Hendrycks, Dan},
-  title   = {Improving Alignment and Robustness with Circuit Breakers},
-  journal = {arXiv preprint arXiv:2406.04313},
-  year    = {2024}
+@inproceedings{zou2024circuitbreakers,
+  author    = {Zou, Andy and Phan, Long and Wang, Justin and Duenas, Derek and Lin, Maxwell and Andriushchenko, Maksym and Wang, Rowan and Kolter, Zico and Fredrikson, Matt and Hendrycks, Dan},
+  title     = {Improving Alignment and Robustness with Circuit Breakers},
+  booktitle = {Advances in Neural Information Processing Systems},
+  volume    = {37},
+  pages     = {83345--83373},
+  year      = {2024},
+  note      = {arXiv:2406.04313}
 }
 
 @inproceedings{lee2018mahalanobis,
@@ -58,25 +68,31 @@
   year    = {2023}
 }
 
-@article{schuster2022calm,
-  author  = {Schuster, Tal and Fisch, Adam and Gupta, Jai and Dehghani, Mostafa and Bahri, Dara and Tran, Vinh Q. and Tay, Yi and Metzler, Donald},
-  title   = {Confident Adaptive Language Modeling},
-  journal = {arXiv preprint arXiv:2207.07061},
-  year    = {2022}
+@inproceedings{schuster2022calm,
+  author    = {Schuster, Tal and Fisch, Adam and Gupta, Jai and Dehghani, Mostafa and Bahri, Dara and Tran, Vinh and Tay, Yi and Metzler, Donald},
+  title     = {Confident Adaptive Language Modeling},
+  booktitle = {Advances in Neural Information Processing Systems},
+  volume    = {35},
+  pages     = {17456--17472},
+  year      = {2022},
+  note      = {arXiv:2207.07061}
 }
 
-@article{bailey2024obfuscated,
-  author  = {Bailey, Luke and Serrano, Alex and Sheshadri, Abhay and Seleznyov, Mikhail and Taylor, Jordan and Jenner, Erik and Hilton, Jacob and Casper, Stephen and Guestrin, Carlos and Emmons, Scott},
-  title   = {Obfuscated Activations Bypass {LLM} Latent-Space Defenses},
-  journal = {arXiv preprint arXiv:2412.09565},
-  year    = {2024}
+@inproceedings{bailey2024obfuscated,
+  author    = {Bailey, Luke and Serrano, Alex and Sheshadri, Abhay and Seleznyov, Mikhail and Taylor, Jordan and Jenner, Erik and Hilton, Jacob and Casper, Stephen and Guestrin, Carlos and Emmons, Scott},
+  title     = {Obfuscated Activations Bypass {LLM} Latent-Space Defenses},
+  booktitle = {International Conference on Learning Representations},
+  pages     = {146838--146882},
+  year      = {2026},
+  note      = {arXiv:2412.09565}
 }
 
-@article{hu2021lora,
-  author  = {Hu, Edward J. and Shen, Yelong and Wallis, Phillip and Allen-Zhu, Zeyuan and Li, Yuanzhi and Wang, Shean and Wang, Lu and Chen, Weizhu},
-  title   = {{LoRA}: Low-Rank Adaptation of Large Language Models},
-  journal = {arXiv preprint arXiv:2106.09685},
-  year    = {2021}
+@inproceedings{hu2021lora,
+  author    = {Hu, Edward J. and Shen, Yelong and Wallis, Phillip and Allen-Zhu, Zeyuan and Li, Yuanzhi and Wang, Shean and Wang, Lu and Chen, Weizhu},
+  title     = {{LoRA}: Low-Rank Adaptation of Large Language Models},
+  booktitle = {International Conference on Learning Representations},
+  year      = {2022},
+  note      = {arXiv:2106.09685}
 }
 
 @inproceedings{houlsby2019adapters,
@@ -114,8 +130,9 @@
 @article{ferrando2025dsas,
   author  = {Ferrando, Alex and Suau, Xavier and Gonz{\`a}lez, Jordi and Rodriguez, Pau},
   title   = {Dynamically Scaled Activation Steering},
-  journal = {arXiv preprint arXiv:2512.03661},
-  year    = {2025}
+  journal = {Transactions on Machine Learning Research},
+  year    = {2026},
+  note    = {arXiv:2512.03661}
 }
 
 @inproceedings{arditi2024refusal,
@@ -262,11 +279,13 @@
   note      = {arXiv:2306.03341}
 }
 
-@article{cunningham2026ccpp,
-  author  = {Cunningham, Hoagy and Wei, Jerry and Wang, Zihan and Persic, Andrew and Peng, Alwin and others},
-  title   = {Constitutional Classifiers++: Efficient Production-Grade Defenses against Universal Jailbreaks},
-  journal = {arXiv preprint arXiv:2601.04603},
-  year    = {2026}
+@inproceedings{cunningham2026ccpp,
+  author    = {Cunningham, Hoagy and Wei, Jerry and Wang, Zihan and Persic, Andrew and Peng, Alwin and others},
+  title     = {Constitutional Classifiers++: Efficient Production-Grade Defenses against Universal Jailbreaks},
+  booktitle = {International Conference on Learning Representations},
+  pages     = {48038--48054},
+  year      = {2026},
+  note      = {arXiv:2601.04603}
 }
 
 @article{perinstance2026layers,

@@ -18,12 +18,14 @@ Andy Arditi, Oscar Obeso, Aaquib Syed, Daniel Paleka, Nina Panickssery, Wes
 \newblock In \emph{Advances in Neural Information Processing Systems}, 2024.
 \newblock arXiv:2406.11717.
 
-\bibitem[Bailey et~al.(2024)Bailey, Serrano, Sheshadri, Seleznyov, Taylor,
+\bibitem[Bailey et~al.(2026)Bailey, Serrano, Sheshadri, Seleznyov, Taylor,
   Jenner, Hilton, Casper, Guestrin, and Emmons]{bailey2024obfuscated}
 Luke Bailey, Alex Serrano, Abhay Sheshadri, Mikhail Seleznyov, Jordan Taylor,
   Erik Jenner, Jacob Hilton, Stephen Casper, Carlos Guestrin, and Scott Emmons.
 \newblock Obfuscated activations bypass {LLM} latent-space defenses.
-\newblock \emph{arXiv preprint arXiv:2412.09565}, 2024.
+\newblock In \emph{International Conference on Learning Representations}, pages
+  146838--146882, 2026.
+\newblock arXiv:2412.09565.
 
 \bibitem[Bhattarai and Alhanai(2026)]{bhattarai2026signatures}
 Prajjwal Bhattarai and Tuka Alhanai.
@@ -58,7 +60,9 @@ Zifeng Cheng, Jinwei Gan, Zhiwei Jiang, Cong Wang, Yafeng Yin, Xiang Luo,
 Hoagy Cunningham, Jerry Wei, Zihan Wang, Andrew Persic, Alwin Peng, et~al.
 \newblock Constitutional classifiers++: Efficient production-grade defenses
   against universal jailbreaks.
-\newblock \emph{arXiv preprint arXiv:2601.04603}, 2026.
+\newblock In \emph{International Conference on Learning Representations}, pages
+  48038--48054, 2026.
+\newblock arXiv:2601.04603.
 
 \bibitem[Dong et~al.(2026)Dong, Yan, Ge, Xu, Zhang, Chen, He, Xin, Chen, and
   Zhou]{adaras2026neurons}
@@ -75,11 +79,12 @@ Chenrui Fan, Yize Cheng, Ming Li, Soheil Feizi, and Tianyi Zhou.
 \newblock When is your {LLM} steerable?
 \newblock \emph{arXiv preprint arXiv:2606.11599}, 2026.
 
-\bibitem[Ferrando et~al.(2025)Ferrando, Suau, Gonz{\`a}lez, and
+\bibitem[Ferrando et~al.(2026)Ferrando, Suau, Gonz{\`a}lez, and
   Rodriguez]{ferrando2025dsas}
 Alex Ferrando, Xavier Suau, Jordi Gonz{\`a}lez, and Pau Rodriguez.
 \newblock Dynamically scaled activation steering.
-\newblock \emph{arXiv preprint arXiv:2512.03661}, 2025.
+\newblock \emph{Transactions on Machine Learning Research}, 2026.
+\newblock arXiv:2512.03661.
 
 \bibitem[Gadgil et~al.(2026)Gadgil, Lin, and Lee]{w2s2026layer}
 Soham Gadgil, Chris Lin, and Su-In Lee.
@@ -105,12 +110,13 @@ Neil Houlsby, Andrei Giurgiu, Stanislaw Jastrzebski, Bruna Morrone, Quentin
 \newblock In \emph{International Conference on Machine Learning}, 2019.
 \newblock arXiv:1902.00751.
 
-\bibitem[Hu et~al.(2021)Hu, Shen, Wallis, Allen-Zhu, Li, Wang, Wang, and
+\bibitem[Hu et~al.(2022)Hu, Shen, Wallis, Allen-Zhu, Li, Wang, Wang, and
   Chen]{hu2021lora}
 Edward~J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean
   Wang, Lu~Wang, and Weizhu Chen.
 \newblock {LoRA}: Low-rank adaptation of large language models.
-\newblock \emph{arXiv preprint arXiv:2106.09685}, 2021.
+\newblock In \emph{International Conference on Learning Representations}, 2022.
+\newblock arXiv:2106.09685.
 
 \bibitem[Inan et~al.(2023)Inan, Upasani, Chi, Rungta, Iyer, Mao,
   et~al.]{inan2023llamaguard}
@@ -199,18 +205,13 @@ Chong~Yong Ong, Alson Wei~Jie Sim, Peixin Zhang, and Jun Sun.
 \newblock Forecasting side effects of activation steering.
 \newblock \emph{arXiv preprint arXiv:2608.11227}, 2026.
 
-\bibitem[Panickssery et~al.(2023)Panickssery, Gabrieli, Schulz, Tong, Hubinger,
-  and Turner]{panickssery2023caa}
-Nina Panickssery, Nick Gabrieli, Julian Schulz, Meg Tong, Evan Hubinger, and
-  Alexander~Matt Turner.
-\newblock Steering {Llama 2} via contrastive activation addition.
-\newblock \emph{arXiv preprint arXiv:2312.06681}, 2023.
-
-\bibitem[Park et~al.(2023)Park, Choe, and Veitch]{park2023linear}
+\bibitem[Park et~al.(2024)Park, Choe, and Veitch]{park2023linear}
 Kiho Park, Yo~Joong Choe, and Victor Veitch.
 \newblock The linear representation hypothesis and the geometry of large
   language models.
-\newblock \emph{arXiv preprint arXiv:2311.03658}, 2023.
+\newblock In \emph{International Conference on Machine Learning}, volume 235 of
+  \emph{Proceedings of Machine Learning Research}, pages 39643--39666, 2024.
+\newblock arXiv:2311.03658.
 
 \bibitem[{ProtectAI}(2024)]{protectai2024rejection}
 {ProtectAI}.
@@ -219,12 +220,24 @@ Kiho Park, Yo~Joong Choe, and Victor Veitch.
 \newblock URL
   \url{https://huggingface.co/protectai/distilroberta-base-rejection-v1}.
 
+\bibitem[Rimsky et~al.(2024)Rimsky, Gabrieli, Schulz, Tong, Hubinger, and
+  Turner]{panickssery2023caa}
+Nina Rimsky, Nick Gabrieli, Julian Schulz, Meg Tong, Evan Hubinger, and
+  Alexander Turner.
+\newblock Steering {Llama 2} via contrastive activation addition.
+\newblock In \emph{Proceedings of the 62nd Annual Meeting of the Association
+  for Computational Linguistics (Volume 1: Long Papers)}, pages 15504--15522,
+  2024.
+\newblock arXiv:2312.06681.
+
 \bibitem[Schuster et~al.(2022)Schuster, Fisch, Gupta, Dehghani, Bahri, Tran,
   Tay, and Metzler]{schuster2022calm}
-Tal Schuster, Adam Fisch, Jai Gupta, Mostafa Dehghani, Dara Bahri, Vinh~Q.
-  Tran, Yi~Tay, and Donald Metzler.
+Tal Schuster, Adam Fisch, Jai Gupta, Mostafa Dehghani, Dara Bahri, Vinh Tran,
+  Yi~Tay, and Donald Metzler.
 \newblock Confident adaptive language modeling.
-\newblock \emph{arXiv preprint arXiv:2207.07061}, 2022.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~35, pages 17456--17472, 2022.
+\newblock arXiv:2207.07061.
 
 \bibitem[Sheng et~al.(2026)Sheng, Shen, Zhao, Fang, Liu, Liang, Wang, Zhang,
   and Chua]{sheng2025alphasteer}
@@ -286,6 +299,8 @@ Andy Zou, Long Phan, Sarah Chen, James Campbell, Phillip Guo, Richard Ren,
 Andy Zou, Long Phan, Justin Wang, Derek Duenas, Maxwell Lin, Maksym
   Andriushchenko, Rowan Wang, Zico Kolter, Matt Fredrikson, and Dan Hendrycks.
 \newblock Improving alignment and robustness with circuit breakers.
-\newblock \emph{arXiv preprint arXiv:2406.04313}, 2024.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~37, pages 83345--83373, 2024.
+\newblock arXiv:2406.04313.
 
 \end{thebibliography}
