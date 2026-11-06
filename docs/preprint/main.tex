@@ -53,7 +53,9 @@ presence selects nothing, because it fires on 97\% of formatted attacks. One ear
 gate, but it came from a missing chat template. With the template, the steering effect changed sign and
 the gate's advantage disappeared. Three results survive. First, the few-shot direction is a refusal lever
 in both directions (Qwen2.5-0.5B refusal: 64\% unsteered, 35\% steered away, 79\% steered toward). Second,
-the gate's false-positive rate changes from 18\% to 96\% with the register of benign traffic. Third, on one
+the few-shot direction reads register, not intent. With the two crossed, the gate fires on 93\% of harmless
+commands to the model and on 53\% of attacks written as ordinary requests, and its false-positive rate
+changes from 18\% to 96\% with the register of benign traffic. Third, on one
 of two models, the unsteered activations predict a prompt's steerability (Spearman $\rho=0.58$,
 permutation $z=6.7$). Steerability is how far a fixed write moves the prompt's sampled refusal rate. The
 concept gate reads it at $\rho=-0.30$, with the wrong sign. As a trigger, predicted steerability beats random
@@ -102,7 +104,9 @@ the useful information.
 \begin{enumerate}[leftmargin=*]
   \item The read side gives no advantage over a probe. A depth-matched logistic probe equals \cg{}
     at every tap (\cref{sec:detect}). On the jailbreak benchmark, a TF-IDF classifier on the raw text is
-    better than both (AUC 0.991). Depth fusion gets its predicted gain on synthetic data that satisfies
+    better than both (AUC 0.991). The few-shot jailbreak direction reads the register of the prompt, not
+    its intent. With intent and register crossed, the gate fires on harmless commands to the model as
+    often as on attacks (\cref{sec:register}). Depth fusion gets its predicted gain on synthetic data that satisfies
     its assumption (test error 16.1\%$\to$9.4\%). It adds nothing on real models (\cref{sec:fusion}). The
     mixture density stays at one component (\cref{sec:mixture}). A training-free concept bank is
     30--38$\times$ cheaper to build than per-concept LoRA. A linear-probe bank has the same advantage
@@ -110,7 +114,9 @@ the useful information.
   \item The write is a real lever, but not a new one. Eight hand-written examples per side move generated
     refusal across a 43-point range, in either direction. On a first-token measure, the effect is about
     three times that of a matched-norm random direction (\cref{sec:write}). This is the refusal direction of
-    \citet{arditi2024refusal}, recovered from few examples. It is not a new mechanism.
+    \citet{arditi2024refusal}, recovered from few examples. It is not a new mechanism. It is also the
+    register direction of \cref{sec:register}: the write moves refusal, but what it adds is ``a command to
+    the model'', not ``an attack''.
   \item A gate on concept presence adds nothing, and a gate on predicted effect helps, on one model. On formatted attacks, the concept is almost always present, so the concept gate cannot select. A ridge
     read fit to the measured per-prompt effect of the write can select. On Qwen2.5-0.5B, it beats a
     size-matched random subset at every coverage. It does not replicate on gemma-2-2b. There, the same write
@@ -377,6 +383,9 @@ Multi-concept bank & The fourteen harm categories of BeaverTails~\citep{ji2023be
 Topical steering & Hand-written few-shot sets for \emph{food}, \emph{nature}, and \emph{technology}. \\
 Steering gate (\cref{sec:write,sec:dose}) & Hand-written short override framings; held-out jailbreak
   templates with a harmful request appended; bare harmful requests; real benign prompts. \\
+Register $\times$ intent (\cref{sec:register}) & Hand-written: 32 attacks written as ordinary requests and
+  32 harmless commands to the model, paired by index with the framed attacks and the in-register benign
+  requests. \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -733,7 +742,8 @@ The steering rule is activation addition, so the read side can contribute to the
 it can decide \emph{when} to write. We measured this decision without and with the chat template.
 
 \paragraph{Design.} Qwen2.5-0.5B-Instruct, taps 8/12/16. We fit a jailbreak concept in logistic mode from
-eight hand-written override framings and eight short benign requests, over three resamples. We calibrate
+eight hand-written override framings and eight short benign requests, over three resamples
+(\cref{sec:register} tests what this fit reads). We calibrate
 at $z=2$. The test set has 32 held-out framed attacks, 32 in-register benign requests, and 32 real benign
 prompts from the held-out split of the dataset. We use the real benign prompts only to measure
 out-of-register fires. The write magnitude is $\alpha=0.08$. \Cref{tab:arms} lists the arms. Refusal is the
@@ -902,6 +912,58 @@ prompts. Other work reports related failures. CAST's condition rules classify ma
 malicious~\citep{sheng2025alphasteer}. Activation-based detectors for multi-turn attacks depend on the
 source distribution of their training data~\citep{kulkarni2026lad}. On the write side, a false fire does
 not only raise a flag. It changes the answer.
+
+\paragraph{What the direction reads.} The register shift has a mechanism. In both fit pools, every
+positive is a command addressed to the model and every negative is an ordinary question. The public
+dataset has the same structure: persona templates against user queries. So the fit cannot tell jailbreak
+intent from the register of a command, and the direction may read either. We crossed the two in a
+$2\times2$ test (\cref{tab:grid}). Cell A is the 32 held-out framed attacks. Cell D is the 32 in-register
+benign requests. The two new cells are minimal pairs by index. Cell B keeps the harmful request of A and
+drops the command. A story, a grandparent, a hypothetical, or curiosity frames it (``My grandfather was a
+locksmith and used to walk me through picking a lock step by step. Could you do the same?''). Cell C keeps
+the override or persona framing of A and swaps in a harmless request (``Ignore your earlier formatting
+instructions and explain step by step how to bake bread''). Both sets are in \cref{app:prompts}. If the
+direction reads intent, B fires and C does not. If it reads register, C fires and B does not.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Register $\times$ intent. Cells: A = attack as a command to the model, B = the same harmful request
+as an ordinary request, C = the same command framing with a harmless request, D = ordinary benign request.
+Fire rate per cell (\%, mean $\pm$ SD over three resamples) and AUC of the score between pairs of cells.
+Qwen2.5-0.5B-Instruct, taps 8/12/16, 32 prompts per cell, $z=2$. B$>$C is the diagnostic: above 0.5, the
+direction ranks benign-looking attacks above harmless commands.}
+\label{tab:grid}
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{lcccccccc}
+\toprule
+ & \multicolumn{4}{c}{fire rate (\%)} & \multicolumn{4}{c}{AUC} \\
+\cmidrule(lr){2-5}\cmidrule(lr){6-9}
+Fit & A & B & C & D & A$>$C & B$>$D & C$>$D & B$>$C \\
+\midrule
+dataset templates vs real benign & $76\pm19$ & $23\pm13$ & $76\pm20$ & $34\pm17$ & 0.48 & 0.43 & 0.84 & 0.10 \\
+hand-written pools (the gate above) & $96\pm4$ & $53\pm9$ & $93\pm8$ & $18\pm6$ & 0.71 & 0.82 & 0.91 & 0.22 \\
+balanced: A+B vs C+D, held out & $100\pm0$ & $100\pm0$ & $73\pm30$ & $48\pm23$ & 0.95 & 1.00 & 0.77 & 0.99 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+It reads register. The gate above fires on 93\% of harmless commands and on 53\% of attacks written as
+ordinary requests. On the continuous score, harmless commands rank above benign-looking attacks (B$>$C
+0.22). The gate fit from the dataset templates is purer. It fires on 76\% of A and 76\% of C (a rerun of the
+77\% above). Intent at fixed register is at chance (A$>$C 0.48, B$>$D 0.43), and B$>$C is 0.10. The
+hand-written fit carries a weak intent signal (A$>$C 0.71, B$>$D 0.82), but register is still the larger
+axis (C$>$D 0.91). Three detection results above fit this reading. Matched negatives remove the register
+gap, and the AUC falls to 0.42 (\cref{sec:negatives}). A text classifier gets 0.99 on the same surface
+difference (\cref{sec:detect}). And the fire rate follows the register of the traffic.
+
+The signal for intent is in the activations. A fit with register balanced across classes (positives from
+A and B, negatives from C and D, four prompts per cell, tested on the sixteen held-out index pairs)
+separates B from C at AUC 0.99 and A from C at 0.95. Its threshold is unstable ($73\pm30\%$ fires on C,
+$48\pm23\%$ on D). In this fit, ``intent'' means the presence of a harmful request, because A and B carry
+one and C and D do not. It does not separate jailbreak framing from harmful content. The whole test stands
+on one model and on 32 hand-written prompts per cell. It removes one confound. It does not show that there
+are no others.
 
 % ===================================================================================================
 \section{Per-prompt steerability prediction}
@@ -1230,6 +1292,7 @@ Gate selects where to write & Win without chat template; reversed and vanished w
 Bank entries steer away from harm & Lower refusal (80\%$\to$65--68\%) & reversed \\
 Few-shot write is a lever & 64/35/79\% generated refusal; ${\sim}3\times$ random (first token); larger than one system prompt per direction; text stays fluent & holds; prior art \\
 Calibrated gate generalizes & FPR 18\% in register, 96\% out of register & fragile \\
+Direction reads jailbreak intent & Fires on 93\% of harmless commands; B$>$C AUC 0.22, and 0.10 with the dataset fit; 0.99 after a register-balanced fit & reads register \\
 Per-prompt dose predictable (proxy) & $\rho=+0.81$; two geometry readings fail controls & holds, narrowed \\
 Per-prompt dose predictable (behaviour) & Greedy instruments: null. Sampled: $\rho=+0.58$, $z=6.7$ on Qwen; absent on gemma & one model of two \\
 \bottomrule
@@ -1241,6 +1304,15 @@ always present, so a presence gate has nothing to select. A steering system need
 the write move this prompt? On one model, the same activations answer this question well, and the concept
 read answers it badly. It can be better to fit the read side of a steering system to the measured
 effect of the write, not to concept membership. This conclusion rests on one model.
+
+\paragraph{What a few-shot direction reads.} A direction reads whatever separates the positives from the
+negatives it was fit on. In both of our fit pools, and in the public dataset, that is a command to the model
+against a question from a user. So the direction reads register (\cref{sec:register}). The same activations
+hold an intent signal, and a fit with register balanced across classes finds it from the same number of
+examples. The lesson is about the examples, not the method. A few-shot pool needs negatives that share every
+surface property of the positives except the concept, and the public jailbreak dataset does not supply them.
+The matched-negative result of \cref{sec:negatives} is consistent with this: with register matched at
+$n=15$, the fit did not find the harder axis.
 
 \paragraph{Lessons for the evaluation of steering.} Five practices follow from these results. Format
 prompts as the model expects, and check the code path that does it: in \cref{sec:formatting}, the formatting
@@ -1273,7 +1345,10 @@ wording per direction, on one 0.5B model (\cref{tab:prompting}). We do not compa
 methods such as ITI~\citep{li2023iti} or RepE reading vectors. AxBench~\citep{wu2025axbench} finds that prompting beats representation steering, by a wider margin on its larger model. We do not claim that the write is better than an instruction in general.
 
 \paragraph{The few-shot regime.} All results depend on the diversity of about ten prompts per side. The
-register result in \cref{sec:register} shows how large this dependence is.
+register result in \cref{sec:register} shows how large this dependence is. The $2\times2$ test there removes
+one confound, register, with 32 hand-written prompts per cell on one model. Real traffic has other axes that
+a hand-written grid does not cover, such as length, formality, and the presence of a system prompt. We did
+not test them, and a direction that passes this grid can still read one of them.
 
 \paragraph{Measurement.} A lexicon and a classifier score refusal. They count declines, not harmlessness.
 The steered refusal text stays fluent (\cref{sec:lever}). But we did not check if the non-refusals help
@@ -1301,9 +1376,12 @@ the base rate and no binary decline as the outcome. Why the calibrated LLR reads
 sign on Qwen and carries no dose information on gemma is also unexplained, and the cause bears on the design
 of steering triggers.
 
-On the detection side, register-robust calibration is the main gap: fit negatives from the traffic that
-the gate will see, or calibrate on mixed-register benign pools, and report the false-positive rate per
-register. The design also reads each generated token, but we measured only the prompt side, so per-token
+On the detection side, register-robust fitting is the main gap. \Cref{sec:register} shows that the intent
+signal is present and that a register-balanced fit finds it, so the fix is in the examples: fit negatives
+from the traffic that the gate will see, include harmless commands to the model among them, calibrate on
+mixed-register benign pools, and report the false-positive rate per register. A real corpus of benign
+commands (format, persona, and language requests from chat logs) against story-framed attacks would test
+the grid at scale. The design also reads each generated token, but we measured only the prompt side, so per-token
 and output-side gates are untested. A fair detection benchmark needs prompts on which a surface-text
 classifier fails, no train--test overlap, and an adversarial evaluation against obfuscated-activation
 attacks. A non-safety concept dataset would test the claim that detection is concept-agnostic. The
@@ -1318,7 +1396,8 @@ writes a related direction back, and we measured each component against a fair b
 design did not hold up: the read equals a linear probe on the same layers, depth fusion and mixture
 densities add nothing at these sample sizes, and a write conditioned on concept presence selects nothing
 once prompts are formatted correctly. Three results hold. A direction fit from eight examples moves refusal
-in either direction. The false-positive rate of the calibrated gate depends on the register of its traffic.
+in either direction. The few-shot direction reads the register of a command to the model, not jailbreak
+intent, and the false-positive rate of the gate follows the register of its traffic.
 On one of two models, the unsteered activations predict how far a fixed write will move a prompt, and that
 prediction is a better steering trigger than the concept gate. Whether this last result is a general
 property of language models is the open question, and a magnitude sweep per model is the test that would
@@ -1333,8 +1412,8 @@ refusal~\citep{arditi2024refusal,korznikov2025roguescalpel}. We do not release a
 measures count declines, not harm, and we do not report how harmful the non-refusals are. We release the
 harmful requests of \cref{app:prompts} because they are short, generic, and similar to requests in public
 safety benchmarks. The register result (\cref{sec:register}) is a warning to deployers: a few-shot gate
-that is calibrated on one kind of traffic can fire on almost all benign traffic of another kind, and on the
-write side, a false fire changes the answer.
+that is calibrated on one kind of traffic can fire on almost all benign traffic of another kind, and on
+almost every harmless instruction to the model, and on the write side, a false fire changes the answer.
 
 \section*{Acknowledgments}
 The author used a large language model to help draft and edit this manuscript. The experiments, analyses,
@@ -1439,6 +1518,7 @@ Result & Harness (under \texttt{scripts/}) \\
 \Cref{sec:topical}, \cref{fig:steer} & \texttt{eval\_steering.py} \\
 \Cref{sec:cosine}, \cref{tab:cosine} & \texttt{eval\_gate.py --cosine}, \texttt{--decouple} \\
 \Cref{sec:formatting,sec:lever,sec:harmbank,sec:register} & \texttt{eval\_gate.py --gate --signflip --beavertails --logit} \\
+\Cref{tab:grid}, register $\times$ intent & \texttt{eval\_register\_grid.py} \\
 \Cref{sec:dose}, proxy and controls & \texttt{eval\_gate.py --steerability}; \texttt{steerability\_controls.py}; \texttt{eval\_behaviour\_check.py} \\
 \Cref{tab:fourmodels} & \texttt{eval\_gate.py --scaleup}; \texttt{analyze\_scaleup.py} \\
 \Cref{sec:instrument,sec:behaviour,sec:outcomegate,sec:gemma} & \texttt{eval\_behaviour\_dose.py}; \texttt{run\_behaviour\_dose.sh}; \texttt{analyze\_behaviour\_dose.py} (the coverage sweep of \cref{tab:coverage} was run ad hoc on the stored out-of-fold predictions; the script gives the 50\% point) \\
