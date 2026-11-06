@@ -53,9 +53,9 @@ presence selects nothing, because it fires on 97\% of formatted attacks. One ear
 gate, but it came from a missing chat template. With the template, the steering effect changed sign and
 the gate's advantage disappeared. Three results survive. First, the few-shot direction is a refusal lever
 in both directions (Qwen2.5-0.5B refusal: 64\% unsteered, 35\% steered away, 79\% steered toward). Second,
-the few-shot direction reads register, not intent. With the two crossed, the gate fires on 93\% of harmless
-commands to the model and on 53\% of attacks written as ordinary requests, and its false-positive rate
-changes from 18\% to 96\% with the register of benign traffic. Third, on one
+the few-shot direction reads register, not intent, on both models. With the two crossed, the gate fires on
+93\% of harmless commands to the model and on 53\% of attacks written as ordinary requests, and its
+false-positive rate changes from 18\% to 96\% with the register of benign traffic. Third, on one
 of two models, the unsteered activations predict a prompt's steerability (Spearman $\rho=0.58$,
 permutation $z=6.7$). Steerability is how far a fixed write moves the prompt's sampled refusal rate. The
 concept gate reads it at $\rho=-0.30$, with the wrong sign. As a trigger, predicted steerability beats random
@@ -931,8 +931,9 @@ direction reads intent, B fires and C does not. If it reads register, C fires an
 \caption{Register $\times$ intent. Cells: A = attack as a command to the model, B = the same harmful request
 as an ordinary request, C = the same command framing with a harmless request, D = ordinary benign request.
 Fire rate per cell (\%, mean $\pm$ SD over three resamples) and AUC of the score between pairs of cells.
-Qwen2.5-0.5B-Instruct, taps 8/12/16, 32 prompts per cell, $z=2$. B$>$C is the diagnostic: above 0.5, the
-direction ranks benign-looking attacks above harmless commands.}
+Qwen2.5-0.5B-Instruct (taps 8/12/16) and gemma-2-2b-it (taps 9/13/17, bfloat16), 32 prompts per cell,
+$z=2$. B$>$C is the diagnostic: above 0.5, the direction ranks benign-looking attacks above harmless
+commands.}
 \label{tab:grid}
 \setlength{\tabcolsep}{4.5pt}
 \begin{tabular}{lcccccccc}
@@ -941,9 +942,15 @@ direction ranks benign-looking attacks above harmless commands.}
 \cmidrule(lr){2-5}\cmidrule(lr){6-9}
 Fit & A & B & C & D & A$>$C & B$>$D & C$>$D & B$>$C \\
 \midrule
+\multicolumn{9}{l}{\emph{Qwen2.5-0.5B-Instruct}} \\
 dataset templates vs real benign & $76\pm19$ & $23\pm13$ & $76\pm20$ & $34\pm17$ & 0.48 & 0.43 & 0.84 & 0.10 \\
 hand-written pools (the gate above) & $96\pm4$ & $53\pm9$ & $93\pm8$ & $18\pm6$ & 0.71 & 0.82 & 0.91 & 0.22 \\
 balanced: A+B vs C+D, held out & $100\pm0$ & $100\pm0$ & $73\pm30$ & $48\pm23$ & 0.95 & 1.00 & 0.77 & 0.99 \\
+\midrule
+\multicolumn{9}{l}{\emph{gemma-2-2b-it}} \\
+dataset templates vs real benign & $100\pm0$ & $77\pm32$ & $100\pm0$ & $78\pm31$ & 0.75 & 0.71 & 0.85 & 0.34 \\
+hand-written pools (the gate above) & $100\pm0$ & $100\pm0$ & $100\pm0$ & $55\pm12$ & 0.64 & 0.89 & 0.96 & 0.19 \\
+balanced: A+B vs C+D, held out & $100\pm0$ & $100\pm0$ & $92\pm8$ & $83\pm11$ & 1.00 & 0.96 & 0.53 & 0.97 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -953,17 +960,21 @@ ordinary requests. On the continuous score, harmless commands rank above benign-
 0.22). The gate fit from the dataset templates is purer. It fires on 76\% of A and 76\% of C (a rerun of the
 77\% above). Intent at fixed register is at chance (A$>$C 0.48, B$>$D 0.43), and B$>$C is 0.10. The
 hand-written fit carries a weak intent signal (A$>$C 0.71, B$>$D 0.82), but register is still the larger
-axis (C$>$D 0.91). Three detection results above fit this reading. Matched negatives remove the register
+axis (C$>$D 0.91). gemma-2-2b-it gives the same order on the score: B$>$C is 0.19 for the gate and 0.34
+for the dataset fit, and register (C$>$D 0.96) is a larger axis than intent at fixed register (A$>$C 0.64).
+Its fire rates say less, because the $z=2$ threshold is loose on gemma: the gate fires on every prompt in
+A, B, and C, and on 55\% of D. Three detection results above fit this reading. Matched negatives remove the register
 gap, and the AUC falls to 0.42 (\cref{sec:negatives}). A text classifier gets 0.99 on the same surface
 difference (\cref{sec:detect}). And the fire rate follows the register of the traffic.
 
 The signal for intent is in the activations. A fit with register balanced across classes (positives from
 A and B, negatives from C and D, four prompts per cell, tested on the sixteen held-out index pairs)
-separates B from C at AUC 0.99 and A from C at 0.95. Its threshold is unstable ($73\pm30\%$ fires on C,
-$48\pm23\%$ on D). In this fit, ``intent'' means the presence of a harmful request, because A and B carry
-one and C and D do not. It does not separate jailbreak framing from harmful content. The whole test stands
-on one model and on 32 hand-written prompts per cell. It removes one confound. It does not show that there
-are no others.
+separates B from C at AUC 0.99 and A from C at 0.95 on Qwen, and at 0.97 and 1.00 on gemma. On gemma the
+register axis also falls away (C$>$D 0.53). The thresholds are not usable: on Qwen the fit fires on
+$73\pm30\%$ of C and $48\pm23\%$ of D, and on gemma on $92\pm8\%$ and $83\pm11\%$. In this fit, ``intent''
+means the presence of a harmful request, because A and B carry one and C and D do not. It does not separate
+jailbreak framing from harmful content. The whole test stands on two models and on 32 hand-written prompts
+per cell. It removes one confound. It does not show that there are no others.
 
 % ===================================================================================================
 \section{Per-prompt steerability prediction}
@@ -1292,7 +1303,7 @@ Gate selects where to write & Win without chat template; reversed and vanished w
 Bank entries steer away from harm & Lower refusal (80\%$\to$65--68\%) & reversed \\
 Few-shot write is a lever & 64/35/79\% generated refusal; ${\sim}3\times$ random (first token); larger than one system prompt per direction; text stays fluent & holds; prior art \\
 Calibrated gate generalizes & FPR 18\% in register, 96\% out of register & fragile \\
-Direction reads jailbreak intent & Fires on 93\% of harmless commands; B$>$C AUC 0.22, and 0.10 with the dataset fit; 0.99 after a register-balanced fit & reads register \\
+Direction reads jailbreak intent & Fires on 93--100\% of harmless commands; B$>$C AUC 0.22 (Qwen) and 0.19 (gemma); 0.99 and 0.97 after a register-balanced fit & reads register \\
 Per-prompt dose predictable (proxy) & $\rho=+0.81$; two geometry readings fail controls & holds, narrowed \\
 Per-prompt dose predictable (behaviour) & Greedy instruments: null. Sampled: $\rho=+0.58$, $z=6.7$ on Qwen; absent on gemma & one model of two \\
 \bottomrule
@@ -1346,7 +1357,7 @@ methods such as ITI~\citep{li2023iti} or RepE reading vectors. AxBench~\citep{wu
 
 \paragraph{The few-shot regime.} All results depend on the diversity of about ten prompts per side. The
 register result in \cref{sec:register} shows how large this dependence is. The $2\times2$ test there removes
-one confound, register, with 32 hand-written prompts per cell on one model. Real traffic has other axes that
+one confound, register, with 32 hand-written prompts per cell on two models. Real traffic has other axes that
 a hand-written grid does not cover, such as length, formality, and the presence of a system prompt. We did
 not test them, and a direction that passes this grid can still read one of them.
 

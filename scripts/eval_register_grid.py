@@ -204,6 +204,7 @@ def main():
     ap.add_argument("--model", default="Qwen/Qwen2.5-0.5B-Instruct")
     ap.add_argument("--taps", default="", help="comma-separated; default 33/50/67%% of depth")
     ap.add_argument("--device", default="mps")
+    ap.add_argument("--dtype", default="", help="e.g. bfloat16, as the paper runs gemma-2-2b")
     a = ap.parse_args()
     assert all(len(v) == 32 for v in CELLS.values()), {k: len(v) for k, v in CELLS.items()}
     if a.taps:
@@ -212,7 +213,8 @@ def main():
         from eval_detection import taps_for
         taps, _ = taps_for(a.model)
     print(f"### REGISTER x INTENT GRID  {a.model}  taps {taps}  seeds {SEEDS}", flush=True)
-    cg = ConceptGate.from_pretrained(a.model, layers=taps, device=a.device, chat_template=True)
+    cg = ConceptGate.from_pretrained(a.model, layers=taps, device=a.device, chat_template=True,
+                                     dtype=(a.dtype or None))
     print("\n# Arm 0: dataset-fitted gate (jackhhao train split, 8 templates vs 8 real benign)", flush=True)
     ds_pos, ds_neg, _ = _pools()
     res = {"model": a.model, "taps": list(taps), "dataset_gate": paper_gate(cg, ds_pos, ds_neg)}

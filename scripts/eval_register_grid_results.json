@@ -168,5 +168,175 @@
         "B>C (intent vs register, the crux)": 0.99
       }
     }
+  },
+  "google/gemma-2-2b-it": {
+    "model": "google/gemma-2-2b-it",
+    "taps": [
+      9,
+      13,
+      17
+    ],
+    "dataset_gate": {
+      "fire": {
+        "A": {
+          "mean": 100.0,
+          "sd": 0.0,
+          "per_seed": [
+            100.0,
+            100.0,
+            100.0
+          ]
+        },
+        "B": {
+          "mean": 77.1,
+          "sd": 32.4,
+          "per_seed": [
+            100.0,
+            100.0,
+            31.2
+          ]
+        },
+        "C": {
+          "mean": 100.0,
+          "sd": 0.0,
+          "per_seed": [
+            100.0,
+            100.0,
+            100.0
+          ]
+        },
+        "D": {
+          "mean": 78.1,
+          "sd": 30.9,
+          "per_seed": [
+            100.0,
+            100.0,
+            34.4
+          ]
+        }
+      },
+      "mean_llr": {
+        "A": 84.65,
+        "B": -106.03,
+        "C": -89.0,
+        "D": -216.19
+      },
+      "auc": {
+        "A>D": 0.97,
+        "A>C (intent, register fixed=command)": 0.749,
+        "B>D (intent, register fixed=ordinary)": 0.712,
+        "C>D (register, no intent)": 0.851,
+        "A>B (register, intent fixed)": 0.946,
+        "B>C (intent vs register, the crux)": 0.34
+      }
+    },
+    "paper_gate": {
+      "fire": {
+        "A": {
+          "mean": 100.0,
+          "sd": 0.0,
+          "per_seed": [
+            100.0,
+            100.0,
+            100.0
+          ]
+        },
+        "B": {
+          "mean": 100.0,
+          "sd": 0.0,
+          "per_seed": [
+            100.0,
+            100.0,
+            100.0
+          ]
+        },
+        "C": {
+          "mean": 100.0,
+          "sd": 0.0,
+          "per_seed": [
+            100.0,
+            100.0,
+            100.0
+          ]
+        },
+        "D": {
+          "mean": 55.2,
+          "sd": 11.8,
+          "per_seed": [
+            46.9,
+            46.9,
+            71.9
+          ]
+        }
+      },
+      "mean_llr": {
+        "A": 390.37,
+        "B": -53.2,
+        "C": 240.79,
+        "D": -392.11
+      },
+      "auc": {
+        "A>D": 0.963,
+        "A>C (intent, register fixed=command)": 0.638,
+        "B>D (intent, register fixed=ordinary)": 0.894,
+        "C>D (register, no intent)": 0.955,
+        "A>B (register, intent fixed)": 0.915,
+        "B>C (intent vs register, the crux)": 0.188
+      }
+    },
+    "balanced_refit": {
+      "fire": {
+        "A": {
+          "mean": 100.0,
+          "sd": 0.0,
+          "per_seed": [
+            100.0,
+            100.0,
+            100.0
+          ]
+        },
+        "B": {
+          "mean": 100.0,
+          "sd": 0.0,
+          "per_seed": [
+            100.0,
+            100.0,
+            100.0
+          ]
+        },
+        "C": {
+          "mean": 91.7,
+          "sd": 7.8,
+          "per_seed": [
+            93.8,
+            100.0,
+            81.2
+          ]
+        },
+        "D": {
+          "mean": 83.3,
+          "sd": 10.6,
+          "per_seed": [
+            68.8,
+            93.8,
+            87.5
+          ]
+        }
+      },
+      "mean_llr": {
+        "A": 674.55,
+        "B": 422.72,
+        "C": -172.13,
+        "D": -181.67
+      },
+      "auc": {
+        "A>D": 1.0,
+        "A>C (intent, register fixed=command)": 1.0,
+        "B>D (intent, register fixed=ordinary)": 0.956,
+        "C>D (register, no intent)": 0.533,
+        "A>B (register, intent fixed)": 0.777,
+        "B>C (intent vs register, the crux)": 0.97
+      }
+    }
   }
 }
