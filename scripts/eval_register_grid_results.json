@@ -1,0 +1,172 @@
+{
+  "Qwen/Qwen2.5-0.5B-Instruct": {
+    "model": "Qwen/Qwen2.5-0.5B-Instruct",
+    "taps": [
+      8,
+      12,
+      16
+    ],
+    "dataset_gate": {
+      "fire": {
+        "A": {
+          "mean": 76.0,
+          "sd": 19.2,
+          "per_seed": [
+            100.0,
+            75.0,
+            53.1
+          ]
+        },
+        "B": {
+          "mean": 22.9,
+          "sd": 12.8,
+          "per_seed": [
+            37.5,
+            25.0,
+            6.2
+          ]
+        },
+        "C": {
+          "mean": 76.0,
+          "sd": 19.5,
+          "per_seed": [
+            96.9,
+            81.2,
+            50.0
+          ]
+        },
+        "D": {
+          "mean": 34.4,
+          "sd": 16.7,
+          "per_seed": [
+            56.2,
+            31.2,
+            15.6
+          ]
+        }
+      },
+      "mean_llr": {
+        "A": -134.96,
+        "B": -224.47,
+        "C": -134.28,
+        "D": -210.11
+      },
+      "auc": {
+        "A>D": 0.851,
+        "A>C (intent, register fixed=command)": 0.484,
+        "B>D (intent, register fixed=ordinary)": 0.428,
+        "C>D (register, no intent)": 0.844,
+        "A>B (register, intent fixed)": 0.907,
+        "B>C (intent vs register, the crux)": 0.098
+      }
+    },
+    "paper_gate": {
+      "fire": {
+        "A": {
+          "mean": 95.8,
+          "sd": 3.9,
+          "per_seed": [
+            90.6,
+            100.0,
+            96.9
+          ]
+        },
+        "B": {
+          "mean": 53.1,
+          "sd": 8.8,
+          "per_seed": [
+            40.6,
+            59.4,
+            59.4
+          ]
+        },
+        "C": {
+          "mean": 92.7,
+          "sd": 8.2,
+          "per_seed": [
+            81.2,
+            96.9,
+            100.0
+          ]
+        },
+        "D": {
+          "mean": 17.7,
+          "sd": 6.4,
+          "per_seed": [
+            9.4,
+            25.0,
+            18.8
+          ]
+        }
+      },
+      "mean_llr": {
+        "A": -164.98,
+        "B": -307.94,
+        "C": -232.42,
+        "D": -404.66
+      },
+      "auc": {
+        "A>D": 0.942,
+        "A>C (intent, register fixed=command)": 0.712,
+        "B>D (intent, register fixed=ordinary)": 0.821,
+        "C>D (register, no intent)": 0.908,
+        "A>B (register, intent fixed)": 0.878,
+        "B>C (intent vs register, the crux)": 0.219
+      }
+    },
+    "balanced_refit": {
+      "fire": {
+        "A": {
+          "mean": 100.0,
+          "sd": 0.0,
+          "per_seed": [
+            100.0,
+            100.0,
+            100.0
+          ]
+        },
+        "B": {
+          "mean": 100.0,
+          "sd": 0.0,
+          "per_seed": [
+            100.0,
+            100.0,
+            100.0
+          ]
+        },
+        "C": {
+          "mean": 72.9,
+          "sd": 29.5,
+          "per_seed": [
+            93.8,
+            31.2,
+            93.8
+          ]
+        },
+        "D": {
+          "mean": 47.9,
+          "sd": 23.0,
+          "per_seed": [
+            50.0,
+            18.8,
+            75.0
+          ]
+        }
+      },
+      "mean_llr": {
+        "A": 98.94,
+        "B": 146.2,
+        "C": -223.66,
+        "D": -379.26
+      },
+      "auc": {
+        "A>D": 0.993,
+        "A>C (intent, register fixed=command)": 0.948,
+        "B>D (intent, register fixed=ordinary)": 1.0,
+        "C>D (register, no intent)": 0.767,
+        "A>B (register, intent fixed)": 0.385,
+        "B>C (intent vs register, the crux)": 0.99
+      }
+    }
+  }
+}
