@@ -54,8 +54,8 @@ gate, but it came from a missing chat template. With the template, the steering 
 the gate's advantage disappeared. Three results survive. First, the few-shot direction is a refusal lever
 in both directions (Qwen2.5-0.5B refusal: 64\% unsteered, 35\% steered away, 79\% steered toward). Second,
 the few-shot direction reads the surface form of an attack, not its intent, on both models and on real
-prompts. With the two crossed, the gate fires on 93\% of harmless commands to the model and 99\% of
-harmless roleplay prompts, and on 53\% of attacks written as ordinary requests; its false-positive rate
+prompts. With the two crossed, the gate fires on 93\% of harmless commands to the model and on 99\% of
+harmless roleplay prompts. It fires on 53\% of attacks written as ordinary requests. Its false-positive rate
 changes from 18\% to 96\% with the register of benign traffic. Third, on one
 of two models, the unsteered activations predict a prompt's steerability (Spearman $\rho=0.58$,
 permutation $z=6.7$). Steerability is how far a fixed write moves the prompt's sampled refusal rate. The
@@ -116,7 +116,7 @@ the useful information.
     refusal across a 43-point range, in either direction. On a first-token measure, the effect is about
     three times that of a matched-norm random direction (\cref{sec:write}). This is the refusal direction of
     \citet{arditi2024refusal}, recovered from few examples. It is not a new mechanism. It is also the
-    register direction of \cref{sec:register}: the write moves refusal, but what it adds is ``a command to
+    register direction of \cref{sec:register}. The write moves refusal. But what it adds is ``a command to
     the model'', not ``an attack''.
   \item A gate on concept presence adds nothing, and a gate on predicted effect helps, on one model. On formatted attacks, the concept is almost always present, so the concept gate cannot select. A ridge
     read fit to the measured per-prompt effect of the write can select. On Qwen2.5-0.5B, it beats a
@@ -918,9 +918,9 @@ source distribution of their training data~\citep{kulkarni2026lad}. On the write
 not only raise a flag. It changes the answer.
 
 \paragraph{What the direction reads.} The register shift has a mechanism. In both fit pools, every
-positive is a command addressed to the model and every negative is an ordinary question. The public
-dataset has the same structure: persona templates against user queries. So the fit cannot tell jailbreak
-intent from the register of a command, and the direction may read either. We crossed the two in a
+positive is a command to the model. Every negative is an ordinary question. The public dataset has the
+same structure: persona templates against user queries. So the fit cannot tell jailbreak intent from the
+register of a command. The direction can read either. We crossed the two in a
 $2\times2$ test (\cref{tab:grid}). Cell A is the 32 held-out framed attacks. Cell D is the 32 in-register
 benign requests. The two new cells are minimal pairs by index. Cell B keeps the harmful request of A and
 drops the command. A story, a grandparent, a hypothetical, or curiosity frames it (``My grandfather was a
@@ -963,19 +963,19 @@ It reads register. The gate above fires on 93\% of harmless commands and on 53\%
 ordinary requests. On the continuous score, harmless commands rank above benign-looking attacks (B$>$C
 0.22). The gate fit from the dataset templates is purer. It fires on 76\% of A and 76\% of C (a rerun of the
 77\% above). Intent at fixed register is at chance (A$>$C 0.48, B$>$D 0.43), and B$>$C is 0.10. The
-hand-written fit carries a weak intent signal (A$>$C 0.71, B$>$D 0.82), but register is still the larger
-axis (C$>$D 0.91). gemma-2-2b-it gives the same order on the score: B$>$C is 0.19 for the gate and 0.34
-for the dataset fit, and register (C$>$D 0.96) is a larger axis than intent at fixed register (A$>$C 0.64).
-Its fire rates say less, because the $z=2$ threshold is loose on gemma: the gate fires on every prompt in
+hand-written fit carries a weak intent signal (A$>$C 0.71, B$>$D 0.82). Register is still the larger
+axis (C$>$D 0.91). gemma-2-2b-it gives the same order on the score. B$>$C is 0.19 for the gate and 0.34
+for the dataset fit. Register (C$>$D 0.96) is a larger axis than intent at fixed register (A$>$C 0.64).
+Its fire rates say less, because the $z=2$ threshold is loose on gemma. The gate fires on every prompt in
 A, B, and C, and on 55\% of D. Three detection results above fit this reading. Matched negatives remove the register
 gap, and the AUC falls to 0.42 (\cref{sec:negatives}). A text classifier gets 0.99 on the same surface
 difference (\cref{sec:detect}). And the fire rate follows the register of the traffic.
 
-The signal for intent is in the activations. A fit with register balanced across classes (positives from
-A and B, negatives from C and D, four prompts per cell, tested on the sixteen held-out index pairs)
-separates B from C at AUC 0.99 and A from C at 0.95 on Qwen, and at 0.97 and 1.00 on gemma. On gemma the
-register axis also falls away (C$>$D 0.53). The thresholds are not usable: on Qwen the fit fires on
-$73\pm30\%$ of C and $48\pm23\%$ of D, and on gemma on $92\pm8\%$ and $83\pm11\%$. In this fit, ``intent''
+The signal for intent is in the activations. A fit with register balanced across classes takes positives
+from A and B and negatives from C and D, four prompts per cell. We test it on the sixteen held-out index
+pairs. It separates B from C at AUC 0.99 and A from C at 0.95 on Qwen. On gemma the values are 0.97 and
+1.00, and the register axis also falls away (C$>$D 0.53). The thresholds are not usable. On Qwen the fit
+fires on $73\pm30\%$ of C and $48\pm23\%$ of D. On gemma it fires on $92\pm8\%$ and $83\pm11\%$. In this fit, ``intent''
 means the presence of a harmful request, because A and B carry one and C and D do not. It does not separate
 jailbreak framing from harmful content. The whole test stands on two models and on 32 hand-written prompts
 per cell. It removes one confound. It does not show that there are no others.
@@ -983,11 +983,11 @@ per cell. It removes one confound. It does not show that there are no others.
 \paragraph{Real prompts.} WildGuardMix~\citep{han2024wildguard} labels 1,725 real test prompts on the
 same two axes: harmful or unharmful, and adversarial or vanilla. Its adversarial prompts are long roleplay,
 story, and hypothetical framings (median 700--900 characters), not short commands. So this repeats the
-grid on a different surface axis, with prompts we did not write. We score 128 prompts per cell and add a
-fifth cell, E: 128 prompts from OR-Bench hard~\citep{cui2024orbench}, benign requests that sound harmful.
-\Cref{tab:wildguard} reports four fits. The two gates above read framing on both models. The paper's gate
-fires on 99--100\% of harmless adversarial prompts and ranks them above plain harmful requests (B$>$C
-0.17 on Qwen, 0.34 on gemma), and framing at fixed intent separates at 0.98 (C$>$D). Length is part of
+grid on a different surface axis, with prompts we did not write. We score 128 prompts per cell. We add a
+fifth cell, E: 128 prompts from OR-Bench hard~\citep{cui2024orbench}. These are benign requests that sound
+harmful. \Cref{tab:wildguard} reports four fits. The two gates above read framing on both models. The
+paper's gate fires on 99--100\% of harmless adversarial prompts. It ranks them above plain harmful requests
+(B$>$C 0.17 on Qwen, 0.34 on gemma). Framing at fixed intent separates at 0.98 (C$>$D). Length is part of
 this axis but not all of it. Across cells, the score correlates with prompt length at $\rho=0.67$--$0.74$,
 because adversarial prompts are six to nine times longer. Inside cells it ranges from $-0.41$ to $+0.44$.
 The length-matched intent comparisons (A$>$C 0.62--0.67, B$>$D 0.81--0.96) show the same weak intent read
@@ -1028,12 +1028,12 @@ WildGuard-train balanced & $96\pm2$ & $100\pm0$ & 0.71 & 0.96 & 0.77 & 0.85 & 0.
 
 Cell E shows what the register-balanced direction of \cref{tab:grid} reads. Transferred to real prompts,
 it does not separate intent inside long framings on Qwen (A$>$C 0.53, B$>$C 0.48). On gemma it does
-(B$>$C 0.94), but it ranks harmful-sounding benign prompts above real attacks (A$>$E 0.18). So the second
+(B$>$C 0.94). But it ranks harmful-sounding benign prompts above real attacks (A$>$E 0.18). So the second
 axis that the balanced fit finds is harmful vocabulary, not intent. A balanced fit from WildGuard's own
 training split, eight prompts per side, is the fix that \cref{sec:future} proposes. It moves B$>$C to 0.63
-on Qwen and 0.85 on gemma, and it still cannot tell attacks from harmful-sounding benign prompts (A$>$E
+on Qwen and 0.85 on gemma. It still cannot tell attacks from harmful-sounding benign prompts (A$>$E
 0.72 and 0.52). Three surface axes, then: command register, adversarial framing with its length, and
-harmful vocabulary. A few-shot fit reads whichever of them separates its examples, and eight examples per
+harmful vocabulary. A few-shot fit reads whichever of them separates its examples. Eight examples per
 side do not pin down intent on real traffic.
 
 % ===================================================================================================
@@ -1380,12 +1380,12 @@ effect of the write, not to concept membership. This conclusion rests on one mod
 negatives it was fit on. In both of our fit pools, and in the public dataset, that is a command to the model
 against a question from a user. So the direction reads register, and on real prompts, adversarial framing
 (\cref{sec:register}). A fit with register balanced across classes finds a second axis from the same number
-of examples, but OR-Bench shows that this axis is harmful vocabulary, and a balanced fit from real traffic
-leaves the intent read weak at eight examples per side. The lesson is about the examples, not the method.
+of examples. OR-Bench shows that this axis is harmful vocabulary. A balanced fit from real traffic leaves
+the intent read weak at eight examples per side. The lesson is about the examples, not the method.
 A few-shot pool needs negatives that share every surface property of the positives except the concept.
 With three surface axes in play, neither the public jailbreak dataset nor eight hand-picked prompts per
-side supply them. The matched-negative result of \cref{sec:negatives} is consistent with this: with register
-matched at $n=15$, the fit did not find the harder axis.
+side supply them. The matched-negative result of \cref{sec:negatives} agrees. With register matched at
+$n=15$, the fit did not find the harder axis.
 
 \paragraph{Lessons for the evaluation of steering.} Five practices follow from these results. Format
 prompts as the model expects, and check the code path that does it: in \cref{sec:formatting}, the formatting
@@ -1421,7 +1421,7 @@ methods such as ITI~\citep{li2023iti} or RepE reading vectors. AxBench~\citep{wu
 register result in \cref{sec:register} shows how large this dependence is. The $2\times2$ tests there cover
 three surface axes on two models: command register (32 hand-written prompts per cell), adversarial framing
 with its length (WildGuardMix), and harmful vocabulary (OR-Bench). Real traffic has more, such as
-formality, language, and the presence of a system prompt. We did not test them, and a direction that passes
+formality, language, and the presence of a system prompt. We did not test them. A direction that passes
 these grids can still read one of them.
 
 \paragraph{Measurement.} A lexicon and a classifier score refusal. They count declines, not harmlessness.
@@ -1452,8 +1452,8 @@ of steering triggers.
 
 On the detection side, surface-robust fitting is the main gap. \Cref{sec:register} shows that a balanced
 fit from the traffic the gate will see moves the intent read above chance but not far, at eight examples
-per side. The open question is how many balanced examples the axis needs, and whether a probe at that
-sample size still has an advantage over a text classifier. In practice: fit negatives from the traffic
+per side. The open question is how many balanced examples the axis needs. A second question is whether a
+probe at that sample size still has an advantage over a text classifier. In practice: fit negatives from the traffic
 that the gate will see, include harmless commands and harmless roleplay among them, calibrate on
 mixed-register benign pools, and report the false-positive rate per register. The design also reads each
 generated token, but we measured only the prompt side, so per-token
