@@ -1473,8 +1473,9 @@ densities add nothing at these sample sizes, and a write conditioned on concept 
 once prompts are formatted correctly. Three results hold. A direction fit from eight examples moves refusal
 in either direction. The few-shot direction reads the surface form of an attack, not its intent, on
 hand-written and on real prompts, and the false-positive rate of the gate follows the register of its
-traffic.
-On one of two models, the unsteered activations predict how far a fixed write will move a prompt, and that
+traffic. The cause is in the examples, not the method. Every fit pool we tried separates attacks from
+benign prompts by surface form. The public dataset does too. When we balance one surface axis, the fit
+finds the next one. On one of two models, the unsteered activations predict how far a fixed write will move a prompt, and that
 prediction is a better steering trigger than the concept gate. Whether this last result is a general
 property of language models is the open question, and a magnitude sweep per model is the test that would
 settle it. The record of what failed, and why, is the part of this work that we expect others to reuse.
