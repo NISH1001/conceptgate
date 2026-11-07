@@ -1,4 +1,4 @@
-\begin{thebibliography}{39}
+\begin{thebibliography}{41}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -55,6 +55,13 @@ Zifeng Cheng, Jinwei Gan, Zhiwei Jiang, Cong Wang, Yafeng Yin, Xiang Luo,
   volume~38, pages 8390--8413, 2025.
 \newblock arXiv:2508.17621.
 
+\bibitem[Cui et~al.(2025)Cui, Chiang, Stoica, and Hsieh]{cui2024orbench}
+Justin Cui, Wei-Lin Chiang, Ion Stoica, and Cho-Jui Hsieh.
+\newblock {OR-Bench}: An over-refusal benchmark for large language models.
+\newblock In \emph{Proceedings of the 42nd International Conference on Machine
+  Learning}, 2025.
+\newblock arXiv:2405.20947.
+
 \bibitem[Cunningham et~al.(2026)Cunningham, Wei, Wang, Persic, Peng,
   et~al.]{cunningham2026ccpp}
 Hoagy Cunningham, Jerry Wei, Zihan Wang, Andrew Persic, Alwin Peng, et~al.
@@ -101,6 +108,16 @@ Lang Gao, Jinghui Zhang, Wei Liu, Fengxian Ji, Chenxi Wang, Zirui Song, et~al.
 \newblock In \emph{International Conference on Machine Learning}, volume 306 of
   \emph{Proceedings of Machine Learning Research}, pages 33925--33952, 2026.
 \newblock arXiv:2605.01844.
+
+\bibitem[Han et~al.(2024)Han, Rao, Ettinger, Jiang, Lin, Lambert, Choi, and
+  Dziri]{han2024wildguard}
+Seungju Han, Kavel Rao, Allyson Ettinger, Liwei Jiang, Bill~Yuchen Lin, Nathan
+  Lambert, Yejin Choi, and Nouha Dziri.
+\newblock {WildGuard}: Open one-stop moderation tools for safety risks,
+  jailbreaks, and refusals of {LLMs}.
+\newblock In \emph{Advances in Neural Information Processing Systems, Datasets
+  and Benchmarks Track}, 2024.
+\newblock arXiv:2406.18495.
 
 \bibitem[Houlsby et~al.(2019)Houlsby, Giurgiu, Jastrzebski, Morrone,
   de~Laroussilhe, Gesmundo, Attariyan, and Gelly]{houlsby2019adapters}

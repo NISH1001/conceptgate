@@ -1,0 +1,370 @@
+{
+  "Qwen/Qwen2.5-0.5B-Instruct": {
+    "model": "Qwen/Qwen2.5-0.5B-Instruct",
+    "taps": [
+      8,
+      12,
+      16
+    ],
+    "n_per_cell": 128,
+    "median_chars": {
+      "A": 856,
+      "B": 116,
+      "C": 696,
+      "D": 71,
+      "E": 116
+    },
+    "dataset": {
+      "fire": {
+        "A": {
+          "mean": 99.2,
+          "sd": 1.1
+        },
+        "B": {
+          "mean": 46.6,
+          "sd": 18.7
+        },
+        "C": {
+          "mean": 94.5,
+          "sd": 5.0
+        },
+        "D": {
+          "mean": 13.5,
+          "sd": 15.8
+        },
+        "E": {
+          "mean": 35.4,
+          "sd": 31.6
+        }
+      },
+      "auc": {
+        "A>D": 0.999,
+        "A>C (intent, framing fixed=adversarial)": 0.696,
+        "B>D (intent, framing fixed=vanilla)": 0.788,
+        "C>D (framing+length, no intent)": 0.993,
+        "A>B (framing+length, intent fixed)": 0.962,
+        "B>C (intent vs framing, the crux)": 0.1,
+        "A>E (attack vs harmful-sounding benign)": 0.995,
+        "E>D (harmful-sounding vs plain benign)": 0.675
+      },
+      "rho_len": {
+        "A": 0.33,
+        "B": 0.6,
+        "C": 0.49,
+        "D": -0.3,
+        "E": 0.33
+      },
+      "rho_len_pooled": 0.81
+    },
+    "paper": {
+      "fire": {
+        "A": {
+          "mean": 99.5,
+          "sd": 0.7
+        },
+        "B": {
+          "mean": 54.2,
+          "sd": 9.7
+        },
+        "C": {
+          "mean": 98.7,
+          "sd": 1.3
+        },
+        "D": {
+          "mean": 9.1,
+          "sd": 1.0
+        },
+        "E": {
+          "mean": 27.1,
+          "sd": 5.9
+        }
+      },
+      "auc": {
+        "A>D": 0.993,
+        "A>C (intent, framing fixed=adversarial)": 0.666,
+        "B>D (intent, framing fixed=vanilla)": 0.814,
+        "C>D (framing+length, no intent)": 0.987,
+        "A>B (framing+length, intent fixed)": 0.887,
+        "B>C (intent vs framing, the crux)": 0.171,
+        "A>E (attack vs harmful-sounding benign)": 0.964,
+        "E>D (harmful-sounding vs plain benign)": 0.618
+      },
+      "rho_len": {
+        "A": 0.12,
+        "B": 0.44,
+        "C": 0.21,
+        "D": -0.41,
+        "E": 0.33
+      },
+      "rho_len_pooled": 0.74
+    },
+    "hw_balanced": {
+      "fire": {
+        "A": {
+          "mean": 100.0,
+          "sd": 0.0
+        },
+        "B": {
+          "mean": 100.0,
+          "sd": 0.0
+        },
+        "C": {
+          "mean": 100.0,
+          "sd": 0.0
+        },
+        "D": {
+          "mean": 99.2,
+          "sd": 0.6
+        },
+        "E": {
+          "mean": 100.0,
+          "sd": 0.0
+        }
+      },
+      "auc": {
+        "A>D": 0.806,
+        "A>C (intent, framing fixed=adversarial)": 0.53,
+        "B>D (intent, framing fixed=vanilla)": 0.832,
+        "C>D (framing+length, no intent)": 0.793,
+        "A>B (framing+length, intent fixed)": 0.538,
+        "B>C (intent vs framing, the crux)": 0.482,
+        "A>E (attack vs harmful-sounding benign)": 0.664,
+        "E>D (harmful-sounding vs plain benign)": 0.735
+      },
+      "rho_len": {
+        "A": 0.11,
+        "B": 0.26,
+        "C": 0.08,
+        "D": 0.1,
+        "E": 0.26
+      },
+      "rho_len_pooled": 0.36
+    },
+    "wg_balanced": {
+      "fire": {
+        "A": {
+          "mean": 94.5,
+          "sd": 5.0
+        },
+        "B": {
+          "mean": 93.2,
+          "sd": 5.2
+        },
+        "C": {
+          "mean": 88.3,
+          "sd": 7.7
+        },
+        "D": {
+          "mean": 49.5,
+          "sd": 23.4
+        },
+        "E": {
+          "mean": 80.5,
+          "sd": 11.8
+        }
+      },
+      "auc": {
+        "A>D": 0.89,
+        "A>C (intent, framing fixed=adversarial)": 0.622,
+        "B>D (intent, framing fixed=vanilla)": 0.891,
+        "C>D (framing+length, no intent)": 0.832,
+        "A>B (framing+length, intent fixed)": 0.461,
+        "B>C (intent vs framing, the crux)": 0.63,
+        "A>E (attack vs harmful-sounding benign)": 0.722,
+        "E>D (harmful-sounding vs plain benign)": 0.763
+      },
+      "rho_len": {
+        "A": 0.0,
+        "B": 0.44,
+        "C": 0.09,
+        "D": -0.14,
+        "E": 0.23
+      },
+      "rho_len_pooled": 0.38
+    }
+  },
+  "google/gemma-2-2b-it": {
+    "model": "google/gemma-2-2b-it",
+    "taps": [
+      9,
+      13,
+      17
+    ],
+    "n_per_cell": 128,
+    "median_chars": {
+      "A": 856,
+      "B": 116,
+      "C": 696,
+      "D": 71,
+      "E": 116
+    },
+    "dataset": {
+      "fire": {
+        "A": {
+          "mean": 99.2,
+          "sd": 1.1
+        },
+        "B": {
+          "mean": 94.0,
+          "sd": 8.5
+        },
+        "C": {
+          "mean": 95.8,
+          "sd": 5.3
+        },
+        "D": {
+          "mean": 72.9,
+          "sd": 38.3
+        },
+        "E": {
+          "mean": 88.8,
+          "sd": 15.8
+        }
+      },
+      "auc": {
+        "A>D": 0.944,
+        "A>C (intent, framing fixed=adversarial)": 0.682,
+        "B>D (intent, framing fixed=vanilla)": 0.864,
+        "C>D (framing+length, no intent)": 0.837,
+        "A>B (framing+length, intent fixed)": 0.747,
+        "B>C (intent vs framing, the crux)": 0.455,
+        "A>E (attack vs harmful-sounding benign)": 0.777,
+        "E>D (harmful-sounding vs plain benign)": 0.895
+      },
+      "rho_len": {
+        "A": -0.01,
+        "B": 0.44,
+        "C": 0.16,
+        "D": 0.23,
+        "E": 0.22
+      },
+      "rho_len_pooled": 0.52
+    },
+    "paper": {
+      "fire": {
+        "A": {
+          "mean": 100.0,
+          "sd": 0.0
+        },
+        "B": {
+          "mean": 100.0,
+          "sd": 0.0
+        },
+        "C": {
+          "mean": 100.0,
+          "sd": 0.0
+        },
+        "D": {
+          "mean": 99.7,
+          "sd": 0.4
+        },
+        "E": {
+          "mean": 100.0,
+          "sd": 0.0
+        }
+      },
+      "auc": {
+        "A>D": 0.994,
+        "A>C (intent, framing fixed=adversarial)": 0.619,
+        "B>D (intent, framing fixed=vanilla)": 0.96,
+        "C>D (framing+length, no intent)": 0.983,
+        "A>B (framing+length, intent fixed)": 0.758,
+        "B>C (intent vs framing, the crux)": 0.342,
+        "A>E (attack vs harmful-sounding benign)": 0.921,
+        "E>D (harmful-sounding vs plain benign)": 0.897
+      },
+      "rho_len": {
+        "A": -0.02,
+        "B": 0.36,
+        "C": 0.13,
+        "D": 0.11,
+        "E": 0.14
+      },
+      "rho_len_pooled": 0.67
+    },
+    "hw_balanced": {
+      "fire": {
+        "A": {
+          "mean": 100.0,
+          "sd": 0.0
+        },
+        "B": {
+          "mean": 100.0,
+          "sd": 0.0
+        },
+        "C": {
+          "mean": 100.0,
+          "sd": 0.0
+        },
+        "D": {
+          "mean": 99.7,
+          "sd": 0.4
+        },
+        "E": {
+          "mean": 100.0,
+          "sd": 0.0
+        }
+      },
+      "auc": {
+        "A>D": 0.848,
+        "A>C (intent, framing fixed=adversarial)": 0.74,
+        "B>D (intent, framing fixed=vanilla)": 0.959,
+        "C>D (framing+length, no intent)": 0.711,
+        "A>B (framing+length, intent fixed)": 0.132,
+        "B>C (intent vs framing, the crux)": 0.944,
+        "A>E (attack vs harmful-sounding benign)": 0.182,
+        "E>D (harmful-sounding vs plain benign)": 0.95
+      },
+      "rho_len": {
+        "A": 0.01,
+        "B": 0.0,
+        "C": 0.05,
+        "D": -0.03,
+        "E": -0.07
+      },
+      "rho_len_pooled": -0.08
+    },
+    "wg_balanced": {
+      "fire": {
+        "A": {
+          "mean": 99.5,
+          "sd": 0.7
+        },
+        "B": {
+          "mean": 99.7,
+          "sd": 0.4
+        },
+        "C": {
+          "mean": 95.8,
+          "sd": 2.1
+        },
+        "D": {
+          "mean": 74.5,
+          "sd": 5.5
+        },
+        "E": {
+          "mean": 100.0,
+          "sd": 0.0
+        }
+      },
+      "auc": {
+        "A>D": 0.89,
+        "A>C (intent, framing fixed=adversarial)": 0.707,
+        "B>D (intent, framing fixed=vanilla)": 0.963,
+        "C>D (framing+length, no intent)": 0.771,
+        "A>B (framing+length, intent fixed)": 0.27,
+        "B>C (intent vs framing, the crux)": 0.851,
+        "A>E (attack vs harmful-sounding benign)": 0.517,
+        "E>D (harmful-sounding vs plain benign)": 0.905
+      },
+      "rho_len": {
+        "A": 0.07,
+        "B": 0.34,
+        "C": 0.12,
+        "D": 0.12,
+        "E": 0.18
+      },
+      "rho_len_pooled": 0.19
+    }
+  }
+}

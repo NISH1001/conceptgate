@@ -53,9 +53,10 @@ presence selects nothing, because it fires on 97\% of formatted attacks. One ear
 gate, but it came from a missing chat template. With the template, the steering effect changed sign and
 the gate's advantage disappeared. Three results survive. First, the few-shot direction is a refusal lever
 in both directions (Qwen2.5-0.5B refusal: 64\% unsteered, 35\% steered away, 79\% steered toward). Second,
-the few-shot direction reads register, not intent, on both models. With the two crossed, the gate fires on
-93\% of harmless commands to the model and on 53\% of attacks written as ordinary requests, and its
-false-positive rate changes from 18\% to 96\% with the register of benign traffic. Third, on one
+the few-shot direction reads the surface form of an attack, not its intent, on both models and on real
+prompts. With the two crossed, the gate fires on 93\% of harmless commands to the model and 99\% of
+harmless roleplay prompts, and on 53\% of attacks written as ordinary requests; its false-positive rate
+changes from 18\% to 96\% with the register of benign traffic. Third, on one
 of two models, the unsteered activations predict a prompt's steerability (Spearman $\rho=0.58$,
 permutation $z=6.7$). Steerability is how far a fixed write moves the prompt's sampled refusal rate. The
 concept gate reads it at $\rho=-0.30$, with the wrong sign. As a trigger, predicted steerability beats random
@@ -104,9 +105,9 @@ the useful information.
 \begin{enumerate}[leftmargin=*]
   \item The read side gives no advantage over a probe. A depth-matched logistic probe equals \cg{}
     at every tap (\cref{sec:detect}). On the jailbreak benchmark, a TF-IDF classifier on the raw text is
-    better than both (AUC 0.991). The few-shot jailbreak direction reads the register of the prompt, not
-    its intent. With intent and register crossed, the gate fires on harmless commands to the model as
-    often as on attacks (\cref{sec:register}). Depth fusion gets its predicted gain on synthetic data that satisfies
+    better than both (AUC 0.991). The few-shot jailbreak direction reads the surface form of an attack,
+    not its intent. With the two crossed, on hand-written prompts and on 1,725 real ones, the gate fires
+    on harmless commands and harmless roleplay as often as on attacks (\cref{sec:register}). Depth fusion gets its predicted gain on synthetic data that satisfies
     its assumption (test error 16.1\%$\to$9.4\%). It adds nothing on real models (\cref{sec:fusion}). The
     mixture density stays at one component (\cref{sec:mixture}). A training-free concept bank is
     30--38$\times$ cheaper to build than per-concept LoRA. A linear-probe bank has the same advantage
@@ -386,6 +387,9 @@ Steering gate (\cref{sec:write,sec:dose}) & Hand-written short override framings
 Register $\times$ intent (\cref{sec:register}) & Hand-written: 32 attacks written as ordinary requests and
   32 harmless commands to the model, paired by index with the framed attacks and the in-register benign
   requests. \\
+Real-prompt grid (\cref{sec:register}) & WildGuardMix test~\citep{han2024wildguard}, 128 prompts per harm
+  $\times$ adversarial cell, and OR-Bench hard~\citep{cui2024orbench}, 128 prompts. Balanced fits draw from
+  the WildGuardMix training split. \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -976,6 +980,62 @@ means the presence of a harmful request, because A and B carry one and C and D d
 jailbreak framing from harmful content. The whole test stands on two models and on 32 hand-written prompts
 per cell. It removes one confound. It does not show that there are no others.
 
+\paragraph{Real prompts.} WildGuardMix~\citep{han2024wildguard} labels 1,725 real test prompts on the
+same two axes: harmful or unharmful, and adversarial or vanilla. Its adversarial prompts are long roleplay,
+story, and hypothetical framings (median 700--900 characters), not short commands. So this repeats the
+grid on a different surface axis, with prompts we did not write. We score 128 prompts per cell and add a
+fifth cell, E: 128 prompts from OR-Bench hard~\citep{cui2024orbench}, benign requests that sound harmful.
+\Cref{tab:wildguard} reports four fits. The two gates above read framing on both models. The paper's gate
+fires on 99--100\% of harmless adversarial prompts and ranks them above plain harmful requests (B$>$C
+0.17 on Qwen, 0.34 on gemma), and framing at fixed intent separates at 0.98 (C$>$D). Length is part of
+this axis but not all of it. Across cells, the score correlates with prompt length at $\rho=0.67$--$0.74$,
+because adversarial prompts are six to nine times longer. Inside cells it ranges from $-0.41$ to $+0.44$.
+The length-matched intent comparisons (A$>$C 0.62--0.67, B$>$D 0.81--0.96) show the same weak intent read
+as \cref{tab:grid}. On gemma, the paper's gate also ranks harmful-sounding benign prompts well above plain
+benign ones (E$>$D 0.90; 0.62 on Qwen).
+
+\begin{table}[t]
+\centering
+\small
+\caption{The grid on real prompts. WildGuardMix test, 128 prompts per cell: A = harmful, adversarial;
+B = harmful, vanilla; C = unharmful, adversarial; D = unharmful, vanilla. E = OR-Bench hard, 128 benign
+prompts that sound harmful. Fire rate on the two benign cells that matter (\%, mean $\pm$ SD over three
+resamples), AUC between cells, and the Spearman correlation of the score with prompt length across all
+cells. Eight-shot logistic fits, $z=2$. The hand-written balanced fit is the third row of \cref{tab:grid};
+the WildGuard balanced fit draws four prompts per cell from the training split.}
+\label{tab:wildguard}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcccccccccc}
+\toprule
+ & \multicolumn{2}{c}{fires on (\%)} & \multicolumn{7}{c}{AUC} & \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-10}
+Fit & C & E & A$>$C & B$>$D & C$>$D & B$>$C & A$>$E & E$>$D & $\rho_{\text{len}}$ \\
+\midrule
+\multicolumn{10}{l}{\emph{Qwen2.5-0.5B-Instruct}} \\
+dataset templates vs real benign & $95\pm5$ & $35\pm32$ & 0.70 & 0.79 & 0.99 & 0.10 & 1.00 & 0.68 & 0.81 \\
+hand-written pools (the gate above) & $99\pm1$ & $27\pm6$ & 0.67 & 0.81 & 0.99 & 0.17 & 0.96 & 0.62 & 0.74 \\
+hand-written balanced, transferred & $100\pm0$ & $100\pm0$ & 0.53 & 0.83 & 0.79 & 0.48 & 0.66 & 0.74 & 0.36 \\
+WildGuard-train balanced & $88\pm8$ & $81\pm12$ & 0.62 & 0.89 & 0.83 & 0.63 & 0.72 & 0.76 & 0.38 \\
+\midrule
+\multicolumn{10}{l}{\emph{gemma-2-2b-it}} \\
+dataset templates vs real benign & $96\pm5$ & $89\pm16$ & 0.68 & 0.86 & 0.84 & 0.46 & 0.78 & 0.90 & 0.52 \\
+hand-written pools (the gate above) & $100\pm0$ & $100\pm0$ & 0.62 & 0.96 & 0.98 & 0.34 & 0.92 & 0.90 & 0.67 \\
+hand-written balanced, transferred & $100\pm0$ & $100\pm0$ & 0.74 & 0.96 & 0.71 & 0.94 & 0.18 & 0.95 & $-0.08$ \\
+WildGuard-train balanced & $96\pm2$ & $100\pm0$ & 0.71 & 0.96 & 0.77 & 0.85 & 0.52 & 0.91 & 0.19 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Cell E shows what the register-balanced direction of \cref{tab:grid} reads. Transferred to real prompts,
+it does not separate intent inside long framings on Qwen (A$>$C 0.53, B$>$C 0.48). On gemma it does
+(B$>$C 0.94), but it ranks harmful-sounding benign prompts above real attacks (A$>$E 0.18). So the second
+axis that the balanced fit finds is harmful vocabulary, not intent. A balanced fit from WildGuard's own
+training split, eight prompts per side, is the fix that \cref{sec:future} proposes. It moves B$>$C to 0.63
+on Qwen and 0.85 on gemma, and it still cannot tell attacks from harmful-sounding benign prompts (A$>$E
+0.72 and 0.52). Three surface axes, then: command register, adversarial framing with its length, and
+harmful vocabulary. A few-shot fit reads whichever of them separates its examples, and eight examples per
+side do not pin down intent on real traffic.
+
 % ===================================================================================================
 \section{Per-prompt steerability prediction}
 \label{sec:dose}
@@ -1303,7 +1363,7 @@ Gate selects where to write & Win without chat template; reversed and vanished w
 Bank entries steer away from harm & Lower refusal (80\%$\to$65--68\%) & reversed \\
 Few-shot write is a lever & 64/35/79\% generated refusal; ${\sim}3\times$ random (first token); larger than one system prompt per direction; text stays fluent & holds; prior art \\
 Calibrated gate generalizes & FPR 18\% in register, 96\% out of register & fragile \\
-Direction reads jailbreak intent & Fires on 93--100\% of harmless commands; B$>$C AUC 0.22 (Qwen) and 0.19 (gemma); 0.99 and 0.97 after a register-balanced fit & reads register \\
+Direction reads jailbreak intent & Fires on 93--100\% of harmless commands and 99--100\% of harmless roleplay; B$>$C AUC 0.17--0.34; a balanced fit finds harmful vocabulary, not intent (A$>$E 0.18 on gemma) & reads surface form \\
 Per-prompt dose predictable (proxy) & $\rho=+0.81$; two geometry readings fail controls & holds, narrowed \\
 Per-prompt dose predictable (behaviour) & Greedy instruments: null. Sampled: $\rho=+0.58$, $z=6.7$ on Qwen; absent on gemma & one model of two \\
 \bottomrule
@@ -1318,12 +1378,14 @@ effect of the write, not to concept membership. This conclusion rests on one mod
 
 \paragraph{What a few-shot direction reads.} A direction reads whatever separates the positives from the
 negatives it was fit on. In both of our fit pools, and in the public dataset, that is a command to the model
-against a question from a user. So the direction reads register (\cref{sec:register}). The same activations
-hold an intent signal, and a fit with register balanced across classes finds it from the same number of
-examples. The lesson is about the examples, not the method. A few-shot pool needs negatives that share every
-surface property of the positives except the concept, and the public jailbreak dataset does not supply them.
-The matched-negative result of \cref{sec:negatives} is consistent with this: with register matched at
-$n=15$, the fit did not find the harder axis.
+against a question from a user. So the direction reads register, and on real prompts, adversarial framing
+(\cref{sec:register}). A fit with register balanced across classes finds a second axis from the same number
+of examples, but OR-Bench shows that this axis is harmful vocabulary, and a balanced fit from real traffic
+leaves the intent read weak at eight examples per side. The lesson is about the examples, not the method.
+A few-shot pool needs negatives that share every surface property of the positives except the concept.
+With three surface axes in play, neither the public jailbreak dataset nor eight hand-picked prompts per
+side supply them. The matched-negative result of \cref{sec:negatives} is consistent with this: with register
+matched at $n=15$, the fit did not find the harder axis.
 
 \paragraph{Lessons for the evaluation of steering.} Five practices follow from these results. Format
 prompts as the model expects, and check the code path that does it: in \cref{sec:formatting}, the formatting
@@ -1356,10 +1418,11 @@ wording per direction, on one 0.5B model (\cref{tab:prompting}). We do not compa
 methods such as ITI~\citep{li2023iti} or RepE reading vectors. AxBench~\citep{wu2025axbench} finds that prompting beats representation steering, by a wider margin on its larger model. We do not claim that the write is better than an instruction in general.
 
 \paragraph{The few-shot regime.} All results depend on the diversity of about ten prompts per side. The
-register result in \cref{sec:register} shows how large this dependence is. The $2\times2$ test there removes
-one confound, register, with 32 hand-written prompts per cell on two models. Real traffic has other axes that
-a hand-written grid does not cover, such as length, formality, and the presence of a system prompt. We did
-not test them, and a direction that passes this grid can still read one of them.
+register result in \cref{sec:register} shows how large this dependence is. The $2\times2$ tests there cover
+three surface axes on two models: command register (32 hand-written prompts per cell), adversarial framing
+with its length (WildGuardMix), and harmful vocabulary (OR-Bench). Real traffic has more, such as
+formality, language, and the presence of a system prompt. We did not test them, and a direction that passes
+these grids can still read one of them.
 
 \paragraph{Measurement.} A lexicon and a classifier score refusal. They count declines, not harmlessness.
 The steered refusal text stays fluent (\cref{sec:lever}). But we did not check if the non-refusals help
@@ -1387,12 +1450,13 @@ the base rate and no binary decline as the outcome. Why the calibrated LLR reads
 sign on Qwen and carries no dose information on gemma is also unexplained, and the cause bears on the design
 of steering triggers.
 
-On the detection side, register-robust fitting is the main gap. \Cref{sec:register} shows that the intent
-signal is present and that a register-balanced fit finds it, so the fix is in the examples: fit negatives
-from the traffic that the gate will see, include harmless commands to the model among them, calibrate on
-mixed-register benign pools, and report the false-positive rate per register. A real corpus of benign
-commands (format, persona, and language requests from chat logs) against story-framed attacks would test
-the grid at scale. The design also reads each generated token, but we measured only the prompt side, so per-token
+On the detection side, surface-robust fitting is the main gap. \Cref{sec:register} shows that a balanced
+fit from the traffic the gate will see moves the intent read above chance but not far, at eight examples
+per side. The open question is how many balanced examples the axis needs, and whether a probe at that
+sample size still has an advantage over a text classifier. In practice: fit negatives from the traffic
+that the gate will see, include harmless commands and harmless roleplay among them, calibrate on
+mixed-register benign pools, and report the false-positive rate per register. The design also reads each
+generated token, but we measured only the prompt side, so per-token
 and output-side gates are untested. A fair detection benchmark needs prompts on which a surface-text
 classifier fails, no train--test overlap, and an adversarial evaluation against obfuscated-activation
 attacks. A non-safety concept dataset would test the claim that detection is concept-agnostic. The
@@ -1407,8 +1471,9 @@ writes a related direction back, and we measured each component against a fair b
 design did not hold up: the read equals a linear probe on the same layers, depth fusion and mixture
 densities add nothing at these sample sizes, and a write conditioned on concept presence selects nothing
 once prompts are formatted correctly. Three results hold. A direction fit from eight examples moves refusal
-in either direction. The few-shot direction reads the register of a command to the model, not jailbreak
-intent, and the false-positive rate of the gate follows the register of its traffic.
+in either direction. The few-shot direction reads the surface form of an attack, not its intent, on
+hand-written and on real prompts, and the false-positive rate of the gate follows the register of its
+traffic.
 On one of two models, the unsteered activations predict how far a fixed write will move a prompt, and that
 prediction is a better steering trigger than the concept gate. Whether this last result is a general
 property of language models is the open question, and a magnitude sweep per model is the test that would
@@ -1424,7 +1489,7 @@ measures count declines, not harm, and we do not report how harmful the non-refu
 harmful requests of \cref{app:prompts} because they are short, generic, and similar to requests in public
 safety benchmarks. The register result (\cref{sec:register}) is a warning to deployers: a few-shot gate
 that is calibrated on one kind of traffic can fire on almost all benign traffic of another kind, and on
-almost every harmless instruction to the model, and on the write side, a false fire changes the answer.
+almost every harmless instruction or roleplay prompt, and on the write side, a false fire changes the answer.
 
 \section*{Acknowledgments}
 The author used a large language model to help draft and edit this manuscript. The experiments, analyses,
@@ -1530,6 +1595,7 @@ Result & Harness (under \texttt{scripts/}) \\
 \Cref{sec:cosine}, \cref{tab:cosine} & \texttt{eval\_gate.py --cosine}, \texttt{--decouple} \\
 \Cref{sec:formatting,sec:lever,sec:harmbank,sec:register} & \texttt{eval\_gate.py --gate --signflip --beavertails --logit} \\
 \Cref{tab:grid}, register $\times$ intent & \texttt{eval\_register\_grid.py} \\
+\Cref{tab:wildguard}, the grid on real prompts & \texttt{eval\_wildguard\_grid.py} \\
 \Cref{sec:dose}, proxy and controls & \texttt{eval\_gate.py --steerability}; \texttt{steerability\_controls.py}; \texttt{eval\_behaviour\_check.py} \\
 \Cref{tab:fourmodels} & \texttt{eval\_gate.py --scaleup}; \texttt{analyze\_scaleup.py} \\
 \Cref{sec:instrument,sec:behaviour,sec:outcomegate,sec:gemma} & \texttt{eval\_behaviour\_dose.py}; \texttt{run\_behaviour\_dose.sh}; \texttt{analyze\_behaviour\_dose.py} (the coverage sweep of \cref{tab:coverage} was run ad hoc on the stored out-of-fold predictions; the script gives the 50\% point) \\
