@@ -157,7 +157,7 @@ model. Circuit Breakers~\citep{zou2024circuitbreakers}
 trains the model to reroute harmful representations. We steer a frozen model, so we accept less power for
 less cost. CAST~\citep{lee2024cast} conditions a steering vector on an activation read. It applies or holds
 a refusal vector based on a condition read from the prompt's hidden states. The model then refuses harmful prompts and answers harmless prompts. DSAS~\citep{ferrando2025dsas} also separates when to steer from how
-to steer. It scales the strength of an existing steering method per input and per layer. FASB~\citep{fasb2025necessary} also decides when to steer: it reads a deviation score from the internal states during generation, steers when the score passes a threshold, and backtracks over tokens that already deviated. The setting of \cref{sec:write} is therefore not new. Our contribution there is the controls. One direction mediates refusal~\citep{arditi2024refusal}. The model encodes harmfulness
+to steer. It scales the strength of an existing steering method per input and per layer. FASB~\citep{fasb2025necessary} also decides when to steer. It reads a deviation score from the internal states during generation, steers when the score passes a threshold, and backtracks over tokens that already deviated. The setting of \cref{sec:write} is therefore not new. Our contribution there is the controls. One direction mediates refusal~\citep{arditi2024refusal}. The model encodes harmfulness
 separately from refusal~\citep{zhao2025harmfulness}. Steering along random or unrelated directions can
 decrease refusal~\citep{korznikov2025roguescalpel,li2026pitfalls}. CAST's condition rules classify
 mathematics problems as malicious and refuse them~\citep{sheng2025alphasteer}. Activation-trajectory
@@ -192,7 +192,7 @@ logit-lens diagnostic to predict, per concept and per layer, if a difference-of-
 be effective. \citet{ong2026sideeffects} use unsteered representations to predict the direction of the side effects of a steering vector on other behaviours. Our first-token refusal-minus-compliance statistic is a basket-sum
 variant of the refusal--affirmation logit gap of \citet{li2025logitgap}. The Cylindrical Representation
 Hypothesis~\citep{gao2026crh} gives a geometric explanation of why steering sensitivity changes from sample
-to sample. It does not predict the sensitivity from the unsteered prompt. Two methods fit a supervised per-input predictor to measured steering outcomes, but they predict the best layer, not the size of the effect, and they read an embedding of the input text from a separate model, not the hidden states of the steered model: W2S~\citep{w2s2026layer} selects the intervention layer per input, and \citet{perinstance2026layers} rank layers per instance and add a gate. AdaRAS~\citep{adaras2026neurons} gates a steer on a classifier over the unsteered prompt activations, but the classifier predicts whether the base model will fail, not what the write will do. We are not aware of prior work that fits a supervised per-prompt regressor on the unsteered activations to the measured effect of the write, validates it against sampled behaviour, and uses it as a steering trigger.
+to sample. It does not predict the sensitivity from the unsteered prompt. Two methods fit a supervised per-input predictor to measured steering outcomes. W2S~\citep{w2s2026layer} selects the intervention layer per input, and \citet{perinstance2026layers} rank layers per instance and add a gate. Both predict the best layer rather than the size of the effect, and both read an embedding of the input text from a separate model, not the hidden states of the steered model. AdaRAS~\citep{adaras2026neurons} gates a steer on a classifier over the unsteered prompt activations, but the classifier predicts whether the base model will fail, not what the write will do. We are not aware of prior work that fits a supervised per-prompt regressor on the unsteered activations to the measured effect of the write, validates it against sampled behaviour, and uses it as a steering trigger.
 
 \paragraph{Adversarial limits.}
 Obfuscated-activation attacks can decrease the recall of latent-space probes to zero while the target behaviour continues~\citep{bailey2024obfuscated}. This limit applies to all results in this paper
@@ -468,7 +468,7 @@ best held-out AUC gain & 0.000 & 0.000 & +0.001 & +0.006 & +0.007 \\
 
 \subsection{Matched negatives and paraphrase robustness}
 \label{sec:negatives}
-The matched-pair construction of CAA~\citep{panickssery2023caa}, in which the two prompts of a pair differ only in the target behaviour, suggests that benign negatives in the same surface register as the jailbreaks make the direction more precise. We expected this result. On the development set (15 negatives
+In the matched pairs of CAA~\citep{panickssery2023caa}, the two prompts differ only in the target behaviour. This suggests that benign negatives in the same surface register as the jailbreaks make the direction more precise. We expected this result. On the development set (15 negatives
 of each type), matched negatives gave AUC 0.42. Broad negatives gave 0.78. At this sample size, we read
 0.42 as a failure to separate, not as a stable inversion. Broad negatives let the direction align with the
 large semantic gap between an instruction to the model and an ordinary query. Matched negatives remove
@@ -1181,7 +1181,7 @@ We fit a ridge ($\lambda=10$) on the three z-scored tapped activations, with fol
 null from the identical pipeline is $-0.015\pm0.089$ (300 draws). Thus $z=6.7$ (\cref{fig:dose}a). The plan
 required $z\geq4$. With the out-of-fold predictions fixed, a bootstrap gives a 95\% interval of
 $[+0.46,+0.66]$ when it resamples the fourteen request groups, and $[+0.47,+0.67]$ when it resamples prompts
-(10{,}000 draws each; these intervals were not in the plan). The three concept
+(10{,}000 draws each). These intervals were not in the plan. The three concept
 projections alone get $+0.51$ (group bootstrap $[+0.34,+0.66]$). The full ridge is better than the
 projections by $+0.07$, but this difference is not resolved ($[-0.05,+0.17]$). The calibrated LLR of the
 gate gets $-0.30$ ($[-0.46,-0.12]$): when the concept read is more confident, the write moves the prompt less. This sign is opposite to the first-token result. The
@@ -1388,14 +1388,14 @@ side supply them. The matched-negative result of \cref{sec:negatives} agrees. Wi
 $n=15$, the fit did not find the harder axis.
 
 \paragraph{Lessons for the evaluation of steering.} Five practices follow from these results. Format
-prompts as the model expects, and check the code path that does it: in \cref{sec:formatting}, the formatting
-set the sign of the main effects, the wrong formatting gave a seed-stable result with a plausible mechanism,
-and a read of the code found the error where checks of the results did not. Do not measure an intervention
-with an outcome at its ceiling: a 94\% refusal rate cannot resolve an increase in refusal, so use a
-continuous outcome and a test set with headroom. Always include a matched-norm random direction: random
-writes moved the first-token refusal logit by one third as much as the concept direction, and they moved
+prompts as the model expects, and check the code path that does it. In \cref{sec:formatting}, the formatting
+set the sign of the main effects, and the wrong formatting gave a seed-stable result with a plausible
+mechanism. A read of the code found the error where checks of the results did not. Do not measure an
+intervention with an outcome at its ceiling. A 94\% refusal rate cannot resolve an increase in refusal, so
+use a continuous outcome and a test set with headroom. Always include a matched-norm random direction.
+Random writes moved the first-token refusal logit by one third as much as the concept direction, and
 sampled refusal by more than half as much. Measure the reliability of an instrument before you read its
-null; our first null came from the measurement, not from the model. Compare reliabilities at the same
+null. Our first null came from the measurement, not from the model. Compare reliabilities at the same
 sample size, because split-half statistics change with $K$ when nothing else changes.
 
 % ===================================================================================================
@@ -1440,12 +1440,12 @@ considered an MLP probe variant but did not evaluate it.
 
 The first open test is a magnitude sweep per model for the behavioural dose. It would show if per-prompt
 steerability is a property of language models or only of Qwen2.5-0.5B. The response of each prompt becomes
-a fitted slope, not a two-point difference, and each model is measured where its write has an effect;
-gemma-2-2b at $\alpha=0.08$ is at the noise floor. The same study needs independent replicates (new prompt
-sets per resample, since the current effective replicate count is one), more model families, and instruct
-models at 7--8B. Two extensions follow from it. The first-token proxy follows the sampled dose at $+0.61$
-per prompt and costs five forwards, not 80 generations, so proxy labels may be enough to train an outcome
-head; we did not test this. Outcomes other than refusal, such as topic, tone, and format, have no ceiling in
+a fitted slope, not a two-point difference, and each model is measured where its write has an effect.
+gemma-2-2b at $\alpha=0.08$ is at the noise floor. The same study needs independent replicates with new
+prompt sets per resample, since the current effective replicate count is one. It also needs more model
+families and instruct models at 7--8B. Two extensions follow from it. The first-token proxy follows the
+sampled dose at $+0.61$ per prompt and costs five forwards, not 80 generations, so proxy labels may be
+enough to train an outcome head. We did not test this. Outcomes other than refusal, such as topic, tone, and format, have no ceiling in
 the base rate and no binary decline as the outcome. Why the calibrated LLR reads the dose with the wrong
 sign on Qwen and carries no dose information on gemma is also unexplained, and the cause bears on the design
 of steering triggers.
@@ -1488,9 +1488,9 @@ open weights can do it. Activation steering is already known to decrease
 refusal~\citep{arditi2024refusal,korznikov2025roguescalpel}. We do not release a new attack. Our refusal
 measures count declines, not harm, and we do not report how harmful the non-refusals are. We release the
 harmful requests of \cref{app:prompts} because they are short, generic, and similar to requests in public
-safety benchmarks. The register result (\cref{sec:register}) is a warning to deployers: a few-shot gate
+safety benchmarks. The register result (\cref{sec:register}) is a warning to deployers. A few-shot gate
 that is calibrated on one kind of traffic can fire on almost all benign traffic of another kind, and on
-almost every harmless instruction or roleplay prompt, and on the write side, a false fire changes the answer.
+almost every harmless instruction or roleplay prompt. On the write side, a false fire changes the answer.
 
 \section*{Acknowledgments}
 The author used a large language model to help draft and edit this manuscript. The experiments, analyses,
