@@ -1177,7 +1177,7 @@ We fit a ridge ($\lambda=10$) on the three z-scored tapped activations, with fol
 null from the identical pipeline is $-0.015\pm0.089$ (300 draws). Thus $z=6.7$ (\cref{fig:dose}a). The plan
 required $z\geq4$. With the out-of-fold predictions fixed, a bootstrap gives a 95\% interval of
 $[+0.46,+0.66]$ when it resamples the fourteen request groups, and $[+0.47,+0.67]$ when it resamples prompts
-(10{,}000 draws each). These intervals were not in the plan. The three concept
+(10{,}000 draws each). The three concept
 projections alone get $+0.51$ (group bootstrap $[+0.34,+0.66]$). The full ridge is better than the
 projections by $+0.07$, but this difference is not resolved ($[-0.05,+0.17]$). The calibrated LLR of the
 gate gets $-0.30$ ($[-0.46,-0.12]$): when the concept read is more confident, the write moves the prompt less. This sign is opposite to the first-token result. The
