@@ -196,11 +196,12 @@ Kenneth Li, Oam Patel, Fernanda Vi{\'e}gas, Hanspeter Pfister, and Martin
 \newblock In \emph{Advances in Neural Information Processing Systems}, 2023.
 \newblock arXiv:2306.03341.
 
-\bibitem[Li and Liu(2025)]{li2025logitgap}
+\bibitem[Li and Liu(2026)]{li2025logitgap}
 Tung-Ling Li and Hongliang Liu.
 \newblock Logit-gap steering: A forward-pass diagnostic for alignment
   robustness.
-\newblock \emph{arXiv preprint arXiv:2506.24056}, 2025.
+\newblock In \emph{Advances in Neural Information Processing Systems}, 2026.
+\newblock arXiv:2506.24056.
 
 \bibitem[Li et~al.(2026)Li, Fastowski, Zaradoukas, Prenkaj, and
   Kasneci]{li2026pitfalls}
@@ -295,7 +296,9 @@ Zhengxuan Wu, Aryaman Arora, Atticus Geiger, Zheng Wang, Jing Huang, Dan
 Urchade Zaratiana, Nadi Tomeh, Pierre Holat, and Thierry Charnois.
 \newblock {GLiNER}: Generalist model for named entity recognition using
   bidirectional transformer.
-\newblock In \emph{Proceedings of NAACL}, 2024.
+\newblock In \emph{Proceedings of the 2024 Conference of the North American
+  Chapter of the Association for Computational Linguistics: Human Language
+  Technologies (Volume 1: Long Papers)}, pages 5364--5376, 2024.
 \newblock arXiv:2311.08526.
 
 \bibitem[Zhao et~al.(2025)Zhao, Huang, Wu, Bau, and Shi]{zhao2025harmfulness}

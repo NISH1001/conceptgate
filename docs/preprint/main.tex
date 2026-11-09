@@ -47,21 +47,20 @@ topic, or a tone. Often they have few examples and cannot retrain the model. One
 direction can detect a concept, and the same direction, added back, can steer generation. We test how far
 this goes with about ten examples per class and closed-form fitting. \cg{} reads a concept at several
 layers, fuses the layers with a learned depth filter, gates on a calibrated likelihood ratio, and steers
-with a direction fit from the same examples. Against fair baselines on five models up to 2.6B parameters, most of the design fails. A logistic probe on the same layers matches the detector. Depth
-fusion helps only on synthetic data. Mixture densities collapse to one component. A gate on concept
-presence selects nothing, because it fires on 97\% of formatted attacks. One early result favoured the
-gate, but it came from a missing chat template. With the template, the steering effect changed sign and
-the gate's advantage disappeared. Three results survive. First, the few-shot direction is a refusal lever
-in both directions (Qwen2.5-0.5B refusal: 64\% unsteered, 35\% steered away, 79\% steered toward). Second,
-the few-shot direction reads the surface form of an attack, not its intent, on both models and on real
-prompts. With the two crossed, the gate fires on 93\% of harmless commands to the model and on 99\% of
-harmless roleplay prompts. It fires on 53\% of attacks written as ordinary requests. Its false-positive rate
-changes from 18\% to 96\% with the register of benign traffic. Third, on one
-of two models, the unsteered activations predict a prompt's steerability (Spearman $\rho=0.58$,
-permutation $z=6.7$). Steerability is how far a fixed write moves the prompt's sampled refusal rate. The
-concept gate reads it at $\rho=-0.30$, with the wrong sign. As a trigger, predicted steerability beats random
-selection at every tested coverage. On gemma-2-2b, the same write barely moves refusal, so the claim is untested there. We also show how an unvalidated outcome measure gave a false null, and
-why split-half reliability is not comparable across sample sizes.
+with a direction fit from the same examples. Against fair baselines on five models up to 2.6B parameters,
+most of the design fails. A logistic probe on the same layers matches the detector. Depth fusion and
+mixture densities add nothing on real models. A gate on concept presence selects nothing, because it
+fires on 97\% of formatted attacks. One early result favoured the gate. It came from a missing chat
+template. Three results survive. First, the few-shot direction is a refusal lever in both directions
+(Qwen2.5-0.5B refusal: 64\% unsteered, 35\% away, 79\% toward). Second, the direction reads the surface
+form of an attack, not its intent, on two models and on real prompts. The gate fires on 93\% of harmless
+commands to the model, 99\% of harmless roleplay prompts, and 53\% of attacks written as ordinary
+requests. Its false-positive rate changes from 18\% to 96\% with the register of benign traffic. Third, on
+Qwen2.5-0.5B, the unsteered activations predict how far a fixed write moves a prompt's sampled refusal
+rate (Spearman $\rho=0.58$, permutation $z=6.7$). The concept gate reads this steerability at
+$\rho=-0.30$, with the wrong sign. As a trigger, predicted steerability beats random selection at every
+tested coverage. On gemma-2-2b, the write barely moves refusal, so the claim is untested there. We also
+show how an unvalidated outcome measure gave a false null.
 \end{abstract}
 
 % ===================================================================================================
@@ -410,10 +409,10 @@ in. The sampled behavioural study (from the sampled instrument in \cref{sec:inst
 written plan. The plan fixed the instrument, the reliability bar,
 the stop rules, and the success criteria before the first run. It is
 \texttt{docs/plans/steerability-gate.md} in the repository (commit \texttt{31cb85f}, committed before the
-first results in commit \texttt{192cb6e}). Four analyses are post hoc:
+first results in commit \texttt{192cb6e}). Five analyses are post hoc:
 the text-only baseline and the duplicate check (\cref{sec:detect}), the system-prompt baseline and the
-fluency scores (\cref{sec:lever}), and the bootstrap intervals (\cref{sec:behaviour}). The last two use
-only stored outputs.
+fluency scores (\cref{sec:lever}), and the bootstrap intervals (\cref{sec:behaviour}). The fluency scores
+and the bootstrap intervals use only stored outputs.
 
 % ===================================================================================================
 \section{Detection experiments}
@@ -934,7 +933,7 @@ direction reads intent, B fires and C does not. If it reads register, C fires an
 \small
 \caption{Register $\times$ intent. Cells: A = attack as a command to the model, B = the same harmful request
 as an ordinary request, C = the same command framing with a harmless request, D = ordinary benign request.
-Fire rate per cell (\%, mean $\pm$ SD over three resamples) and AUC of the score between pairs of cells.
+Fire rate per cell (\%, mean $\pm$ s.d. over three resamples) and AUC of the score between pairs of cells.
 Qwen2.5-0.5B-Instruct (taps 8/12/16) and gemma-2-2b-it (taps 9/13/17, bfloat16), 32 prompts per cell,
 $z=2$. B$>$C is the diagnostic: above 0.5, the direction ranks benign-looking attacks above harmless
 commands.}
@@ -999,7 +998,7 @@ benign ones (E$>$D 0.90; 0.62 on Qwen).
 \small
 \caption{The grid on real prompts. WildGuardMix test, 128 prompts per cell: A = harmful, adversarial;
 B = harmful, vanilla; C = unharmful, adversarial; D = unharmful, vanilla. E = OR-Bench hard, 128 benign
-prompts that sound harmful. Fire rate on the two benign cells that matter (\%, mean $\pm$ SD over three
+prompts that sound harmful. Fire rate on the two benign cells that matter (\%, mean $\pm$ s.d. over three
 resamples), AUC between cells, and the Spearman correlation of the score with prompt length across all
 cells. Eight-shot logistic fits, $z=2$. The hand-written balanced fit is the third row of \cref{tab:grid};
 the WildGuard balanced fit draws four prompts per cell from the training split.}
